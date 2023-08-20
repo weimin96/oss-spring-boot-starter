@@ -2,6 +2,7 @@ package com.wiblog.oss.bean;
 
 import lombok.Builder;
 import lombok.Data;
+import lombok.experimental.Accessors;
 
 /**
  * @author panwm
@@ -9,11 +10,13 @@ import lombok.Data;
  */
 @Builder
 @Data
-public class ObjectResp {
+public class ObjectInfo {
 
     private String uri;
 
     private String url;
 
     private String filename;
+
+    private String uploadTime;
 }

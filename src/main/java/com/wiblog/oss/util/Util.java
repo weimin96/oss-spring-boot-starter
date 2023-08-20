@@ -2,6 +2,8 @@ package com.wiblog.oss.util;
 
 import com.amazonaws.util.StringUtils;
 
+import java.io.File;
+
 /**
  * 工具类
  * @author panwm
@@ -43,5 +45,51 @@ public class Util {
             path += "/";
         }
         return path;
+    }
+
+    /**
+     * 删除文件
+     *
+     * @param filePath 文件
+     * @return
+     */
+    public static boolean deleteFile(String filePath) {
+        boolean flag = false;
+        try {
+            File file = new File(filePath);
+            // 路径为文件且不为空则进行删除
+            if (file.isFile() && file.exists()) {
+                return file.delete();
+            } else if (file.isDirectory() && file.exists()) {
+                return deleteDir(file);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return flag;
+    }
+
+    /**
+     * 递归删除目录下的所有文件及子目录下所有文件
+     *
+     * @param dir 将要删除的文件目录
+     * @return boolean
+     */
+    private static boolean deleteDir(File dir) {
+        if (dir.isDirectory()) {
+            String[] children = dir.list();
+            if (children != null) {
+                //递归删除目录中的子目录下
+                for (String child : children) {
+                    boolean success = deleteDir(new File(dir, child));
+                    if (!success) {
+                        return false;
+                    }
+                }
+            }
+
+        }
+        // 目录此时为空，可以删除
+        return dir.delete();
     }
 }
