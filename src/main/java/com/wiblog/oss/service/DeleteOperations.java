@@ -8,15 +8,10 @@ import com.wiblog.oss.bean.OssProperties;
  * @author panwm
  * @date 2023/8/20 21:42
  */
-public class DeleteOperations {
-
-    private final OssProperties ossProperties;
-
-    private final AmazonS3 amazonS3;
+public class DeleteOperations extends Operations {
 
     public DeleteOperations(AmazonS3 amazonS3, OssProperties ossProperties) {
-        this.ossProperties = ossProperties;
-        this.amazonS3 = amazonS3;
+        super(ossProperties, amazonS3);
     }
 
     /**

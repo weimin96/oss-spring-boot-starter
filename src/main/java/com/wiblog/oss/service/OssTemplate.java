@@ -52,6 +52,29 @@ public class OssTemplate {
         this.amazonS3 = AmazonS3ClientBuilder.standard().withEndpointConfiguration(endpointConfiguration)
                 .withClientConfiguration(clientConfiguration).withCredentials(awsCredentialsProvider)
                 .disableChunkedEncoding().withPathStyleAccessEnabled(true).build();
+
+        if (ossProperties.isCross()) {
+            cross();
+        }
+    }
+
+    /**
+     * 跨域设置
+     */
+    private void cross() {
+
+        // 创建CORS规则列表
+        List<CORSRule> corsRules = new ArrayList<>();
+        // 添加允许跨域访问的规则
+        CORSRule corsRule = new CORSRule();
+        corsRule.setAllowedOrigins("*");
+        corsRule.setAllowedMethods(CORSRule.AllowedMethods.GET);
+        corsRule.setAllowedHeaders("*");
+        corsRules.add(corsRule);
+
+        // 创建BucketCrossOriginConfiguration对象
+        BucketCrossOriginConfiguration configuration = new BucketCrossOriginConfiguration(corsRules);
+        amazonS3.setBucketCrossOriginConfiguration(ossProperties.getBucketName(), configuration);
     }
 
     private void initOps() {

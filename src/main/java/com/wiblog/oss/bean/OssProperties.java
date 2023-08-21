@@ -41,6 +41,11 @@ public class OssProperties {
      */
     private String secretKey;
 
+    /**
+     * 是否允许跨域 默认不允许
+     */
+    private boolean cross = false;
+
     static class Http {
 
         /**

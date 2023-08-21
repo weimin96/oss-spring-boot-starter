@@ -1,4 +1,4 @@
-package com.wiblog.oss.bean;
+package com.wiblog.oss.bean.chunk;
 
 import lombok.AllArgsConstructor;
 import lombok.Data;
@@ -19,9 +19,17 @@ import java.util.List;
 @NoArgsConstructor
 public class ChunkProcess {
 
-    private String uploadId; // s3 对应的分片上传任务的id
-    private String filename;
-    private List<ChunkPart> chunkList = new ArrayList<>(); // 分片信息
+    /**
+     * s3 对应的分片上传任务的id
+     */
+    private String uploadId;
+
+    private String objectKey;
+
+    /**
+     * 分片信息
+     */
+    private List<ChunkPart> chunkList = new ArrayList<>();
 
 
     /**
@@ -33,7 +41,9 @@ public class ChunkProcess {
     @AllArgsConstructor
     @NoArgsConstructor
     public static class ChunkPart {
+
         private String location;
+
         private int chunkNumber;
     }
 }

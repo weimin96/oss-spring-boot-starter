@@ -2,8 +2,8 @@ package com.wiblog.oss.service;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
-import com.wiblog.oss.bean.Chunk;
-import com.wiblog.oss.bean.ChunkProcess;
+import com.wiblog.oss.bean.chunk.Chunk;
+import com.wiblog.oss.bean.chunk.ChunkProcess;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.util.Util;
@@ -17,13 +17,10 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.text.SimpleDateFormat;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -35,15 +32,15 @@ import java.util.stream.Stream;
  * @date 2023/8/20 18:05
  */
 @Slf4j
-public class PutOperations {
+public class PutOperations extends Operations {
 
-    private final OssProperties ossProperties;
-
-    private final AmazonS3 amazonS3;
+    /**
+     * 分片进度
+     */
+    private static final Map<String, ChunkProcess> CHUNK_PROCESS_STORAGE = new ConcurrentHashMap<>();
 
     public PutOperations(AmazonS3 amazonS3, OssProperties ossProperties) {
-        this.amazonS3 = amazonS3;
-        this.ossProperties = ossProperties;
+        super(ossProperties, amazonS3);
     }
 
     /**
@@ -97,7 +94,7 @@ public class PutOperations {
     private ObjectInfo putObject(PutObjectRequest request, String objectName) {
         // 执行文件上传
         amazonS3.putObject(request);
-        return getObjectResp(objectName);
+        return getObjectInfo(objectName);
     }
 
     /**
@@ -140,51 +137,23 @@ public class PutOperations {
         }
     }
 
-    /**
-     * 构造返回结构
-     *
-     * @param objectName objectName
-     * @return ObjectResp
-     */
-    private ObjectInfo getObjectResp(String objectName) {
-        URL url;
-        try {
-            url = new URL(ossProperties.getEndpoint());
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
-
-        return ObjectInfo.builder()
-                .uri(objectName)
-                .url(url.getProtocol() + "://" + ossProperties.getBucketName() + "." + url.getHost() + "/" + objectName)
-                .filename(Util.getFilename(objectName))
-                .build();
-    }
-
-
-    // 分片进度
-    private static final Map<String, ChunkProcess> CHUNK_PROCESS_STORAGE = new ConcurrentHashMap<>();
-
-    // 文件列表
-    private static final List<ObjectInfo> FILE_STORAGE = new CopyOnWriteArrayList<>();
-
-    public String initTask(String filename) {
+    private String initTask(String objectName) {
         // 初始化分片上传任务
-        InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(ossProperties.getBucketName(), filename);
+        InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(ossProperties.getBucketName(), objectName)
+                .withCannedACL(CannedAccessControlList.PublicRead);
         InitiateMultipartUploadResult initResponse = amazonS3.initiateMultipartUpload(initRequest);
         return initResponse.getUploadId();
     }
 
     public void chunk(Chunk chunk) {
-        String filename = chunk.getFilename();
-        boolean match = FILE_STORAGE.stream().anyMatch(ObjectInfo -> ObjectInfo.getFilename().equals(filename));
-        if (match) {
-            throw new RuntimeException("File [ " + filename + " ] already exist");
-        }
+        String guid = chunk.getGuid();
+        String objectKey = Util.formatPath(chunk.getPath()) + chunk.getFilename();
         ChunkProcess chunkProcess;
         String uploadId;
-        if (CHUNK_PROCESS_STORAGE.containsKey(filename)) {
-            chunkProcess = CHUNK_PROCESS_STORAGE.get(filename);
+
+
+        if (CHUNK_PROCESS_STORAGE.containsKey(guid)) {
+            chunkProcess = CHUNK_PROCESS_STORAGE.get(guid);
             uploadId = chunkProcess.getUploadId();
             AtomicBoolean isUploaded = new AtomicBoolean(false);
             Optional.ofNullable(chunkProcess.getChunkList()).ifPresent(chunkPartList ->
@@ -194,32 +163,31 @@ public class PutOperations {
                 return;
             }
         } else {
-            uploadId = initTask(filename);
-            chunkProcess = new ChunkProcess().setFilename(filename).setUploadId(uploadId);
-            CHUNK_PROCESS_STORAGE.put(filename, chunkProcess);
+            // 初始化
+            uploadId = initTask(objectKey);
+            chunkProcess = new ChunkProcess().setObjectKey(objectKey).setUploadId(uploadId);
+            CHUNK_PROCESS_STORAGE.put(guid, chunkProcess);
         }
 
         List<ChunkProcess.ChunkPart> chunkList = chunkProcess.getChunkList();
         String chunkId = chunk(chunk, uploadId);
         chunkList.add(new ChunkProcess.ChunkPart(chunkId, chunk.getChunkNumber()));
-        CHUNK_PROCESS_STORAGE.put(filename, chunkProcess.setChunkList(chunkList));
+        CHUNK_PROCESS_STORAGE.put(guid, chunkProcess.setChunkList(chunkList));
     }
 
-    public void merge(String filename) {
-        ChunkProcess chunkProcess = CHUNK_PROCESS_STORAGE.get(filename);
-        merge(chunkProcess);
-        SimpleDateFormat simpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-        String currentTime = simpleDateFormat.format(new Date());
-        FILE_STORAGE.add(ObjectInfo.builder().uploadTime(currentTime).filename(filename).build());
-        CHUNK_PROCESS_STORAGE.remove(filename);
+    public ObjectInfo merge(String guid) {
+        ChunkProcess chunkProcess = CHUNK_PROCESS_STORAGE.get(guid);
+        ObjectInfo merge = merge(chunkProcess);
+        CHUNK_PROCESS_STORAGE.remove(guid);
+        return merge;
     }
 
-    public String chunk(Chunk chunk, String uploadId) {
+    private String chunk(Chunk chunk, String uploadId) {
         try (InputStream in = chunk.getFile().getInputStream()) {
             // 上传
             UploadPartRequest uploadRequest = new UploadPartRequest()
                     .withBucketName(ossProperties.getBucketName())
-                    .withKey(chunk.getFilename())
+                    .withKey(Util.formatPath(chunk.getPath()) + chunk.getFilename())
                     .withUploadId(uploadId)
                     .withInputStream(in)
                     .withPartNumber(chunk.getChunkNumber())
@@ -232,14 +200,26 @@ public class PutOperations {
         }
     }
 
-    public void merge(ChunkProcess chunkProcess) {
+    private ObjectInfo merge(ChunkProcess chunkProcess) {
         List<PartETag> partETagList = chunkProcess.getChunkList()
                 .stream()
                 .map(chunkPart -> new PartETag(chunkPart.getChunkNumber(), chunkPart.getLocation()))
                 .collect(Collectors.toList());
-        CompleteMultipartUploadRequest compRequest = new CompleteMultipartUploadRequest(ossProperties.getBucketName(), chunkProcess.getFilename(),
+        CompleteMultipartUploadRequest compRequest = new CompleteMultipartUploadRequest(ossProperties.getBucketName(), chunkProcess.getObjectKey(),
                 chunkProcess.getUploadId(), partETagList);
         amazonS3.completeMultipartUpload(compRequest);
+        URL url;
+        try {
+            url = new URL(ossProperties.getEndpoint());
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+        return ObjectInfo.builder()
+                .uri(chunkProcess.getObjectKey())
+                .url(url.getProtocol() + "://" + ossProperties.getBucketName() + "." + url.getHost() + "/" + chunkProcess.getObjectKey())
+                .name(Util.getFilename(chunkProcess.getObjectKey()))
+                .build();
+
     }
 
 }

@@ -17,6 +17,8 @@
         <java.version>1.8</java.version>
         <aws.version>1.12.533</aws.version>
         <mica.auto.version>3.0.0</mica.auto.version>
+        <swagger.version>1.5.22</swagger.version>
+        <swagger.v3.version>2.1.10</swagger.v3.version>
     </properties>
     <dependencies>
         <dependency>
@@ -46,12 +48,35 @@
 <!--            <scope>provided</scope>-->
 <!--        </dependency>-->
 
+        <!-- validation-api -->
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
+            <scope>provided</scope>
+        </dependency>
+
+        <!-- swagger -->
+        <dependency>
+            <groupId>io.swagger</groupId>
+            <artifactId>swagger-annotations</artifactId>
+            <version>${swagger.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations</artifactId>
+            <version>${swagger.v3.version}</version>
+            <scope>provided</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-devtools</artifactId>
             <scope>runtime</scope>
             <optional>true</optional>
         </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

@@ -1,8 +1,12 @@
 package com.wiblog.oss.bean;
 
+import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
-import lombok.experimental.Accessors;
+import lombok.NoArgsConstructor;
+import org.springframework.format.annotation.DateTimeFormat;
+
+import java.util.Date;
 
 /**
  * @author panwm
@@ -10,13 +14,16 @@ import lombok.experimental.Accessors;
  */
 @Builder
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class ObjectInfo {
 
     private String uri;
 
     private String url;
 
-    private String filename;
+    private String name;
 
-    private String uploadTime;
+    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    private Date uploadTime;
 }
