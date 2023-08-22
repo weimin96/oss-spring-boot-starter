@@ -1,6 +1,12 @@
 package com.wiblog.oss.bean;
 
+import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.experimental.Accessors;
+
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -8,12 +14,21 @@ import java.util.List;
  * @author panwm
  * @date 2023/8/22 0:05
  */
+@Getter
+@Setter
+@Accessors(chain = true)
 public class ObjectTreeNode extends ObjectInfo {
+
+    /**
+     * 文件类型 folder/file
+     */
+    private String type;
 
     private List<ObjectTreeNode> children;
 
-    public ObjectTreeNode(String name) {
-        this.setName(name);
+    public ObjectTreeNode(String name, String uri, String url, Date uploadTime, String type) {
+        super(name, uri, url, uploadTime);
+        this.type = type;
         this.children = new ArrayList<>();
     }
 

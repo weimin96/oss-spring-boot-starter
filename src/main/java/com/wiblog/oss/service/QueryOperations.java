@@ -68,78 +68,79 @@ public class QueryOperations extends Operations {
         return getObjectInfo(object);
     }
 
+    private List<S3ObjectSummary> listObjects(String objectName) {
+        // 列出存储桶中的对象
+        ListObjectsV2Request request = new ListObjectsV2Request()
+                .withBucketName(ossProperties.getBucketName()).withPrefix(objectName);
+
+        List<S3ObjectSummary> objects = new ArrayList<>();
+        ListObjectsV2Result response = null;
+
+        do {
+            response = amazonS3.listObjectsV2(request);
+            objects.addAll(response.getObjectSummaries());
+
+            if (response.isTruncated()) {
+                String token = response.getNextContinuationToken();
+                request.setContinuationToken(token);
+            }
+        } while (response.isTruncated());
+
+        return objects;
+    }
+
     /**
      * 获取目录结构
      *
      * @param objectName 文件全路径
      */
-    public List<ObjectTreeNode> getTreeList(String objectName) {
-        List<ObjectTreeNode> tree = new ArrayList<>();
-        String rootKey = "";
-
-        // 列出存储桶中的对象
-        ListObjectsV2Request listObjectsRequest = new ListObjectsV2Request()
-                .withBucketName(ossProperties.getBucketName()).withPrefix(objectName);
-
-        ListObjectsV2Result result;
-        do {
-
-            result = amazonS3.listObjectsV2(listObjectsRequest);
-
-            for (S3ObjectSummary objectSummary : result.getObjectSummaries()) {
-                String key = objectSummary.getKey();
-                String[] parts = key.split("/");
-
-                // 将文件键（key）分解成单个路径部分，构建树形结构
-                ObjectTreeNode currentNode = null;
-                for (String part : parts) {
-                    if (!existsInTree(tree, part)) {
-                        ObjectTreeNode newNode = new ObjectTreeNode(part);
-                        if (currentNode == null) {
-                            currentNode = newNode;
-                            rootKey = part;
-                        } else {
-                            currentNode.addChild(newNode);
-                            currentNode = newNode;
-                        }
-                        tree.add(newNode);
-                    } else {
-                        currentNode = findInTree(tree, part);
-                    }
-                }
-            }
-
-            listObjectsRequest.setContinuationToken(result.getNextContinuationToken());
-        } while (result.isTruncated());
-
-        // 打印树形结构
-        printTree(findInTree(tree, rootKey), "");
-        return tree;
+    public ObjectTreeNode getTreeList(String objectName) {
+        List<S3ObjectSummary> objects = listObjects(objectName);
+        return buildTree(objects, objectName);
     }
 
-    private static ObjectTreeNode findInTree(List<ObjectTreeNode> tree, String name) {
-        for (ObjectTreeNode node : tree) {
-            if (node.getName().equals(name)) {
+    public ObjectTreeNode buildTree(List<S3ObjectSummary> objectList, String objectName) {
+        int i = objectName.lastIndexOf("/");
+        String rootName = (i > 0) ? objectName.substring(i + 1) : objectName;
+        ObjectTreeNode root = new ObjectTreeNode(rootName, objectName, getDomain() + objectName, null, "folder");
+
+        for (S3ObjectSummary object : objectList) {
+            if (object.getKey().startsWith(objectName + "/")) {
+                String remainingPath = object.getKey().substring(objectName.length() + 1);
+                addNode(root, remainingPath, object);
+            }
+        }
+
+        return root;
+    }
+
+    private void addNode(ObjectTreeNode parentNode, String remainingPath, S3ObjectSummary object) {
+        int slashIndex = remainingPath.indexOf('/');
+        if (slashIndex == -1) { // 文件节点
+            ObjectTreeNode fileNode = new ObjectTreeNode(remainingPath, object.getKey(), getDomain() + object.getKey(), object.getLastModified(), "file");
+            parentNode.getChildren().add(fileNode);
+        } else { // 文件夹节点
+            String folderName = remainingPath.substring(0, slashIndex);
+            String newRemainingPath = remainingPath.substring(slashIndex + 1);
+
+            // 在当前节点的子节点中查找是否已存在同名文件夹节点
+            ObjectTreeNode folderNode = findFolderNode(parentNode.getChildren(), folderName);
+            if (folderNode == null) { // 若不存在，则创建新的文件夹节点
+                folderNode = new ObjectTreeNode(folderName, parentNode.getUri() + "/" + folderName, getDomain() + parentNode.getUri() + "/" + folderName, null, "folder");
+                parentNode.getChildren().add(folderNode);
+            }
+
+            addNode(folderNode, newRemainingPath, object);
+        }
+    }
+
+    private ObjectTreeNode findFolderNode(List<ObjectTreeNode> nodes, String folderName) {
+        for (ObjectTreeNode node : nodes) {
+            if (node.getName().equals(folderName) && "folder".equals(node.getType())) {
                 return node;
             }
         }
         return null;
-    }
-
-    private static boolean existsInTree(List<ObjectTreeNode> tree, String name) {
-        for (ObjectTreeNode node : tree) {
-            if (node.getName().equals(name)) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static void printTree(ObjectTreeNode node, String indent) {
-        System.out.println(indent + node.getName());
-        for (ObjectTreeNode child : node.getChildren()) {
-            printTree(child, indent + "  ");
-        }
     }
 
 }

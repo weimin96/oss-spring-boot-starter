@@ -89,8 +89,8 @@ public class OssController {
     @GetMapping("/object/tree/{objectName}")
     @ApiOperation(value = "获取文件目录树")
     @ApiImplicitParam(name = "objectName", value = "文件目录", dataType = "String", paramType = "form")
-    public ResponseEntity<List<ObjectTreeNode>> getObjectTree(@PathVariable @NotBlank String objectName) {
-        List<ObjectTreeNode> tree = ossTemplate.query().getTreeList(objectName);
+    public ResponseEntity<ObjectTreeNode> getObjectTree(@PathVariable @NotBlank String objectName) {
+        ObjectTreeNode tree = ossTemplate.query().getTreeList(objectName);
         return ResponseEntity.ok(tree);
     }
 
