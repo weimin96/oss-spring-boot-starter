@@ -24,7 +24,7 @@ import java.util.List;
 /**
  * web端点
  * @author panwm
- * @date 2023/8/20 1:38
+ * @since 2023/8/20 1:38
  */
 @Validated
 @RestController
@@ -110,10 +110,10 @@ public class OssController {
 
     /**
      * 上传文件
-     *
      * @param file 文件
      * @param path 存放路径
      * @return 响应
+     * @throws IOException io异常
      */
     @PostMapping(value = "/object/{path}")
     @ApiOperation(value = "上传文件")

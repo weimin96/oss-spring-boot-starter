@@ -11,7 +11,7 @@ import java.util.List;
 /**
  * 分片进度
  * @author panwm
- * @date 2023/8/20 23:11
+ * @since 2023/8/20 23:11
  */
 @Data
 @Accessors(chain = true)

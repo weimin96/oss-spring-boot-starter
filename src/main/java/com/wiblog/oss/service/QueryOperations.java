@@ -15,7 +15,7 @@ import java.util.stream.Collectors;
 
 /**
  * @author panwm
- * @date 2023/8/20 21:40
+ * @since 2023/8/20 21:40
  */
 public class QueryOperations extends Operations {
 
@@ -24,9 +24,17 @@ public class QueryOperations extends Operations {
     }
 
     /**
+     * 获取全部bucket
+     * @return Bucket列表
+     */
+    public List<Bucket> getAllBuckets() {
+        return amazonS3.listBuckets();
+    }
+
+    /**
      * 根据文件前置查询文件
-     *
      * @param prefix 前缀
+     * @return Object列表
      */
     public List<ObjectInfo> getAllObjectsByPrefix(String prefix) {
         ObjectListing objectListing = amazonS3.listObjects(ossProperties.getBucketName(), prefix);
@@ -40,8 +48,8 @@ public class QueryOperations extends Operations {
 
     /**
      * 根据文件前置查询文件
-     *
      * @param prefix 前缀
+     * @return Object列表
      */
     public List<ObjectInfo> listObjectsV2(String prefix) {
         // 列出存储桶中的对象
@@ -91,8 +99,8 @@ public class QueryOperations extends Operations {
 
     /**
      * 获取目录结构
-     *
      * @param objectName 文件全路径
+     * @return 树形结构
      */
     public ObjectTreeNode getTreeList(String objectName) {
         List<S3ObjectSummary> objects = listObjects(objectName);

@@ -6,7 +6,7 @@ import com.wiblog.oss.bean.OssProperties;
 /**
  * 移除操作
  * @author panwm
- * @date 2023/8/20 21:42
+ * @since 2023/8/20 21:42
  */
 public class DeleteOperations extends Operations {
 

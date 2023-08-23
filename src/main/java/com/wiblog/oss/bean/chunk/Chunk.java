@@ -11,7 +11,7 @@ import javax.validation.constraints.NotNull;
 /**
  * 文件块
  * @author panwm
- * @date 2023/8/20 23:10
+ * @since 2023/8/20 23:10
  */
 @Data
 @ApiModel(value = "文件分片上传")

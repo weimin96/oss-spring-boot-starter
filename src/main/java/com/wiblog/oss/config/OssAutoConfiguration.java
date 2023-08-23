@@ -24,7 +24,12 @@ public class OssAutoConfiguration {
     private static final Logger log = LoggerFactory.getLogger(OssAutoConfiguration.class);
 
     /**
+     *
+     * @return OSS操作模板
+     */
+    /**
      * OSS操作模板
+     * @param properties properties配置
      * @return OSS操作模板
      */
     @Bean
