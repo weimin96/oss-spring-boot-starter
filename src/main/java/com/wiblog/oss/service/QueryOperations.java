@@ -7,19 +7,17 @@ import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.util.Util;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.nio.file.Paths;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
+ * 查询操作类
+ *
  * @author panwm
  * @since 2023/8/20 21:40
  */
@@ -41,12 +39,23 @@ public class QueryOperations extends Operations {
     /**
      * 根据文件前置查询文件
      *
-     * @param prefix 前缀
-     * @return Object列表
+     * @param path 文件目录
+     * @return Object信息列表
      */
-    public List<ObjectInfo> getAllObjectsByPrefix(String prefix) {
-        ObjectListing objectListing = amazonS3.listObjects(ossProperties.getBucketName(), prefix);
-        return objectListing.getObjectSummaries().stream().map(e -> ObjectInfo.builder()
+    public List<ObjectInfo> listObjects(String path) {
+        return listObjects(ossProperties.getBucketName(), path);
+    }
+
+    /**
+     * 根据文件前置查询文件
+     *
+     * @param path       文件目录
+     * @param bucketName 桶名称
+     * @return Object信息列表
+     */
+    public List<ObjectInfo> listObjects(String bucketName, String path) {
+        List<S3ObjectSummary> s3ObjectSummaries = listObjectSummary(bucketName, path);
+        return s3ObjectSummaries.stream().map(e -> ObjectInfo.builder()
                 .uri(e.getKey())
                 .url(getDomain() + e.getKey())
                 .name(Util.getFilename(e.getKey()))
@@ -57,29 +66,25 @@ public class QueryOperations extends Operations {
     /**
      * 根据文件前置查询文件列表
      *
-     * @param prefix 前缀
+     * @param path 文件目录
      * @return Object列表
      */
-    public List<ObjectInfo> listObjectsInfo(String prefix) {
-        ObjectListing objectListing = amazonS3.listObjects(ossProperties.getBucketName(), prefix);
-        return objectListing.getObjectSummaries().stream().map(e -> ObjectInfo.builder()
-                .uri(e.getKey())
-                .url(getDomain() + e.getKey())
-                .name(Util.getFilename(e.getKey()))
-                .uploadTime(e.getLastModified())
-                .build()).collect(Collectors.toList());
+    public List<S3ObjectSummary> listObjectSummary(String path) {
+        return listObjectSummary(ossProperties.getBucketName(), path);
     }
 
     /**
      * 根据文件前置查询文件列表
      *
-     * @param prefix 前缀
+     * @param path       文件目录
+     * @param bucketName 桶名称
      * @return Object列表
      */
-    public  List<S3ObjectSummary> listObjects(String prefix) {
+    public List<S3ObjectSummary> listObjectSummary(String bucketName, String path) {
+        path = Util.formatPath(path);
         // 列出存储桶中的对象
         ListObjectsV2Request request = new ListObjectsV2Request()
-                .withBucketName(ossProperties.getBucketName()).withPrefix(prefix);
+                .withBucketName(bucketName).withPrefix(path);
 
         List<S3ObjectSummary> objects = new ArrayList<>();
         ListObjectsV2Result response = null;
@@ -98,58 +103,42 @@ public class QueryOperations extends Operations {
     }
 
     /**
-     * 根据文件前置查询文件列表
-     *
-     * @param bucketName 存储桶
-     * @param prefix 前缀
-     * @return Object列表
-     */
-    public  List<S3ObjectSummary> listObjects(String bucketName, String prefix) {
-        // 列出存储桶中的对象
-        ListObjectsV2Request request = new ListObjectsV2Request()
-                .withBucketName(bucketName).withPrefix(prefix);
-
-        List<S3ObjectSummary> objects = new ArrayList<>();
-        ListObjectsV2Result response = null;
-
-        do {
-            response = amazonS3.listObjectsV2(request);
-            objects.addAll(response.getObjectSummaries());
-
-            if (response.isTruncated()) {
-                String token = response.getNextContinuationToken();
-                request.setContinuationToken(token);
-            }
-        } while (response.isTruncated());
-
-        return objects;
-    }
-
-    /**
-     * 获取文件
+     * 获取文件信息
      *
      * @param objectName 文件全路径
      * @return ObjectInfo对象信息
      */
-    public ObjectInfo getObject(String objectName) {
-        S3Object object = amazonS3.getObject(ossProperties.getBucketName(), objectName);
+    public ObjectInfo getObjectInfo(String objectName) {
+        return getObjectInfo(ossProperties.getBucketName(), objectName);
+    }
+
+    /**
+     * 获取文件信息
+     *
+     * @param bucketName 桶名称
+     * @param objectName 文件全路径
+     * @return ObjectInfo对象信息
+     */
+    public ObjectInfo getObjectInfo(String bucketName, String objectName) {
+        S3Object object = getS3Object(bucketName, objectName);
         return getObjectInfo(object);
     }
 
     /**
-     * 获取文件
+     * 获取文件信息
      *
      * @param bucketName 存储桶
      * @param objectName 文件全路径
      * @return S3Object
      */
-    public S3Object getObject(String bucketName, String objectName) {
+    public S3Object getS3Object(String bucketName, String objectName) {
         return amazonS3.getObject(bucketName, objectName);
     }
 
     /**
      * 预览文件
-     * @param response 响应
+     *
+     * @param response   响应
      * @param objectName 文件全路径
      * @throws IOException io异常
      */
@@ -179,15 +168,26 @@ public class QueryOperations extends Operations {
     /**
      * 获取目录结构
      *
-     * @param objectName 文件全路径
+     * @param path 目录
      * @return 树形结构
      */
-    public ObjectTreeNode getTreeList(String objectName) {
-        List<S3ObjectSummary> objects = listObjects(objectName);
-        return buildTree(objects, objectName);
+    public ObjectTreeNode getTreeList(String path) {
+        return getTreeList(ossProperties.getBucketName(), path);
     }
 
-    public ObjectTreeNode buildTree(List<S3ObjectSummary> objectList, String objectName) {
+    /**
+     * 获取目录结构
+     *
+     * @param bucketName 存储桶
+     * @param path       目录
+     * @return 树形结构
+     */
+    public ObjectTreeNode getTreeList(String bucketName, String path) {
+        List<S3ObjectSummary> objects = listObjectSummary(bucketName, path);
+        return buildTree(objects, path);
+    }
+
+    private ObjectTreeNode buildTree(List<S3ObjectSummary> objectList, String objectName) {
         int i = objectName.lastIndexOf("/");
         String rootName = (i > 0) ? objectName.substring(i + 1) : objectName;
         ObjectTreeNode root = new ObjectTreeNode(rootName, objectName, getDomain() + objectName, null, "folder");
