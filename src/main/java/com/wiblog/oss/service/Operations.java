@@ -4,6 +4,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.S3Object;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.constant.ClientEnum;
 import com.wiblog.oss.util.Util;
 
 import java.net.MalformedURLException;
@@ -22,6 +23,14 @@ public abstract class Operations {
     public Operations(OssProperties ossProperties, AmazonS3 amazonS3) {
         this.ossProperties = ossProperties;
         this.amazonS3 = amazonS3;
+    }
+
+    public OssProperties getOssProperties() {
+        return ossProperties;
+    }
+
+    public AmazonS3 getAmazonS3() {
+        return amazonS3;
     }
 
     /**
@@ -54,12 +63,17 @@ public abstract class Operations {
     }
 
     protected String getDomain() {
-        URL url;
-        try {
-            url = new URL(ossProperties.getEndpoint());
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
+        if (ClientEnum.OBS.getType().equals(ossProperties.getType())) {
+            URL url;
+            try {
+                url = new URL(ossProperties.getEndpoint());
+            } catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+            }
+            return url.getProtocol() + "://" + ossProperties.getBucketName() + "." + url.getHost() + "/";
+        } else {
+            return ossProperties.getEndpoint() + "/" + ossProperties.getBucketName() + "/";
         }
-        return url.getProtocol() + "://" + ossProperties.getBucketName() + "." + url.getHost() + "/";
+
     }
 }

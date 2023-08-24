@@ -2,10 +2,10 @@ package com.wiblog.oss.service;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
-import com.wiblog.oss.bean.chunk.Chunk;
-import com.wiblog.oss.bean.chunk.ChunkProcess;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.bean.chunk.Chunk;
+import com.wiblog.oss.bean.chunk.ChunkProcess;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 
@@ -137,6 +137,31 @@ public class PutOperations extends Operations {
         }
     }
 
+    /**
+     * 数据汇聚 拷贝对象到目标存储桶
+     * @param sourceOssTemplate 源客户端
+     * @param sourceBucketName 源BucketName
+     * @param sourceDirectoryKey 源目录
+     * @param destinationDirectoryKey 目标目录
+     */
+    public void transferObject(OssTemplate sourceOssTemplate, String sourceBucketName, String sourceDirectoryKey, String destinationDirectoryKey) {
+        sourceDirectoryKey = Util.formatPath(sourceDirectoryKey);
+        destinationDirectoryKey = Util.formatPath(destinationDirectoryKey);
+        // 列出文件
+        List<S3ObjectSummary> sourceObjects = sourceOssTemplate.query().listObjects(sourceBucketName, sourceDirectoryKey);
+        // 遍历并拷贝每个对象到目标存储桶
+        for (S3ObjectSummary object : sourceObjects) {
+            String sourceObjectKey = object.getKey();
+
+            S3Object sourceObject = sourceOssTemplate.query().getObject(sourceBucketName, sourceObjectKey);
+            String obsObjectKey = destinationDirectoryKey + sourceObjectKey.substring(sourceDirectoryKey.length());
+
+            PutObjectRequest obsPutObjectRequest = new PutObjectRequest(ossProperties.getBucketName(), obsObjectKey, sourceObject.getObjectContent(), new ObjectMetadata());
+            obsPutObjectRequest.withCannedAcl(CannedAccessControlList.PublicRead);
+            amazonS3.putObject(obsPutObjectRequest);
+        }
+    }
+
     private String initTask(String objectName) {
         // 初始化分片上传任务
         InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(ossProperties.getBucketName(), objectName)
@@ -191,7 +216,7 @@ public class PutOperations extends Operations {
                     .withUploadId(uploadId)
                     .withInputStream(in)
                     .withPartNumber(chunk.getChunkNumber())
-                    .withPartSize(chunk.getCurrentChunkSize());
+                    .withPartSize(chunk.getFile().getSize());
             UploadPartResult uploadResult = amazonS3.uploadPart(uploadRequest);
             return uploadResult.getETag();
         } catch (IOException e) {

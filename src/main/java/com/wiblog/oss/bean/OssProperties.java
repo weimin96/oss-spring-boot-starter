@@ -46,6 +46,11 @@ public class OssProperties {
      */
     private boolean cross = false;
 
+    /**
+     * obs/minio
+     */
+    private String type;
+
     static class Http {
 
         /**
