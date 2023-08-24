@@ -27,23 +27,23 @@ public class Chunk {
     /**
      * 分块大小
      */
-    @ApiModelProperty(value = "分块大小", required = true)
-    @NotNull
-    private Long chunkSize;
+//    @ApiModelProperty(value = "分块大小", required = true)
+//    @NotNull
+//    private Long chunkSize;
 
     /**
      * 当前分块大小
      */
-    @ApiModelProperty(value = "当前分块大小", required = true)
-    @NotNull
-    private Long currentChunkSize;
+//    @ApiModelProperty(value = "当前分块大小", required = true)
+//    @NotNull
+//    private Long currentChunkSize;
 
     /**
      * 总大小
      */
-    @ApiModelProperty(value = "总大小", required = true)
-    @NotNull
-    private Long totalSize;
+//    @ApiModelProperty(value = "总大小", required = true)
+//    @NotNull
+//    private Long totalSize;
 
     /**
      * 文件名
@@ -62,9 +62,9 @@ public class Chunk {
     /**
      * 总块数
      */
-    @ApiModelProperty(value = "总块数", required = true)
-    @NotNull
-    private Integer totalChunks;
+//    @ApiModelProperty(value = "总块数", required = true)
+//    @NotNull
+//    private Integer totalChunks;
 
     /**
      * 分块文件内容

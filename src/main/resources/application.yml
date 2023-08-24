@@ -4,3 +4,10 @@ spring:
       enabled: true
       max-file-size: 100MB
       max-request-size: 100MB
+
+oss:
+  #OBS存储对象
+  endpoint: https://obs.cn-south-4.myhuaweicloud.com
+  accessKey: FVM3IN0UB2KNWUD6O9OH
+  secretKey: k3WDW3nVjjMHOtsVYrNlQBdK4GcLQV9uGRMMxpvE
+  bucketName: guodi
