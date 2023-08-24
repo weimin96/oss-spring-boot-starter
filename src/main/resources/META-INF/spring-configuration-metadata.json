@@ -1,0 +1,172 @@
+{
+  "groups": [
+    {
+      "name": "oss",
+      "type": "com.wiblog.oss.bean.OssProperties",
+      "sourceType": "com.wiblog.oss.bean.OssProperties"
+    }
+  ],
+  "properties": [
+    {
+      "name": "oss.access-key",
+      "type": "java.lang.String",
+      "description": "访问密钥id",
+      "sourceType": "com.wiblog.oss.bean.OssProperties"
+    },
+    {
+      "name": "oss.bucket-name",
+      "type": "java.lang.String",
+      "description": "bucket名称",
+      "sourceType": "com.wiblog.oss.bean.OssProperties"
+    },
+    {
+      "name": "oss.cross",
+      "type": "java.lang.Boolean",
+      "description": "是否允许跨域 默认不允许",
+      "sourceType": "com.wiblog.oss.bean.OssProperties",
+      "defaultValue": false
+    },
+    {
+      "name": "oss.enable",
+      "type": "java.lang.Boolean",
+      "description": "是否启用 oss，默认为：true",
+      "sourceType": "com.wiblog.oss.bean.OssProperties",
+      "defaultValue": true
+    },
+    {
+      "name": "oss.endpoint",
+      "type": "java.lang.String",
+      "description": "端点",
+      "sourceType": "com.wiblog.oss.bean.OssProperties"
+    },
+    {
+      "name": "oss.secret-key",
+      "type": "java.lang.String",
+      "description": "访问密钥",
+      "sourceType": "com.wiblog.oss.bean.OssProperties"
+    },
+    {
+      "name": "oss.type",
+      "type": "java.lang.String",
+      "description": "oss类型 obs\/minio",
+      "sourceType": "com.wiblog.oss.bean.OssProperties"
+    },
+    {
+      "name": "oss.http.prefix",
+      "type": "java.lang.String",
+      "description": "访问端点前缀",
+      "sourceType": "com.wiblog.oss.bean.OssProperties.Http"
+    },
+    {
+      "name": "oss.http.enable",
+      "type": "java.lang.Boolean",
+      "description": "是否启用端点 默认true",
+      "sourceType": "com.wiblog.oss.bean.OssProperties.Http"
+    }
+  ],
+  "hints": [
+    {
+      "name": "oss.access-key",
+      "type": "java.lang.String",
+      "description": "访问密钥id"
+    },
+    {
+      "name": "oss.bucket-name",
+      "type": "java.lang.String",
+      "description": "bucket名称",
+      "sourceType": "com.wiblog.oss.bean.OssProperties"
+    },
+    {
+      "name": "oss.cross",
+      "type": "java.lang.Boolean",
+      "description": "是否允许跨域 默认不允许",
+      "sourceType": "com.wiblog.oss.bean.OssProperties",
+      "defaultValue": false,
+      "values": [
+        {
+          "value": true,
+          "description": "启用"
+        },
+        {
+          "value": false,
+          "description": "关闭"
+        }
+      ]
+    },
+    {
+      "name": "oss.enable",
+      "type": "java.lang.Boolean",
+      "description": "是否启用 oss，默认为：true",
+      "sourceType": "com.wiblog.oss.bean.OssProperties",
+      "defaultValue": true,
+      "values": [
+        {
+          "value": true,
+          "description": "启用"
+        },
+        {
+          "value": false,
+          "description": "关闭"
+        }
+      ]
+    },
+    {
+      "name": "oss.endpoint",
+      "type": "java.lang.String",
+      "description": "端点",
+      "sourceType": "com.wiblog.oss.bean.OssProperties"
+    },
+    {
+      "name": "oss.secret-key",
+      "type": "java.lang.String",
+      "description": "访问密钥",
+      "sourceType": "com.wiblog.oss.bean.OssProperties"
+    },
+    {
+      "name": "oss.type",
+      "type": "java.lang.String",
+      "description": "oss类型 obs\/minio",
+      "sourceType": "com.wiblog.oss.bean.OssProperties",
+      "values": [
+        {
+          "value": "obs",
+          "description": "华为OBS"
+        },
+        {
+          "value": "minio",
+          "description": "MinIO"
+        },
+        {
+          "value": "tx-oss",
+          "description": "腾讯云OSS"
+        },
+        {
+          "value": "ali-oss",
+          "description": "阿里云OSS"
+        }
+      ]
+    },
+    {
+      "name": "oss.http.prefix",
+      "type": "java.lang.String",
+      "description": "访问端点前缀",
+      "sourceType": "com.wiblog.oss.bean.OssProperties.Http"
+    },
+    {
+      "name": "oss.http.enable",
+      "type": "java.lang.Boolean",
+      "description": "是否启用端点 默认true",
+      "sourceType": "com.wiblog.oss.bean.OssProperties.Http",
+      "values": [
+        {
+          "value": true,
+          "description": "启用"
+        },
+        {
+          "value": false,
+          "description": "关闭"
+        }
+      ]
+    }
+  ]
+}

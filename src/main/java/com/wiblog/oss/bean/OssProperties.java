@@ -37,7 +37,7 @@ public class OssProperties {
     private String accessKey;
 
     /**
-     * 访问密钥秘密
+     * 访问密钥
      */
     private String secretKey;
 
@@ -47,11 +47,12 @@ public class OssProperties {
     private boolean cross = false;
 
     /**
-     * obs/minio
+     * oss类型 obs/minio
      */
     private String type;
 
-    static class Http {
+    @Data
+    public static class Http {
 
         /**
          * 访问端点前缀

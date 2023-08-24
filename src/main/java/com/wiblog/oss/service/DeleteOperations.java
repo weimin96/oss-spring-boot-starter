@@ -18,9 +18,6 @@ public class DeleteOperations extends Operations {
      * 删除文件
      * @param bucketName bucket名称
      * @param objectName 文件名称
-     * @see <a href=
-     * "http://docs.aws.amazon.com/goto/WebAPI/s3-2006-03-01/DeleteObject">AWS API
-     * Documentation</a>
      */
     public void removeObject(String bucketName, String objectName) {
         amazonS3.deleteObject(bucketName, objectName);

@@ -10,6 +10,7 @@ import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.SkipMd5CheckStrategy;
 import com.amazonaws.services.s3.model.*;
+import com.amazonaws.util.StringUtils;
 import com.wiblog.oss.bean.OssProperties;
 import lombok.RequiredArgsConstructor;
 import org.springframework.beans.factory.InitializingBean;
@@ -40,6 +41,15 @@ public class OssTemplate {
     }
 
     private void initClient() {
+        if (StringUtils.isNullOrEmpty(ossProperties.getEndpoint())) {
+            throw new IllegalArgumentException("illegal argument oss.endpoint");
+        }
+        if (StringUtils.isNullOrEmpty(ossProperties.getAccessKey())) {
+            throw new IllegalArgumentException("illegal argument oss.access-key");
+        }
+        if (StringUtils.isNullOrEmpty(ossProperties.getSecretKey())) {
+            throw new IllegalArgumentException("illegal argument oss.secret-key");
+        }
         // fix: SdkClientException: Unable to verify integrity of data upload. Client calculated content hash
         System.setProperty(SkipMd5CheckStrategy.DISABLE_PUT_OBJECT_MD5_VALIDATION_PROPERTY, "true");
         System.setProperty(SkipMd5CheckStrategy.DISABLE_GET_OBJECT_MD5_VALIDATION_PROPERTY, "true");

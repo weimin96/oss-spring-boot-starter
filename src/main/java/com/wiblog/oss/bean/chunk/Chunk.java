@@ -10,6 +10,7 @@ import javax.validation.constraints.NotNull;
 
 /**
  * 文件块
+ *
  * @author panwm
  * @since 2023/8/20 23:10
  */
@@ -25,27 +26,6 @@ public class Chunk {
     private Integer chunkNumber;
 
     /**
-     * 分块大小
-     */
-//    @ApiModelProperty(value = "分块大小", required = true)
-//    @NotNull
-//    private Long chunkSize;
-
-    /**
-     * 当前分块大小
-     */
-//    @ApiModelProperty(value = "当前分块大小", required = true)
-//    @NotNull
-//    private Long currentChunkSize;
-
-    /**
-     * 总大小
-     */
-//    @ApiModelProperty(value = "总大小", required = true)
-//    @NotNull
-//    private Long totalSize;
-
-    /**
      * 文件名
      */
     @ApiModelProperty(value = "文件名", required = true)
@@ -58,13 +38,6 @@ public class Chunk {
     @ApiModelProperty(value = "存放路径", required = true)
     @NotBlank
     private String path;
-
-    /**
-     * 总块数
-     */
-//    @ApiModelProperty(value = "总块数", required = true)
-//    @NotNull
-//    private Integer totalChunks;
 
     /**
      * 分块文件内容

@@ -52,9 +52,22 @@ public class PutOperations extends Operations {
      * @return 文件uri
      */
     public ObjectInfo putObject(String path, String filename, InputStream in) {
-        path = Util.formatPath(path);
-        return putObject(path + filename, in);
+        return putObject(ossProperties.getBucketName(), path, filename, in);
     }
+
+    /**
+     * 上传文件
+     *
+     * @param bucketName 存储桶
+     * @param path       路径
+     * @param filename   文件名
+     * @param in         文件流
+     * @return 文件uri
+     */
+    public ObjectInfo putObject(String bucketName, String path, String filename, InputStream in) {
+        return putObjectForKey(bucketName, path + filename, in);
+    }
+
 
     /**
      * 上传文件
@@ -65,18 +78,30 @@ public class PutOperations extends Operations {
      * @return 文件uri
      */
     public ObjectInfo putObject(String path, String filename, File file) {
-        path = Util.formatPath(path);
-        return putObject(path + filename, file);
+        return putObject(ossProperties.getBucketName(), path, filename, file);
     }
 
+    /**
+     * 上传文件
+     *
+     * @param bucketName 存储桶
+     * @param path       路径
+     * @param filename   文件名
+     * @param file       文件
+     * @return 文件uri
+     */
+    public ObjectInfo putObject(String bucketName, String path, String filename, File file) {
+        path = Util.formatPath(path);
+        return putObjectForKey(bucketName, path + filename, file);
+    }
 
-    private ObjectInfo putObject(String objectName, File file) {
-        PutObjectRequest request = new PutObjectRequest(ossProperties.getBucketName(), objectName, file)
+    private ObjectInfo putObjectForKey(String bucketName, String objectName, File file) {
+        PutObjectRequest request = new PutObjectRequest(bucketName, objectName, file)
                 .withCannedAcl(CannedAccessControlList.PublicRead);
         return putObject(request, objectName);
     }
 
-    private ObjectInfo putObject(String objectName, InputStream stream) {
+    private ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
         ObjectMetadata objectMetadata = new ObjectMetadata();
         try {
             objectMetadata.setContentLength(stream.available());
@@ -85,7 +110,7 @@ public class PutOperations extends Operations {
         }
         objectMetadata.setContentType("application/octet-stream");
 
-        PutObjectRequest request = new PutObjectRequest(ossProperties.getBucketName(), objectName, stream, objectMetadata)
+        PutObjectRequest request = new PutObjectRequest(bucketName, objectName, stream, objectMetadata)
                 .withCannedAcl(CannedAccessControlList.PublicRead);
 
         return putObject(request, objectName);
@@ -103,22 +128,33 @@ public class PutOperations extends Operations {
      * @param path   存放路径
      * @param folder 文件夹
      */
-    public void uploadDir(String path, File folder) {
-        uploadDir(path, folder, true);
+    public void putFolder(String path, File folder) {
+        putFolder(ossProperties.getBucketName(), path, folder);
     }
 
     /**
      * 上传文件夹
      *
+     * @param bucketName 存储桶
+     * @param path       存放路径
+     * @param folder     文件夹
+     */
+    public void putFolder(String bucketName, String path, File folder) {
+        uploadDir(bucketName, path, folder, true);
+    }
+
+    /**
+     * 上传文件夹
+     *
+     * @param bucketName          存储桶
      * @param path                存放路径
      * @param folder              文件夹
      * @param isIncludeFolderName 存放路径是否包含文件夹名称
      */
-    public void uploadDir(String path, File folder, boolean isIncludeFolderName) {
+    public void uploadDir(String bucketName, String path, File folder, boolean isIncludeFolderName) {
 
         if (!folder.exists() || !folder.isDirectory()) {
-            System.out.println("Invalid folder path: " + folder.getPath());
-            return;
+            throw new IllegalArgumentException("Invalid folder path: " + folder.getPath());
         }
         path = Util.formatPath(path);
         if (isIncludeFolderName) {
@@ -130,7 +166,7 @@ public class PutOperations extends Operations {
             paths.filter(Files::isRegularFile)
                     .forEach(filePath -> {
                         String key = finalPath + folder.toURI().relativize(filePath.toUri()).getPath();
-                        putObject(key, filePath.toFile());
+                        putObjectForKey(bucketName, key, filePath.toFile());
                     });
         } catch (Exception e) {
             e.printStackTrace();
@@ -139,21 +175,22 @@ public class PutOperations extends Operations {
 
     /**
      * 数据汇聚 拷贝对象到目标存储桶
-     * @param sourceOssTemplate 源客户端
-     * @param sourceBucketName 源BucketName
-     * @param sourceDirectoryKey 源目录
+     *
+     * @param sourceOssTemplate       源客户端
+     * @param sourceBucketName        源BucketName
+     * @param sourceDirectoryKey      源目录
      * @param destinationDirectoryKey 目标目录
      */
     public void transferObject(OssTemplate sourceOssTemplate, String sourceBucketName, String sourceDirectoryKey, String destinationDirectoryKey) {
         sourceDirectoryKey = Util.formatPath(sourceDirectoryKey);
         destinationDirectoryKey = Util.formatPath(destinationDirectoryKey);
         // 列出文件
-        List<S3ObjectSummary> sourceObjects = sourceOssTemplate.query().listObjects(sourceBucketName, sourceDirectoryKey);
+        List<S3ObjectSummary> sourceObjects = sourceOssTemplate.query().listObjectSummary(sourceBucketName, sourceDirectoryKey);
         // 遍历并拷贝每个对象到目标存储桶
         for (S3ObjectSummary object : sourceObjects) {
             String sourceObjectKey = object.getKey();
 
-            S3Object sourceObject = sourceOssTemplate.query().getObject(sourceBucketName, sourceObjectKey);
+            S3Object sourceObject = sourceOssTemplate.query().getS3Object(sourceBucketName, sourceObjectKey);
             String obsObjectKey = destinationDirectoryKey + sourceObjectKey.substring(sourceDirectoryKey.length());
 
             PutObjectRequest obsPutObjectRequest = new PutObjectRequest(ossProperties.getBucketName(), obsObjectKey, sourceObject.getObjectContent(), new ObjectMetadata());
@@ -170,6 +207,10 @@ public class PutOperations extends Operations {
         return initResponse.getUploadId();
     }
 
+    /**
+     * 接收文件分片
+     * @param chunk 文件分片
+     */
     public void chunk(Chunk chunk) {
         String guid = chunk.getGuid();
         String objectKey = Util.formatPath(chunk.getPath()) + chunk.getFilename();
@@ -200,6 +241,11 @@ public class PutOperations extends Operations {
         CHUNK_PROCESS_STORAGE.put(guid, chunkProcess.setChunkList(chunkList));
     }
 
+    /**
+     * 合并分片
+     * @param guid 文件唯一id
+     * @return ObjectInfo文件信息
+     */
     public ObjectInfo merge(String guid) {
         ChunkProcess chunkProcess = CHUNK_PROCESS_STORAGE.get(guid);
         ObjectInfo merge = merge(chunkProcess);
@@ -233,18 +279,11 @@ public class PutOperations extends Operations {
         CompleteMultipartUploadRequest compRequest = new CompleteMultipartUploadRequest(ossProperties.getBucketName(), chunkProcess.getObjectKey(),
                 chunkProcess.getUploadId(), partETagList);
         amazonS3.completeMultipartUpload(compRequest);
-        URL url;
-        try {
-            url = new URL(ossProperties.getEndpoint());
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
         return ObjectInfo.builder()
                 .uri(chunkProcess.getObjectKey())
-                .url(url.getProtocol() + "://" + ossProperties.getBucketName() + "." + url.getHost() + "/" + chunkProcess.getObjectKey())
+                .url(getDomain() + chunkProcess.getObjectKey())
                 .name(Util.getFilename(chunkProcess.getObjectKey()))
                 .build();
-
     }
 
 }

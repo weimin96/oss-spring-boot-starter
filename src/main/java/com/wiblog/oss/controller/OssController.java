@@ -1,8 +1,8 @@
 package com.wiblog.oss.controller;
 
+import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.chunk.Chunk;
-import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.resp.R;
 import com.wiblog.oss.service.OssTemplate;
 import io.swagger.annotations.Api;
@@ -11,12 +11,10 @@ import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
-import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
@@ -79,7 +77,7 @@ public class OssController {
     @ApiOperation(value = "获取文件信息")
     @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "form")
     public R<ObjectInfo> getObject(@PathVariable @NotBlank String objectName) {
-        ObjectInfo object = ossTemplate.query().getObject(objectName);
+        ObjectInfo object = ossTemplate.query().getObjectInfo(objectName);
         return R.data(object);
     }
 
@@ -121,7 +119,7 @@ public class OssController {
     @ApiOperation(value = "获取文件件列表")
     @ApiImplicitParam(name = "objectName", value = "文件目录", dataType = "String", paramType = "form")
     public R<List<ObjectInfo>> getObjectList(@PathVariable @NotBlank String objectName) {
-        List<ObjectInfo> list = ossTemplate.query().getAllObjectsByPrefix(objectName);
+        List<ObjectInfo> list = ossTemplate.query().listObjects(objectName);
         return R.data(list);
     }
 
