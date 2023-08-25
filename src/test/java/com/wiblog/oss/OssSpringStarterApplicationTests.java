@@ -42,7 +42,7 @@
 //     */
 //    @Test
 //    void testGetObjectInfo() {
-//        ObjectInfo object = ossTemplate.query().getObjectInfo("sys-plat/bg-2.png");
+//        ObjectInfo object = ossTemplate.query().getObjectInfo("bim-model");
 //        System.out.println(object.toString());
 //    }
 //

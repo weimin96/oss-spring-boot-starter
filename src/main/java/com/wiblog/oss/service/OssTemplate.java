@@ -64,7 +64,7 @@ public class OssTemplate {
                 .withClientConfiguration(clientConfiguration).withCredentials(awsCredentialsProvider)
                 .disableChunkedEncoding().withPathStyleAccessEnabled(true).build();
 
-        if (ossProperties.isCross()) {
+        if (ossProperties.isCross() && !StringUtils.isNullOrEmpty(ossProperties.getBucketName())) {
             cross();
         }
     }
@@ -86,6 +86,7 @@ public class OssTemplate {
         // 创建BucketCrossOriginConfiguration对象
         BucketCrossOriginConfiguration configuration = new BucketCrossOriginConfiguration(corsRules);
         amazonS3.setBucketCrossOriginConfiguration(ossProperties.getBucketName(), configuration);
+
     }
 
     private void initOps() {

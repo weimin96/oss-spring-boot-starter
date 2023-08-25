@@ -49,6 +49,7 @@ public class OssAutoConfiguration {
     @ConditionalOnWebApplication
     @ConditionalOnProperty(prefix = OssProperties.PREFIX, name = "http.enable", matchIfMissing  = true)
     public OssController ossController(OssTemplate template) {
+        log.info("========== Initializing OSS Endpoint ==========");
         return new OssController(template);
     }
 
