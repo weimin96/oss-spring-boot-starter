@@ -129,7 +129,18 @@ public class PutOperations extends Operations {
      * @param folder 文件夹
      */
     public void putFolder(String path, File folder) {
-        putFolder(ossProperties.getBucketName(), path, folder);
+        putFolder(ossProperties.getBucketName(), path, folder, true);
+    }
+
+    /**
+     * 上传文件夹
+     *
+     * @param path   存放路径
+     * @param folder 文件夹
+     * @param isIncludeFolderName  存放路径是否包含文件夹名称
+     */
+    public void putFolder(String path, File folder, boolean isIncludeFolderName) {
+        putFolder(ossProperties.getBucketName(), path, folder, isIncludeFolderName);
     }
 
     /**
@@ -139,8 +150,8 @@ public class PutOperations extends Operations {
      * @param path       存放路径
      * @param folder     文件夹
      */
-    public void putFolder(String bucketName, String path, File folder) {
-        uploadDir(bucketName, path, folder, true);
+    public void putFolder(String bucketName, String path, File folder, boolean isIncludeFolderName) {
+        uploadDir(bucketName, path, folder, isIncludeFolderName);
     }
 
     /**
@@ -267,9 +278,11 @@ public class PutOperations extends Operations {
             return uploadResult.getETag();
         } catch (IOException e) {
             log.error("文件【{}】上传分片【{}】失败", chunk.getFilename(), chunk.getChunkNumber(), e);
+            // TODO 失败或取消删除文件
             throw new RuntimeException(e);
         }
     }
+
 
     private ObjectInfo merge(ChunkProcess chunkProcess) {
         List<PartETag> partETagList = chunkProcess.getChunkList()

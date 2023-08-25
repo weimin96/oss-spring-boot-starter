@@ -10,7 +10,7 @@
     </parent>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-starter</artifactId>
-    <version>0.0.3-RELEASE</version>
+    <version>0.0.4</version>
     <packaging>jar</packaging>
     <name>oss-spring-starter</name>
     <description>oss对象存储starter工具类</description>
@@ -70,12 +70,6 @@
             <groupId>org.springframework.boot</groupId>
             <scope>provided</scope>
         </dependency>
-
-<!--        <dependency>-->
-<!--            <groupId>org.springframework.boot</groupId>-->
-<!--            <artifactId>spring-boot-configuration-processor</artifactId>-->
-<!--            <optional>true</optional>-->
-<!--        </dependency>-->
 
         <!--S3 SDK-->
         <dependency>
@@ -187,13 +181,13 @@
                 </executions>
             </plugin>
             <!-- 工程文件自动签名-->
-            <plugin>
+            <!--<plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>
                 <version>1.6</version>
                 <configuration>
                     <gpgArguments>
-                        <arg>--pinentry-mode</arg>
+                        <arg>&#45;&#45;pinentry-mode</arg>
                         <arg>loopback</arg>
                     </gpgArguments>
                 </configuration>
@@ -206,7 +200,7 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>
+            </plugin>-->
         </plugins>
     </build>
 

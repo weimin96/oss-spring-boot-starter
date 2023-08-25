@@ -8,9 +8,7 @@ import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.util.Util;
 
 import javax.servlet.http.HttpServletResponse;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -133,6 +131,41 @@ public class QueryOperations extends Operations {
      */
     public S3Object getS3Object(String bucketName, String objectName) {
         return amazonS3.getObject(bucketName, objectName);
+    }
+
+    /**
+     * 下载文件
+     * @param objectName 文件全路径
+     * @param localFilePath 存放位置
+     * @return File
+     */
+    public File getFile(String objectName, String localFilePath) {
+        return getFile(ossProperties.getBucketName(), objectName, localFilePath);
+    }
+
+    /**
+     * 下载文件
+     * @param bucketName 存储桶
+     * @param objectName 文件全路径
+     * @param localFilePath 存放位置
+     * @return File
+     */
+    public File getFile(String bucketName, String objectName, String localFilePath) {
+        S3Object s3Object = getS3Object(bucketName, objectName);
+        File outputFile = new File(localFilePath);
+        try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = s3Object.getObjectContent().read(buffer)) != -1) {
+
+                fos.write(buffer, 0, bytesRead);
+            }
+            s3Object.getObjectContent().close();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return outputFile;
     }
 
     /**

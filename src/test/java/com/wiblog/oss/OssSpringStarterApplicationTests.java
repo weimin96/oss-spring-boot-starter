@@ -4,23 +4,17 @@
 //import com.wiblog.oss.bean.ObjectTreeNode;
 //import com.wiblog.oss.bean.OssProperties;
 //import com.wiblog.oss.service.OssTemplate;
-//import com.wiblog.oss.util.Util;
 //import org.junit.jupiter.api.Test;
 //import org.springframework.beans.factory.annotation.Autowired;
 //import org.springframework.boot.autoconfigure.SpringBootApplication;
 //import org.springframework.boot.test.context.SpringBootTest;
-//import org.springframework.core.io.FileSystemResource;
-//import org.springframework.http.HttpEntity;
-//import org.springframework.http.HttpHeaders;
-//import org.springframework.http.MediaType;
-//import org.springframework.http.ResponseEntity;
 //import org.springframework.test.context.ActiveProfiles;
-//import org.springframework.util.LinkedMultiValueMap;
-//import org.springframework.util.MultiValueMap;
-//import org.springframework.web.client.RestTemplate;
 //
-//import java.io.*;
-//import java.util.List;
+//import java.io.File;
+//import java.io.FileNotFoundException;
+//import java.io.IOException;
+//import java.io.InputStream;
+//import java.nio.file.Files;
 //
 //@SpringBootApplication(scanBasePackages = "com.wiblog.oss")
 //@SpringBootTest
@@ -31,34 +25,49 @@
 //    @Autowired
 //    private OssTemplate ossTemplate;
 //
+//    /**
+//     * 测试上传文件
+//     * @throws FileNotFoundException FileNotFoundException
+//     */
 //    @Test
-//    void contextLoads() throws FileNotFoundException {
-//        File file = new File("C:\\Users\\pwm\\Pictures\\711554e282e04aa89f2e34140c358bd7.jpg");
-//        InputStream is = new FileInputStream(file);
+//    void contextLoads() throws IOException {
+//        File file = new File("C:\\711554e282e04aa89f2e34140c358bd7.jpg");
+//        InputStream is = Files.newInputStream(file.toPath());
 //        ObjectInfo resp = ossTemplate.put().putObject("data/bucket", "1.jpg", is);
 //        System.out.println(resp.toString());
 //    }
 //
+//    /**
+//     * 测试获取文件信息
+//     */
 //    @Test
-//    void textGet() {
-//        ObjectInfo object = ossTemplate.query().getObject("sys-plat/bg-2.png");
+//    void testGetObjectInfo() {
+//        ObjectInfo object = ossTemplate.query().getObjectInfo("sys-plat/bg-2.png");
 //        System.out.println(object.toString());
 //    }
 //
+//    /**
+//     * 测试上传文件夹
+//     */
 //    @Test
 //    public void uploadDir() {
-//        File dir = new File("C:\\Users\\pwm\\Pictures\\Saved Pictures\\有道图片");
-//        ossTemplate.put().uploadDir("folder", dir);
+//        File dir = new File("C:\\Pictures");
+//        ossTemplate.put().putFolder("folder", dir);
 //    }
 //
+//    /**
+//     * 测试查询树形列表
+//     */
 //    @Test
-//    void textGet2() {
+//    void testTreeList() {
 //        ObjectTreeNode folder = ossTemplate.query().getTreeList("folder");
-//        System.out.println(folder);
 //    }
 //
+//    /**
+//     * 测试从minio传输文件到系统存储
+//     */
 //    @Test
-//    void textGet3() {
+//    void testTransferObject() {
 //        OssProperties properties = new OssProperties();
 //        properties.setEndpoint("http://10.3.1.136:9000");
 //        properties.setAccessKey("minioadmin");
@@ -66,59 +75,6 @@
 //        OssTemplate source = new OssTemplate(properties);
 //
 //        ossTemplate.put().transferObject(source, "guodi", "sys-plat", "data");
-//    }
-//
-//    @Test
-//    public void testUpload() throws Exception {
-//        String chunkFileFolder = "C:/Users/pwm/Downloads/data/bucket/";
-//        File file = new File("C:\\Users\\pwm\\Downloads\\flowable-6.8.0.zip");
-//        long contentLength = file.length();
-//        // 每块大小设置为20MB
-//        long partSize = 20 * 1024 * 1024;
-//        // 文件分片块数 最后一块大小可能小于 20MB
-//        long chunkFileNum = (long) Math.ceil(contentLength * 1.0 / partSize);
-//        RestTemplate restTemplate = new RestTemplate();
-//
-//        try (RandomAccessFile raf_read = new RandomAccessFile(file, "r")) {
-//            // 缓冲区
-//            byte[] b = new byte[1024];
-//            for (int i = 1; i <= chunkFileNum; i++) {
-//                // 块文件
-//                File chunkFile = new File(chunkFileFolder + i);
-//                // 创建向块文件的写对象
-//                try (RandomAccessFile raf_write = new RandomAccessFile(chunkFile, "rw")) {
-//                    int len;
-//                    while ((len = raf_read.read(b)) != -1) {
-//                        raf_write.write(b, 0, len);
-//                        // 如果块文件的大小达到20M 开始写下一块儿  或者已经到了最后一块
-//                        if (chunkFile.length() >= partSize) {
-//                            break;
-//                        }
-//                    }
-//                    // 上传
-//                    MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
-//                    body.add("file", new FileSystemResource(chunkFile));
-//                    body.add("chunkNumber", i);
-//                    body.add("chunkSize", partSize);
-//                    body.add("currentChunkSize", chunkFile.length());
-//                    body.add("totalSize", contentLength);
-//                    body.add("filename", file.getName());
-//                    body.add("totalChunks", chunkFileNum);
-//                    HttpHeaders headers = new HttpHeaders();
-//                    headers.setContentType(MediaType.MULTIPART_FORM_DATA);
-//                    HttpEntity<MultiValueMap<String, Object>> requestEntity = new HttpEntity<>(body, headers);
-//                    String serverUrl = "http://localhost:8080/oss/chunk";
-//                    ResponseEntity<String> response = restTemplate.postForEntity(serverUrl, requestEntity, String.class);
-//                    System.out.println("Response code: " + response.getStatusCode() + " Response body: " + response.getBody());
-//                } finally {
-////                    Util.deleteFile(chunkFile.getPath());
-//                }
-//            }
-//        }
-//        // 合并文件
-//        String mergeUrl = "http://localhost:8080/oss/merge?filename=" + file.getName();
-//        ResponseEntity<String> response = restTemplate.getForEntity(mergeUrl, String.class);
-//        System.out.println("Response code: " + response.getStatusCode() + " Response body: " + response.getBody());
 //    }
 //
 //}
