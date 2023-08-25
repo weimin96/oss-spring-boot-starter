@@ -11,6 +11,7 @@ import io.swagger.annotations.ApiImplicitParams;
 import io.swagger.annotations.ApiOperation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.MediaType;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -59,9 +60,9 @@ public class OssController {
      * @param guid 文件guid
      * @return 响应
      */
-    @PostMapping(value = "/merge")
+    @PostMapping(value = "/merge", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ApiOperation(value = "文件合并")
-    @ApiImplicitParam(name = "guid", value = "文件唯一id", required = true, dataType = "String", paramType = "form")
+    @ApiImplicitParam(name = "guid", value = "文件唯一id", required = true, dataType = "String")
     public R<ObjectInfo> merge(@RequestParam("guid") @NotBlank String guid) {
         ObjectInfo merge = ossTemplate.put().merge(guid);
         return R.data(merge);
@@ -75,7 +76,9 @@ public class OssController {
      */
     @GetMapping("/object/{objectName}")
     @ApiOperation(value = "获取文件信息")
-    @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "form")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "query")
+    })
     public R<ObjectInfo> getObject(@PathVariable @NotBlank String objectName) {
         ObjectInfo object = ossTemplate.query().getObjectInfo(objectName);
         return R.data(object);
@@ -89,7 +92,7 @@ public class OssController {
      */
     @GetMapping("/object/preview/{objectName}")
     @ApiOperation(value = "预览文件")
-    @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "form")
+    @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "query")
     public void previewObject(HttpServletResponse response,
                               @PathVariable @NotBlank String objectName) throws IOException {
         ossTemplate.query().previewObject(response, objectName);
@@ -103,7 +106,7 @@ public class OssController {
      */
     @GetMapping("/object/tree/{objectName}")
     @ApiOperation(value = "获取文件目录树")
-    @ApiImplicitParam(name = "objectName", value = "文件目录", required = true, dataType = "String", paramType = "form")
+    @ApiImplicitParam(name = "objectName", value = "文件目录", required = true, dataType = "String", paramType = "query")
     public R<ObjectTreeNode> getObjectTree(@PathVariable @NotBlank String objectName) {
         ObjectTreeNode tree = ossTemplate.query().getTreeList(objectName);
         return R.data(tree);
@@ -117,7 +120,7 @@ public class OssController {
      */
     @GetMapping("/object/list/{objectName}")
     @ApiOperation(value = "获取文件件列表")
-    @ApiImplicitParam(name = "objectName", value = "文件目录", dataType = "String", paramType = "form")
+    @ApiImplicitParam(name = "objectName", value = "文件目录", dataType = "String", paramType = "query")
     public R<List<ObjectInfo>> getObjectList(@PathVariable @NotBlank String objectName) {
         List<ObjectInfo> list = ossTemplate.query().listObjects(objectName);
         return R.data(list);
