@@ -13,7 +13,7 @@
     <version>0.0.5</version>
     <packaging>jar</packaging>
     <name>oss-spring-starter</name>
-    <description>oss对象存储starter工具类</description>
+    <description>oss-spring-starter is a toolkit based on Spring Boot and Amazon S3. With this toolkit, you can easily perform operations related to OSS (Object Storage Service) storage.</description>
     <url>https://github.com/weimin96/oss-spring-starter</url>
 
     <licenses>
@@ -47,9 +47,10 @@
 
     <properties>
         <java.version>1.8</java.version>
-        <aws.version>1.12.533</aws.version>
+        <aws.version>1.12.537</aws.version>
         <swagger.version>1.5.20</swagger.version>
         <swagger.v3.version>2.1.2</swagger.v3.version>
+        <validation.version>3.0.2</validation.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -79,6 +80,7 @@
         <dependency>
             <groupId>jakarta.validation</groupId>
             <artifactId>jakarta.validation-api</artifactId>
+            <version>${validation.version}</version>
             <scope>provided</scope>
         </dependency>
 
