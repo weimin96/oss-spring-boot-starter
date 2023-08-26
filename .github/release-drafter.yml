@@ -1,6 +1,6 @@
 # Configuration for Release Drafter: https://github.com/toolmantim/release-drafter
-name-template: 'oss-spring-starter-v$NEXT_PATCH_VERSION 🌈'
-tag-template: 'oss-spring-starter-v$NEXT_PATCH_VERSION'
+name-template: 'oss-spring-starter-$NEXT_PATCH_VERSION 🌈'
+tag-template: 'oss-spring-starter-$NEXT_PATCH_VERSION'
 categories:
   - title: 'Features'
     labels:
