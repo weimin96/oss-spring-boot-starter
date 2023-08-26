@@ -1,7 +1,8 @@
-## oss-spring-starter
+# oss-spring-starter
 
 通用对象存储工具
 
+支持：
 - MinIo
 - 阿里云OSS
 - 华为云OBS
@@ -38,3 +39,8 @@ oss:
 @Autowired
 private OssTemplate template;
 ```
+
+## Contributors
+
+<!-- readme: collaborators,contributors -start -->
+<!-- readme: collaborators,contributors -end -->
