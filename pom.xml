@@ -10,7 +10,7 @@
     </parent>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-starter</artifactId>
-    <version>0.0.6</version>
+    <version>0.0.5</version>
     <packaging>jar</packaging>
     <name>oss-spring-starter</name>
     <description>oss对象存储starter工具类</description>
@@ -81,14 +81,6 @@
             <artifactId>jakarta.validation-api</artifactId>
             <scope>provided</scope>
         </dependency>
-
-        <!-- Swagger 相关依赖 -->
-<!--        <dependency>-->
-<!--            <groupId>io.springfox</groupId>-->
-<!--            <artifactId>springfox-boot-starter</artifactId>-->
-<!--            <version>3.0.0</version>-->
-<!--            <scope>provided</scope>-->
-<!--        </dependency>-->
 
         <!-- swagger -->
         <dependency>
@@ -185,7 +177,7 @@
                 </executions>
             </plugin>
             <!-- 工程文件自动签名-->
-            <!--<plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-gpg-plugin</artifactId>
                 <version>1.6</version>
@@ -204,7 +196,7 @@
                         </goals>
                     </execution>
                 </executions>
-            </plugin>-->
+            </plugin>
         </plugins>
     </build>
 
