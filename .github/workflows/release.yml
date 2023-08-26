@@ -44,3 +44,4 @@ jobs:
           prerelease: false
           draft: false
           body: "This release was built from commit ${{ steps.commit_count.outputs.count }}"
+          distribution: public
