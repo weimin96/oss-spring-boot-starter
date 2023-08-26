@@ -1,5 +1,7 @@
 package com.wiblog.oss.bean;
 
+import com.amazonaws.services.s3.model.AccessControlList;
+import com.amazonaws.services.s3.model.ObjectMetadata;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -25,6 +27,10 @@ public class ObjectInfo {
     private String uri;
 
     private String url;
+
+    private ObjectMetadata metadata;
+
+    private AccessControlList acl;
 
     @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date uploadTime;

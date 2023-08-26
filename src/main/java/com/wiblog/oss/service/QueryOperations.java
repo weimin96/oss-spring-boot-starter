@@ -119,7 +119,22 @@ public class QueryOperations extends Operations {
      */
     public ObjectInfo getObjectInfo(String bucketName, String objectName) {
         S3Object object = getS3Object(bucketName, objectName);
-        return getObjectInfo(object);
+        return buildObjectInfo(object);
+    }
+
+    /**
+     * 获取文件信息
+     *
+     * @param objectName 文件全路径
+     * @return ObjectInfo对象信息
+     */
+    public ObjectInfo getObjectDetailInfo(String objectName) {
+        ObjectInfo objectInfo = getObjectInfo(objectName);
+        // 获取文件的访问权限
+        GetObjectAclRequest aclRequest = new GetObjectAclRequest(ossProperties.getBucketName(), objectName);
+        AccessControlList acl = amazonS3.getObjectAcl(aclRequest);
+        objectInfo.setAcl(acl);
+        return objectInfo;
     }
 
     /**

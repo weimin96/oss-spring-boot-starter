@@ -119,7 +119,7 @@ public class PutOperations extends Operations {
     private ObjectInfo putObject(PutObjectRequest request, String objectName) {
         // 执行文件上传
         amazonS3.putObject(request);
-        return getObjectInfo(objectName);
+        return buildObjectInfo(objectName);
     }
 
     /**
@@ -135,9 +135,9 @@ public class PutOperations extends Operations {
     /**
      * 上传文件夹
      *
-     * @param path   存放路径
-     * @param folder 文件夹
-     * @param isIncludeFolderName  存放路径是否包含文件夹名称
+     * @param path                存放路径
+     * @param folder              文件夹
+     * @param isIncludeFolderName 存放路径是否包含文件夹名称
      */
     public void putFolder(String path, File folder, boolean isIncludeFolderName) {
         putFolder(ossProperties.getBucketName(), path, folder, isIncludeFolderName);
@@ -146,9 +146,10 @@ public class PutOperations extends Operations {
     /**
      * 上传文件夹
      *
-     * @param bucketName 存储桶
-     * @param path       存放路径
-     * @param folder     文件夹
+     * @param bucketName          存储桶
+     * @param path                存放路径
+     * @param folder              文件夹
+     * @param isIncludeFolderName 存放路径是否包含文件夹名称
      */
     public void putFolder(String bucketName, String path, File folder, boolean isIncludeFolderName) {
         uploadDir(bucketName, path, folder, isIncludeFolderName);
@@ -220,6 +221,7 @@ public class PutOperations extends Operations {
 
     /**
      * 接收文件分片
+     *
      * @param chunk 文件分片
      */
     public void chunk(Chunk chunk) {
@@ -254,6 +256,7 @@ public class PutOperations extends Operations {
 
     /**
      * 合并分片
+     *
      * @param guid 文件唯一id
      * @return ObjectInfo文件信息
      */
