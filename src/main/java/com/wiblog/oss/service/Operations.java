@@ -39,11 +39,12 @@ public abstract class Operations {
      * @param object object
      * @return ObjectResp
      */
-    protected ObjectInfo getObjectInfo(S3Object object) {
+    protected ObjectInfo buildObjectInfo(S3Object object) {
         return ObjectInfo.builder()
                 .uri(object.getKey())
                 .url(getDomain() + object.getKey())
                 .name(Util.getFilename(object.getKey()))
+                .metadata(object.getObjectMetadata())
                 .uploadTime(object.getObjectMetadata().getLastModified())
                 .build();
     }
@@ -54,7 +55,7 @@ public abstract class Operations {
      * @param objectName objectName
      * @return ObjectResp
      */
-    protected ObjectInfo getObjectInfo(String objectName) {
+    protected ObjectInfo buildObjectInfo(String objectName) {
         return ObjectInfo.builder()
                 .uri(objectName)
                 .url(getDomain() + objectName)

@@ -12,10 +12,13 @@ import io.swagger.annotations.ApiOperation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.MediaType;
+import org.springframework.util.AntPathMatcher;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.HandlerMapping;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
@@ -33,13 +36,14 @@ import java.util.List;
 @RequiredArgsConstructor
 @RequestMapping("${oss.http.prefix:}/oss")
 @Api(tags = "oss:http接口")
-@Tag(name = "OssEndpoint", description = "oss:http接口")
 public class OssController {
 
     /**
      * OSS操作模板
      */
     private final OssTemplate ossTemplate;
+
+    private AntPathMatcher antPathMatcher = new AntPathMatcher();
 
     /**
      * 分块上传文件
@@ -74,27 +78,45 @@ public class OssController {
      * @param objectName 文件路径
      * @return 响应
      */
-    @GetMapping("/object/{objectName}")
+    @GetMapping("/object/getObject")
     @ApiOperation(value = "获取文件信息")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "query")
+            @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "form")
     })
-    public R<ObjectInfo> getObject(@PathVariable @NotBlank String objectName) {
+    public R<ObjectInfo> getObject(@NotBlank String objectName) {
         ObjectInfo object = ossTemplate.query().getObjectInfo(objectName);
         return R.data(object);
     }
 
     /**
-     * 获取文件信息
-     * @param response 响应
+     * 获取文件详细信息
+     *
      * @param objectName 文件路径
+     * @return 响应
+     */
+    @GetMapping("/object/getObjectDetail")
+    @ApiOperation(value = "获取文件详细信息")
+    @ApiImplicitParams({
+            @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "form")
+    })
+    public R<ObjectInfo> getObjectDetail(@NotBlank String objectName) {
+        ObjectInfo object = ossTemplate.query().getObjectDetailInfo(objectName);
+        return R.data(object);
+    }
+
+    /**
+     * 预览文件
+     * @param response 响应
+     * @param request 请求
      * @throws IOException io异常
      */
-    @GetMapping("/object/preview/{objectName}")
+    @GetMapping("/object/preview/**")
     @ApiOperation(value = "预览文件")
-    @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "query")
     public void previewObject(HttpServletResponse response,
-                              @PathVariable @NotBlank String objectName) throws IOException {
+                              HttpServletRequest request) throws IOException {
+        String path  = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
+        String matchPattern = (String) request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
+        String objectName = antPathMatcher.extractPathWithinPattern(matchPattern, path);
         ossTemplate.query().previewObject(response, objectName);
     }
 
@@ -104,10 +126,10 @@ public class OssController {
      * @param objectName 文件路径
      * @return 响应
      */
-    @GetMapping("/object/tree/{objectName}")
+    @GetMapping("/object/tree")
     @ApiOperation(value = "获取文件目录树")
-    @ApiImplicitParam(name = "objectName", value = "文件目录", required = true, dataType = "String", paramType = "query")
-    public R<ObjectTreeNode> getObjectTree(@PathVariable @NotBlank String objectName) {
+    @ApiImplicitParam(name = "objectName", value = "文件目录", required = true, dataType = "String", paramType = "form")
+    public R<ObjectTreeNode> getObjectTree(@NotBlank String objectName) {
         ObjectTreeNode tree = ossTemplate.query().getTreeList(objectName);
         return R.data(tree);
     }
@@ -118,10 +140,10 @@ public class OssController {
      * @param objectName 目录
      * @return 响应
      */
-    @GetMapping("/object/list/{objectName}")
+    @GetMapping("/object/list")
     @ApiOperation(value = "获取文件件列表")
-    @ApiImplicitParam(name = "objectName", value = "文件目录", dataType = "String", paramType = "query")
-    public R<List<ObjectInfo>> getObjectList(@PathVariable @NotBlank String objectName) {
+    @ApiImplicitParam(name = "objectName", value = "文件目录", dataType = "String", paramType = "form")
+    public R<List<ObjectInfo>> getObjectList(@NotBlank String objectName) {
         List<ObjectInfo> list = ossTemplate.query().listObjects(objectName);
         return R.data(list);
     }
