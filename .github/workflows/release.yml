@@ -1,47 +1,24 @@
 name: Release
 
+name: Release Drafter
+
 on:
   push:
     branches:
       - main
+  pull_request:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  contents: read
 
 jobs:
-  build:
+  update_release_draft:
+    permissions:
+      contents: write  # for release-drafter/release-drafter to create a github release
+      pull-requests: write  # for release-drafter/release-drafter to add label to PR
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v2
-
-      - name: Set up JDK 8
-        uses: actions/setup-java@v2
-        with:
-          java-version: 8
-
-      - name: Get Git Tag
-        id: git_tag
-        run: echo "::set-output name=tag::$(git describe --abbrev=0 --tags)"
-
-      - name: Get Commit Count
-        id: commit_count
-        run: echo "::set-output name=count::$(git rev-list --count HEAD)"
-
-      - name: Build with Maven
-        run: mvn clean install
-
-      - name: Run tests
-        run: mvn test
-
-      - name: Deploy to GitHub Releases
-        uses: actions/create-release@v1
+      - uses: release-drafter/release-drafter@v5
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_TOKEN }}
-        with:
-          files: |
-            target/*.jar
-          release-name: Release ${{ steps.git_tag.outputs.tag }}
-          release-tag: ${{ steps.git_tag.outputs.tag }}
-          prerelease: false
-          draft: false
-          body: "This release was built from commit ${{ steps.commit_count.outputs.count }}"
-          distribution: public
