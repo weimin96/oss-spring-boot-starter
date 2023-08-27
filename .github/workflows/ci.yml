@@ -1,8 +1,10 @@
-name: Release
+name: Java CI
 
 on:
   push:
-    branches: [ main ]
+    paths:
+      - '**/*src/**/*.java'
+      - 'pom.xml'
 
 jobs:
   build:
@@ -43,6 +45,8 @@ jobs:
           repo_token: "${{ secrets.RELEASE_TOKEN }}"
           automatic_release_tag: "${{ env.RELEASE_VERSION }}"
           prerelease: false
-          title: "Release ${{ env.RELEASE_VERSION }}"
+          title: "v${{ env.RELEASE_VERSION }}"
           files: |
+            !staging/*javadoc.jar
+            !staging/*sources.jar
             staging/*.jar
