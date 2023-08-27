@@ -42,6 +42,16 @@ public class PutOperations extends Operations {
     }
 
     /**
+     * 创建bucket
+     * @param bucketName bucket名称
+     */
+    public void createBucket(String bucketName) {
+        if (!amazonS3.doesBucketExistV2(bucketName)) {
+            amazonS3.createBucket((bucketName));
+        }
+    }
+
+    /**
      * 上传文件
      *
      * @param path     路径
