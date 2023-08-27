@@ -2,7 +2,7 @@
 
 [![Java CI](https://github.com/weimin96/oss-spring-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/weimin96/oss-spring-starter/actions/workflows/ci.yml)
 [![Maven central](https://maven-badges.herokuapp.com/maven-central/io.github.weimin96/oss-spring-starter/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.github.weimin96/oss-spring-starter)
-[![License](https://img.shields.io/:license-apache-brightgreen.svg)](https://github.com/weimin96/oss-spring-starter/LICENSE)
+[![License](https://img.shields.io/:license-apache-brightgreen.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
 README: [English](README.md) | [中文](README-zh-CN.md)
 
