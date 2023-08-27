@@ -1,6 +1,7 @@
 oss:
-  #OBS存储对象
-  endpoint: http://10.3.1.136:9000
-  accessKey: minioadmin
-  secretKey: minioadmin
-  bucketName: guodi
+  endpoint: https://play.min.io:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket-name: 123
+  http:
+    enable: false
