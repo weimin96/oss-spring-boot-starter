@@ -64,7 +64,11 @@ public class OssTemplate {
                 .withClientConfiguration(clientConfiguration).withCredentials(awsCredentialsProvider)
                 .disableChunkedEncoding().withPathStyleAccessEnabled(true).build();
 
-        if (ossProperties.isCross() && !StringUtils.isNullOrEmpty(ossProperties.getBucketName())) {
+        if (!amazonS3.doesBucketExistV2(ossProperties.getBucketName())) {
+            amazonS3.createBucket((ossProperties.getBucketName()));
+        }
+
+        if (ossProperties.isCross()) {
             cross();
         }
     }

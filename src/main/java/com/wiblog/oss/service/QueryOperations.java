@@ -145,7 +145,38 @@ public class QueryOperations extends Operations {
      * @return S3Object
      */
     public S3Object getS3Object(String bucketName, String objectName) {
-        return amazonS3.getObject(bucketName, objectName);
+        try {
+            return amazonS3.getObject(bucketName, objectName);
+        } catch (AmazonS3Exception  e) {
+            if (e.getStatusCode() == 404) {
+                // 文件不存在，返回空值
+                return null;
+            } else {
+                // 其他异常，继续抛出
+                throw e;
+            }
+        }
+    }
+
+    /**
+     * 获取文件流
+     * @param objectName 文件全路径
+     * @return InputStream 文件流
+     */
+    public InputStream getInputStream(String objectName) {
+        S3Object s3Object = getS3Object(ossProperties.getBucketName(), objectName);
+        return s3Object.getObjectContent().getDelegateStream();
+    }
+
+    /**
+     * 获取文件流
+     * @param bucketName 存储桶
+     * @param objectName 文件全路径
+     * @return InputStream 文件流
+     */
+    public InputStream getInputStream(String bucketName, String objectName) {
+        S3Object s3Object = getS3Object(bucketName, objectName);
+        return s3Object.getObjectContent().getDelegateStream();
     }
 
     /**
