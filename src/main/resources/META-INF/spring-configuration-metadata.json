@@ -155,7 +155,7 @@
     {
       "name": "oss.http.enable",
       "type": "java.lang.Boolean",
-      "description": "是否启用端点 默认true",
+      "description": "是否启用Web端点 默认true",
       "sourceType": "com.wiblog.oss.bean.OssProperties.Http",
       "values": [
         {
