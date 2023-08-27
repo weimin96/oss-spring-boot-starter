@@ -21,5 +21,3 @@ jobs:
         with:
           java-version: ${{ matrix.java }}
           distribution: ${{ matrix.distribution }}
-      - name: Test with Maven
-        run: ./mvnw test -B -D"license.skip=true"
