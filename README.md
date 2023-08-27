@@ -1,42 +1,55 @@
-# oss-spring-starter
+# OSS Spring Starter
 
-通用对象存储工具
+[![Java CI](https://github.com/weimin96/oss-spring-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/weimin96/oss-spring-starter/actions/workflows/ci.yml)
+[![Maven central](https://maven-badges.herokuapp.com/maven-central/io.github.weimin96/oss-spring-starter/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.github.weimin96/oss-spring-starter)
+[![License](https://img.shields.io/:license-apache-brightgreen.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
 
-支持：
-- MinIo
-- 阿里云OSS
-- 华为云OBS
-- 腾讯云OSS
+README: [English](README.md) | [中文](README-zh-CN.md)
 
-...
+Wiki: [Wiki](https://github.com/weimin96/oss-spring-starter/wiki)
 
-<!-- START doctoc generated TOC please keep comment here to allow auto update -->
-<!-- DON'T EDIT THIS SECTION, INSTEAD RE-RUN doctoc TO UPDATE -->
-**Table of Contents**
+## Introduction
 
-- [使用](#%E4%BD%BF%E7%94%A8)
-- [使用方法](#%E4%BD%BF%E7%94%A8%E6%96%B9%E6%B3%95)
-  - [配置文件](#%E9%85%8D%E7%BD%AE%E6%96%87%E4%BB%B6)
-  - [代码使用](#%E4%BB%A3%E7%A0%81%E4%BD%BF%E7%94%A8)
-- [Contributors](#contributors)
+This project mainly utilizes the mainstream OSS object storage services (`Tencent Cloud OSS` / `Alibaba Cloud OSS` / `Huawei Cloud OBS` / `Qiniu Cloud` / `MinIo`) that are compatible with Amazon S3 (Simple Storage Service) protocol. It provides a series of object storage operations based on the automated configuration feature of Spring Boot.
 
-<!-- END doctoc generated TOC please keep comment here to allow auto update -->
+## Features
 
-## 使用
+- Support: Tencent Cloud, Alibaba Cloud, Huawei Cloud, Qiniu Cloud, JD Cloud, MinIo
+- Provide a series of basic web endpoints and swagger documentation, supporting freedom to enable
+- - Provides large file chunk uploading
+- - Provides file preview
+- - ......
+- Support cross-service file transfer `ossTemplate.put().transferObject()`
+- Provide bucket cross-origin configuration `oss.cross=true`
 
-- 引用
+## Version Basics
+
+- JDK 1.8
+- Spring Boot 2.x
+
+## How to Use
+
+### Add Dependencies
+
+- Add the following dependency in your **Maven** project:
+
 ```xml
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-starter</artifactId>
-    <version>0.0.2</version>
+    <version>${lastVersion}</version>
 </dependency>
 ```
 
-## 使用方法
+- Add the following dependency in your **Gradle** project:
 
-### 配置文件
+```gradle
+dependencies {
+  implementation 'io.github.weimin96:oss-spring-starter:${lastVersion}'
+}
+```
 
+- Or add the following configuration in `application.yml`:
 ```yaml
 oss:
   endpoint: https://xxx.com
@@ -45,24 +58,30 @@ oss:
   bucket-name: your-bucket-name
 ```
 
-### 代码使用
+- Code Usage
 
 ```java
 @Autowired
 private OssTemplate template;
+
+// upload file
+ossTemplate.put().putObject("bucket", "1.jpg", new File("/data/1.jpg"));
 ```
 
-## Contributors
+## Parameter Configuration
 
-<!-- readme: collaborators,contributors -start -->
-<table>
-<tr>
-    <td align="center">
-        <a href="https://github.com/weimin96">
-            <img src="https://avatars.githubusercontent.com/u/20983152?v=4" width="100;" alt="weimin96"/>
-            <br />
-            <sub><b>Aoliao</b></sub>
-        </a>
-    </td></tr>
-</table>
-<!-- readme: collaborators,contributors -end -->
+Explanation of all configurations:
+
+| Configuration        | Type     | Default Value | Description                  |
+|----------------------|----------|---------------|------------------------------|
+| oss.enable           | boolean  | true          | Enable OSS or not             |
+| oss.endpoint         | String   |               | Endpoint of the OSS service   |
+| oss.bucket-name      | String   |               | Bucket name                   |
+| oss.access-key       | String   |               | Access key ID                 |
+| oss.secret-key       | String   |               | Access secret key             |
+| oss.cross            | boolean  | false         | Allow cross-origin or not      |
+| oss.type             | String   |               | OSS type (options: obs/minio) |
+| oss.http.prefix      | String   |               | Prefix of the endpoint URL    |
+| oss.http.enable      | boolean  | true          | Enable web endpoints or not    |
+
+
