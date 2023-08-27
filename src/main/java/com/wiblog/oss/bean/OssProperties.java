@@ -60,7 +60,7 @@ public class OssProperties {
         private String prefix = "";
 
         /**
-         * 是否启用端点 默认true
+         * 是否启用Web端点 默认true
          */
         private boolean enable = true;
 
