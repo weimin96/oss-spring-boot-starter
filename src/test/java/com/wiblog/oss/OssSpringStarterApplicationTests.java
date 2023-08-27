@@ -1,80 +1,78 @@
-//package com.wiblog.oss;
-//
-//import com.wiblog.oss.bean.ObjectInfo;
-//import com.wiblog.oss.bean.ObjectTreeNode;
-//import com.wiblog.oss.bean.OssProperties;
-//import com.wiblog.oss.service.OssTemplate;
-//import org.junit.jupiter.api.Test;
-//import org.springframework.beans.factory.annotation.Autowired;
-//import org.springframework.boot.autoconfigure.SpringBootApplication;
-//import org.springframework.boot.test.context.SpringBootTest;
-//import org.springframework.test.context.ActiveProfiles;
-//
-//import java.io.File;
-//import java.io.FileNotFoundException;
-//import java.io.IOException;
-//import java.io.InputStream;
-//import java.nio.file.Files;
-//
-//@SpringBootApplication(scanBasePackages = "com.wiblog.oss")
-//@SpringBootTest
-//@ActiveProfiles("obs")
-////@ActiveProfiles("minio")
-//class OssSpringStarterApplicationTests {
-//
-//    @Autowired
-//    private OssTemplate ossTemplate;
-//
-//    /**
-//     * 测试上传文件
-//     * @throws FileNotFoundException FileNotFoundException
-//     */
-//    @Test
-//    void contextLoads() throws IOException {
-//        File file = new File("C:\\711554e282e04aa89f2e34140c358bd7.jpg");
-//        InputStream is = Files.newInputStream(file.toPath());
-//        ObjectInfo resp = ossTemplate.put().putObject("data/bucket", "1.jpg", is);
-//        System.out.println(resp.toString());
-//    }
-//
-//    /**
-//     * 测试获取文件信息
-//     */
-//    @Test
-//    void testGetObjectInfo() {
-//        ObjectInfo object = ossTemplate.query().getObjectInfo("bim-model");
-//        System.out.println(object.toString());
-//    }
-//
-//    /**
-//     * 测试上传文件夹
-//     */
-//    @Test
-//    public void uploadDir() {
-//        File dir = new File("C:\\Pictures");
-//        ossTemplate.put().putFolder("folder", dir);
-//    }
-//
-//    /**
-//     * 测试查询树形列表
-//     */
-//    @Test
-//    void testTreeList() {
-//        ObjectTreeNode folder = ossTemplate.query().getTreeList("folder");
-//    }
-//
-//    /**
-//     * 测试从minio传输文件到系统存储
-//     */
-//    @Test
-//    void testTransferObject() {
-//        OssProperties properties = new OssProperties();
-//        properties.setEndpoint("http://10.3.1.136:9000");
-//        properties.setAccessKey("minioadmin");
-//        properties.setSecretKey("minioadmin");
-//        OssTemplate source = new OssTemplate(properties);
-//
-//        ossTemplate.put().transferObject(source, "guodi", "sys-plat", "data");
-//    }
-//
-//}
+package com.wiblog.oss;
+
+import com.amazonaws.services.s3.model.Bucket;
+import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.util.IOUtils;
+import com.wiblog.oss.bean.ObjectInfo;
+import com.wiblog.oss.bean.ObjectTreeNode;
+import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.service.OssTemplate;
+import lombok.SneakyThrows;
+import org.junit.jupiter.api.*;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.util.ResourceUtils;
+
+import java.io.*;
+import java.nio.file.Files;
+import java.util.Optional;
+
+@SpringBootApplication(scanBasePackages = "com.wiblog.oss")
+@SpringBootTest
+@ActiveProfiles("minio")
+class OssSpringStarterApplicationTests {
+
+    /**
+     * 测试文件
+     */
+    private static final String TEST_FILE_NAME = "test.txt";
+
+    /**
+     * 测试目录
+     */
+    private static final String TEST_FOLDER_NAME = "data";
+
+    @Autowired
+    private OssTemplate ossTemplate;
+
+    /**
+     * 上传文件
+     * @throws IOException IOException
+     */
+    @Test
+    @BeforeEach
+    void init() throws IOException {
+        File file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + TEST_FILE_NAME);
+        ossTemplate.put().putObject(TEST_FOLDER_NAME, TEST_FILE_NAME, file);
+    }
+
+    @AfterEach
+    public void destroy() {
+        ossTemplate.delete().removeObject(TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        ObjectInfo objectInfo = ossTemplate.query().getObjectInfo(TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        Assertions.assertNull(objectInfo);
+    }
+
+    /**
+     * 测试获取文件信息
+     */
+    @Test
+    void getObject() {
+        ObjectInfo object = ossTemplate.query().getObjectInfo(TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        Assertions.assertEquals(TEST_FILE_NAME, object.getName());
+        Assertions.assertEquals(TEST_FOLDER_NAME + "/" + TEST_FILE_NAME, object.getUri());
+    }
+
+    /**
+     * 测试获取文件信息
+     */
+    @Test
+    void getInputStream() throws IOException {
+        InputStream inputStream = ossTemplate.query().getInputStream(TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        String content = IOUtils.toString(inputStream);
+        Assertions.assertTrue(content.contains("test!"));
+    }
+
+}
