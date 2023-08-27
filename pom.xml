@@ -10,7 +10,7 @@
     </parent>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-starter</artifactId>
-    <version>0.0.6</version>
+    <version>0.0.7</version>
     <packaging>jar</packaging>
     <name>oss-spring-starter</name>
     <description>oss-spring-starter is a toolkit based on Spring Boot and Amazon S3. With this toolkit, you can easily perform operations related to OSS (Object Storage Service) storage.</description>
