@@ -1,8 +1,11 @@
 # OSS Spring Starter
 
-[![Java CI](https://github.com/weimin96/oss-spring-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/weimin96/oss-spring-starter/actions/workflows/ci.yml)
+[![Java CI](https://github.com/weimin96/oss-spring-starter/actions/workflows/coveralls.yml/badge.svg)](https://github.com/weimin96/oss-spring-starter/actions/workflows/coveralls.yml)
+[![Coverage Status](https://coveralls.io/repos/github/weimin96/oss-spring-starter/badge.svg?branch=main)](https://coveralls.io/github/weimin96/oss-spring-starter?branch=main)
 [![Maven central](https://maven-badges.herokuapp.com/maven-central/io.github.weimin96/oss-spring-starter/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.github.weimin96/oss-spring-starter)
 [![License](https://img.shields.io/:license-apache-brightgreen.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
+[![Last Commit](https://img.shields.io/github/last-commit/weimin96/oss-spring-starter.svg)](https://github.com/weimin96/oss-spring-starter)
+
 
 README: [English](README.md) | [中文](README-zh-CN.md)
 
