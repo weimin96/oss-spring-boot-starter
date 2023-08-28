@@ -1,14 +1,11 @@
-name: Release
+name: Java CI
 
 on:
   workflow_dispatch:
-#  pull_request:
-#    branches: [ main ]
+  pull_request:
+    branches: [ main ]
   push:
     branches: [ main ]
-#    paths:
-#      - '**/*src/**/*.java'
-#      - 'pom.xml'
 
 jobs:
   build:
@@ -31,18 +28,23 @@ jobs:
         with:
           repositories: ''
           servers: ''
-      # Maven 打包
-      - name: Build with Maven
-        run: mvn -B package --file pom.xml
+      - name: Report Coverage to Coveralls for Pull Requests
+        if: github.event_name == 'pull_request'
+        run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -DpullRequest=$PR_NUMBER -B package --file pom.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+          PR_NUMBER: ${{ github.event.number }}
+      - name: Report Coverage to Coveralls for General Push
+        if: github.event_name == 'push'
+        run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -B package --file pom.xml
+        env:
+          GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
       # 将打包好的 Jar 包 放到 staging 文件夹
       - run: mkdir staging && cp target/*.jar staging
       # 设置 jobs Maven pom 版本环境变量
       - name: Set Release version env variable
         run: |
           echo "RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_ENV
-      - name: "Build & test"
-        run: |
-          echo "done!"
       # 上传文件并发布 Release
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
