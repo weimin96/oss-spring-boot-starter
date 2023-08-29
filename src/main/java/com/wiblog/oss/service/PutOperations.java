@@ -80,7 +80,7 @@ public class PutOperations extends Operations {
     /**
      * 上传文件
      *
-     * @param path     路径
+     * @param path     存放路径
      * @param filename 文件名
      * @param file     文件
      * @return 文件uri
@@ -93,7 +93,7 @@ public class PutOperations extends Operations {
      * 上传文件
      *
      * @param bucketName 存储桶
-     * @param path       路径
+     * @param path       存放路径
      * @param filename   文件名
      * @param file       文件
      * @return 文件uri
@@ -113,13 +113,25 @@ public class PutOperations extends Operations {
         return putObjectForKey(ossProperties.getBucketName(), objectName, stream);
     }
 
-    private ObjectInfo putObjectForKey(String bucketName, String objectName, File file) {
+    /**
+     * @param bucketName 存储桶
+     * @param objectName 文件全路径
+     * @param file 文件
+     * @return 对象信息
+     */
+    public ObjectInfo putObjectForKey(String bucketName, String objectName, File file) {
         PutObjectRequest request = new PutObjectRequest(bucketName, objectName, file)
                 .withCannedAcl(CannedAccessControlList.PublicRead);
         return putObject(request, objectName);
     }
 
-    private ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
+    /**
+     * @param bucketName 存储桶
+     * @param objectName 文件全路径
+     * @param stream 文件流
+     * @return 对象信息
+     */
+    public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
         ObjectMetadata objectMetadata = new ObjectMetadata();
         try {
             objectMetadata.setContentLength(stream.available());
@@ -147,7 +159,7 @@ public class PutOperations extends Operations {
      * @param folder 文件夹
      */
     public void putFolder(String path, File folder) {
-        putFolder(ossProperties.getBucketName(), path, folder, true);
+        putFolder(path, folder, true);
     }
 
     /**
