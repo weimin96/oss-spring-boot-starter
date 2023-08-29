@@ -1,8 +1,14 @@
 package com.wiblog.oss.service;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.ListObjectsV2Request;
+import com.amazonaws.services.s3.model.ListObjectsV2Result;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.util.Util;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * 移除操作
@@ -30,5 +36,43 @@ public class DeleteOperations extends Operations {
      */
     public void removeObject(String objectName) {
         removeObject(ossProperties.getBucketName(), objectName);
+    }
+
+    /**
+     * 删除文件夹
+     * @param path 文件夹
+     */
+    public void removeFolder(String path) {
+        removeFolder(ossProperties.getBucketName(), path);
+    }
+
+    /**
+     * 删除文件夹
+     * @param bucketName bucket名称
+     * @param path 文件夹
+     */
+    public void removeFolder(String bucketName, String path) {
+        path = Util.formatPath(path);
+        // 列出存储桶中的对象
+        ListObjectsV2Request request = new ListObjectsV2Request()
+                .withBucketName(bucketName).withPrefix(path);
+
+        List<S3ObjectSummary> objects = new ArrayList<>();
+        ListObjectsV2Result response = null;
+
+        do {
+            response = amazonS3.listObjectsV2(request);
+            objects.addAll(response.getObjectSummaries());
+
+            if (response.isTruncated()) {
+                String token = response.getNextContinuationToken();
+                request.setContinuationToken(token);
+            }
+        } while (response.isTruncated());
+
+        for (S3ObjectSummary objectSummary : objects) {
+            String objectKey = objectSummary.getKey();
+            amazonS3.deleteObject(bucketName, objectKey);
+        }
     }
 }

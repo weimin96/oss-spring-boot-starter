@@ -1,14 +1,10 @@
 package com.wiblog.oss;
 
-import com.amazonaws.services.s3.model.Bucket;
-import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.IOUtils;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
-import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.service.OssTemplate;
-import lombok.SneakyThrows;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -19,7 +15,6 @@ import org.springframework.util.ResourceUtils;
 import java.io.*;
 import java.nio.file.Files;
 import java.util.List;
-import java.util.Optional;
 
 @SpringBootApplication(scanBasePackages = "com.wiblog.oss")
 @SpringBootTest
@@ -32,9 +27,14 @@ class OssSpringStarterApplicationTests {
     private static final String TEST_FILE_NAME = "test.txt";
 
     /**
-     * 测试目录
+     * 测试文件夹
      */
-    private static final String TEST_FOLDER_NAME = "data";
+    private static final String TEST_FOLDER_NAME= "data";
+
+    /**
+     * 测试上传路径
+     */
+    private static final String TEST_UPLOAD_PATH = "upload";
 
     @Autowired
     private OssTemplate ossTemplate;
@@ -43,18 +43,49 @@ class OssSpringStarterApplicationTests {
      * 上传文件
      * @throws IOException IOException
      */
-    @Test
     @BeforeEach
     void init() throws IOException {
-        File file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + TEST_FILE_NAME);
-        ossTemplate.put().putObject(TEST_FOLDER_NAME, TEST_FILE_NAME, file);
+        File file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        ossTemplate.put().putObject(TEST_UPLOAD_PATH, TEST_FILE_NAME, file);
     }
 
     @AfterEach
     public void destroy() {
-        ossTemplate.delete().removeObject(TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
-        ObjectInfo objectInfo = ossTemplate.query().getObjectInfo(TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        ossTemplate.delete().removeObject(TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME);
+        ObjectInfo objectInfo = ossTemplate.query().getObjectInfo(TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME);
         Assertions.assertNull(objectInfo);
+    }
+
+    /**
+     * 测试上传文件夹
+     */
+    @Test
+    void testPutFolder() throws IOException {
+        File folder = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + TEST_FOLDER_NAME);
+        ossTemplate.put().putFolder(TEST_UPLOAD_PATH, folder);
+
+        InputStream inputStream = ossTemplate.query().getInputStream(TEST_UPLOAD_PATH + "/" + TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        String content = IOUtils.toString(inputStream);
+        Assertions.assertTrue(content.contains("test!"));
+
+        ossTemplate.delete().removeFolder(TEST_UPLOAD_PATH);
+    }
+
+    /**
+     * 测试拷贝文件
+     */
+    @Test
+    public void testCopyFile() throws IOException {
+        String copyPath = "copy/" + TEST_FILE_NAME;
+        ossTemplate.put().copyFile(TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME, copyPath);
+
+        File folder = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + TEST_FOLDER_NAME);
+        String path = folder.getParent() + TEST_FILE_NAME;
+        File file = ossTemplate.query().getFile(copyPath, path);
+        String content = IOUtils.toString(Files.newInputStream(file.toPath()));
+        Assertions.assertTrue(content.contains("test!"));
+
+        ossTemplate.delete().removeObject(copyPath);
     }
 
     /**
@@ -62,9 +93,9 @@ class OssSpringStarterApplicationTests {
      */
     @Test
     void getObject() {
-        ObjectInfo object = ossTemplate.query().getObjectInfo(TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        ObjectInfo object = ossTemplate.query().getObjectInfo(TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME);
         Assertions.assertEquals(TEST_FILE_NAME, object.getName());
-        Assertions.assertEquals(TEST_FOLDER_NAME + "/" + TEST_FILE_NAME, object.getUri());
+        Assertions.assertEquals(TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME, object.getUri());
     }
 
     /**
@@ -72,21 +103,27 @@ class OssSpringStarterApplicationTests {
      */
     @Test
     void getInputStream() {
-        String content = ossTemplate.query().getContent( TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        String content = ossTemplate.query().getContent( TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME);
         Assertions.assertTrue(content.contains("test!"));
     }
 
+    /**
+     * 测试获取目录树
+     */
     @Test
     void getTree() {
-        ObjectTreeNode treeList = ossTemplate.query().getTreeList(TEST_FOLDER_NAME);
-        Assertions.assertEquals(treeList.getName(), TEST_FOLDER_NAME);
+        ObjectTreeNode treeList = ossTemplate.query().getTreeList(TEST_UPLOAD_PATH);
+        Assertions.assertEquals(treeList.getName(), TEST_UPLOAD_PATH);
         Assertions.assertEquals(treeList.getChildren().get(0).getName(), TEST_FILE_NAME);
     }
 
+    /**
+     * 测试获取列表
+     */
     @Test
     void getListObjectSummary() {
-        List<S3ObjectSummary> s3ObjectSummaries = ossTemplate.query().listObjectSummary(TEST_FOLDER_NAME);
-        Assertions.assertEquals(s3ObjectSummaries.get(0).getKey(), TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        List<S3ObjectSummary> s3ObjectSummaries = ossTemplate.query().listObjectSummary(TEST_UPLOAD_PATH);
+        Assertions.assertEquals(s3ObjectSummaries.get(0).getKey(), TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME);
     }
 
 }
