@@ -103,6 +103,16 @@ public class PutOperations extends Operations {
         return putObjectForKey(bucketName, path + filename, file);
     }
 
+    /**
+     *
+     * @param objectName 文件全路径
+     * @param stream 文件流
+     * @return 对象信息
+     */
+    public ObjectInfo putObjectForKey(String objectName, InputStream stream) {
+        return putObjectForKey(ossProperties.getBucketName(), objectName, stream);
+    }
+
     private ObjectInfo putObjectForKey(String bucketName, String objectName, File file) {
         PutObjectRequest request = new PutObjectRequest(bucketName, objectName, file)
                 .withCannedAcl(CannedAccessControlList.PublicRead);
@@ -191,6 +201,17 @@ public class PutOperations extends Operations {
         } catch (Exception e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * 拷贝文件
+     * @param sourceDirectoryKey 源路径
+     * @param destinationDirectoryKey 目标路径
+     */
+    public void copyFile(String sourceDirectoryKey, String destinationDirectoryKey) {
+        // 拷贝文件
+        CopyObjectRequest copyRequest = new CopyObjectRequest(ossProperties.getBucketName(), sourceDirectoryKey, ossProperties.getBucketName(), destinationDirectoryKey);
+        amazonS3.copyObject(copyRequest);
     }
 
     /**

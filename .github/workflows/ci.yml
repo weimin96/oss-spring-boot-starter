@@ -44,8 +44,18 @@ jobs:
       - name: Set Release version env variable
         run: |
           echo "RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_ENV
+      - name: Check Version Change
+        id: check_version
+        run: |
+          previous_version=$(git describe --tags --abbrev=0)
+          if [ "$previous_version" != "$RELEASE_VERSION" ]; then
+            echo "::set-output name=version_changed::true"
+          else
+            echo "::set-output name=version_changed::false"
+          fi
       # 上传文件并发布 Release
       - uses: "marvinpinto/action-automatic-releases@latest"
+        if: ${{ steps.check_version.outputs.version_changed == 'true' }}
         with:
           repo_token: "${{ secrets.RELEASE_TOKEN }}"
           automatic_release_tag: "${{ env.RELEASE_VERSION }}"
