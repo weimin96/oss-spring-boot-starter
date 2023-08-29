@@ -2,6 +2,8 @@ package com.wiblog.oss.service;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
+import com.amazonaws.util.IOUtils;
+import com.amazonaws.util.StringUtils;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.OssProperties;
@@ -147,7 +149,7 @@ public class QueryOperations extends Operations {
     public S3Object getS3Object(String bucketName, String objectName) {
         try {
             return amazonS3.getObject(bucketName, objectName);
-        } catch (AmazonS3Exception  e) {
+        } catch (AmazonS3Exception e) {
             if (e.getStatusCode() == 404) {
                 // 文件不存在，返回空值
                 return null;
@@ -159,7 +161,39 @@ public class QueryOperations extends Operations {
     }
 
     /**
+     * 获取文本内容
+     *
+     * @param objectName 文件全路径
+     * @return InputStream 文件流
+     */
+    public String getContent(String objectName) {
+        InputStream inputStream = getInputStream(objectName);
+        try {
+            return IOUtils.toString(inputStream);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
+     * 获取文本内容
+     *
+     * @param bucketName 存储桶
+     * @param objectName 文件全路径
+     * @return InputStream 文件流
+     */
+    public String getContent(String bucketName, String objectName) {
+        InputStream inputStream = getInputStream(bucketName, objectName);
+        try {
+            return IOUtils.toString(inputStream);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    /**
      * 获取文件流
+     *
      * @param objectName 文件全路径
      * @return InputStream 文件流
      */
@@ -170,6 +204,7 @@ public class QueryOperations extends Operations {
 
     /**
      * 获取文件流
+     *
      * @param bucketName 存储桶
      * @param objectName 文件全路径
      * @return InputStream 文件流
@@ -181,7 +216,8 @@ public class QueryOperations extends Operations {
 
     /**
      * 下载文件
-     * @param objectName 文件全路径
+     *
+     * @param objectName    文件全路径
      * @param localFilePath 存放位置
      * @return File
      */
@@ -191,8 +227,9 @@ public class QueryOperations extends Operations {
 
     /**
      * 下载文件
-     * @param bucketName 存储桶
-     * @param objectName 文件全路径
+     *
+     * @param bucketName    存储桶
+     * @param objectName    文件全路径
      * @param localFilePath 存放位置
      * @return File
      */
@@ -237,6 +274,10 @@ public class QueryOperations extends Operations {
         while ((bytesRead = inputStream.read(buffer)) != -1) {
             outputStream.write(buffer, 0, bytesRead);
         }
+        String filename = Util.getFilename(s3Object.getKey());
+        response.setHeader("Content-Disposition", "inline; filename=\"" + filename + "\"");
+        // 设置响应内容类型为
+        response.setContentType(s3Object.getObjectMetadata().getContentType());
 
         // 关闭流
         outputStream.flush();
@@ -267,14 +308,22 @@ public class QueryOperations extends Operations {
     }
 
     private ObjectTreeNode buildTree(List<S3ObjectSummary> objectList, String objectName) {
-        int i = objectName.lastIndexOf("/");
-        String rootName = (i > 0) ? objectName.substring(i + 1) : objectName;
+        String rootName;
+        if (StringUtils.isNullOrEmpty(objectName)) {
+            rootName = "";
+        } else {
+            int i = objectName.lastIndexOf("/");
+            rootName = (i > 0) ? objectName.substring(i + 1) : objectName;
+        }
+
         ObjectTreeNode root = new ObjectTreeNode(rootName, objectName, getDomain() + objectName, null, "folder");
 
         for (S3ObjectSummary object : objectList) {
             if (object.getKey().startsWith(objectName + "/")) {
                 String remainingPath = object.getKey().substring(objectName.length() + 1);
                 addNode(root, remainingPath, object);
+            } else if (StringUtils.isNullOrEmpty(objectName)) {
+                addNode(root, object.getKey(), object);
             }
         }
 
@@ -293,7 +342,8 @@ public class QueryOperations extends Operations {
             // 在当前节点的子节点中查找是否已存在同名文件夹节点
             ObjectTreeNode folderNode = findFolderNode(parentNode.getChildren(), folderName);
             if (folderNode == null) { // 若不存在，则创建新的文件夹节点
-                folderNode = new ObjectTreeNode(folderName, parentNode.getUri() + "/" + folderName, getDomain() + parentNode.getUri() + "/" + folderName, null, "folder");
+                String uri = StringUtils.isNullOrEmpty(parentNode.getUri()) ? folderName : parentNode.getUri() + "/" + folderName;
+                folderNode = new ObjectTreeNode(folderName, uri, getDomain() + uri, null, "folder");
                 parentNode.getChildren().add(folderNode);
             }
 

@@ -75,4 +75,11 @@ class OssSpringStarterApplicationTests {
         Assertions.assertTrue(content.contains("test!"));
     }
 
+    @Test
+    void getTree() {
+        ObjectTreeNode treeList = ossTemplate.query().getTreeList(TEST_FOLDER_NAME);
+        Assertions.assertEquals(treeList.getName(), TEST_FOLDER_NAME);
+        Assertions.assertEquals(treeList.getChildren().get(0).getName(), TEST_FILE_NAME);
+    }
+
 }
