@@ -2,6 +2,7 @@ package com.wiblog.oss;
 
 import com.amazonaws.services.s3.model.Bucket;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.IOUtils;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
@@ -17,6 +18,7 @@ import org.springframework.util.ResourceUtils;
 
 import java.io.*;
 import java.nio.file.Files;
+import java.util.List;
 import java.util.Optional;
 
 @SpringBootApplication(scanBasePackages = "com.wiblog.oss")
@@ -69,9 +71,8 @@ class OssSpringStarterApplicationTests {
      * 测试获取文件信息
      */
     @Test
-    void getInputStream() throws IOException {
-        InputStream inputStream = ossTemplate.query().getInputStream(TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
-        String content = IOUtils.toString(inputStream);
+    void getInputStream() {
+        String content = ossTemplate.query().getContent( TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
         Assertions.assertTrue(content.contains("test!"));
     }
 
@@ -80,6 +81,12 @@ class OssSpringStarterApplicationTests {
         ObjectTreeNode treeList = ossTemplate.query().getTreeList(TEST_FOLDER_NAME);
         Assertions.assertEquals(treeList.getName(), TEST_FOLDER_NAME);
         Assertions.assertEquals(treeList.getChildren().get(0).getName(), TEST_FILE_NAME);
+    }
+
+    @Test
+    void getListObjectSummary() {
+        List<S3ObjectSummary> s3ObjectSummaries = ossTemplate.query().listObjectSummary(TEST_FOLDER_NAME);
+        Assertions.assertEquals(s3ObjectSummaries.get(0).getKey(), TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
     }
 
 }

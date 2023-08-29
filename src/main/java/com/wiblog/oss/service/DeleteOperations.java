@@ -29,6 +29,6 @@ public class DeleteOperations extends Operations {
      * @param objectName 文件全路径
      */
     public void removeObject(String objectName) {
-        amazonS3.deleteObject(ossProperties.getBucketName(), objectName);
+        removeObject(ossProperties.getBucketName(), objectName);
     }
 }

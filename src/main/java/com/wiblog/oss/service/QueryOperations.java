@@ -167,12 +167,7 @@ public class QueryOperations extends Operations {
      * @return InputStream 文件流
      */
     public String getContent(String objectName) {
-        InputStream inputStream = getInputStream(objectName);
-        try {
-            return IOUtils.toString(inputStream);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        return getContent(ossProperties.getBucketName(), objectName);
     }
 
     /**
@@ -198,8 +193,7 @@ public class QueryOperations extends Operations {
      * @return InputStream 文件流
      */
     public InputStream getInputStream(String objectName) {
-        S3Object s3Object = getS3Object(ossProperties.getBucketName(), objectName);
-        return s3Object.getObjectContent().getDelegateStream();
+        return getInputStream(ossProperties.getBucketName(), objectName);
     }
 
     /**
