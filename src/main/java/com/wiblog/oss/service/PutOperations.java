@@ -182,19 +182,6 @@ public class PutOperations extends Operations {
      * @param isIncludeFolderName 存放路径是否包含文件夹名称
      */
     public void putFolder(String bucketName, String path, File folder, boolean isIncludeFolderName) {
-        uploadDir(bucketName, path, folder, isIncludeFolderName);
-    }
-
-    /**
-     * 上传文件夹
-     *
-     * @param bucketName          存储桶
-     * @param path                存放路径
-     * @param folder              文件夹
-     * @param isIncludeFolderName 存放路径是否包含文件夹名称
-     */
-    public void uploadDir(String bucketName, String path, File folder, boolean isIncludeFolderName) {
-
         if (!folder.exists() || !folder.isDirectory()) {
             throw new IllegalArgumentException("Invalid folder path: " + folder.getPath());
         }
@@ -223,6 +210,7 @@ public class PutOperations extends Operations {
     public void copyFile(String sourceDirectoryKey, String destinationDirectoryKey) {
         // 拷贝文件
         CopyObjectRequest copyRequest = new CopyObjectRequest(ossProperties.getBucketName(), sourceDirectoryKey, ossProperties.getBucketName(), destinationDirectoryKey);
+        copyRequest.withCannedAccessControlList(CannedAccessControlList.PublicRead);
         amazonS3.copyObject(copyRequest);
     }
 
