@@ -163,7 +163,7 @@ public class OssController {
     public R<ObjectInfo> uploadObject(@NotNull MultipartFile file,
                                       @NotBlank String path) throws IOException {
         InputStream inputStream = file.getInputStream();
-        ObjectInfo objectInfo = ossTemplate.put().putObject(path, file.getOriginalFilename(), inputStream);
+        ObjectInfo objectInfo = ossTemplate.put().putObject(path, file.getOriginalFilename(), inputStream, file.getContentType());
         return R.data(objectInfo);
     }
 

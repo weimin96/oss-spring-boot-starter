@@ -59,6 +59,19 @@ public class PutOperations extends Operations {
      * @param in       文件流
      * @return 文件uri
      */
+    public ObjectInfo putObject(String path, String filename, InputStream in, String contentType) {
+        path = Util.formatPath(path);
+        return putObjectForKey(ossProperties.getBucketName(), path + filename, in, contentType);
+    }
+
+    /**
+     * 上传文件
+     *
+     * @param path     路径
+     * @param filename 文件名
+     * @param in       文件流
+     * @return 文件uri
+     */
     public ObjectInfo putObject(String path, String filename, InputStream in) {
         return putObject(ossProperties.getBucketName(), path, filename, in);
     }
@@ -73,6 +86,7 @@ public class PutOperations extends Operations {
      * @return 文件uri
      */
     public ObjectInfo putObject(String bucketName, String path, String filename, InputStream in) {
+        path = Util.formatPath(path);
         return putObjectForKey(bucketName, path + filename, in);
     }
 
@@ -132,13 +146,24 @@ public class PutOperations extends Operations {
      * @return 对象信息
      */
     public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
+        return putObjectForKey(bucketName, objectName, stream, "application/octet-stream");
+    }
+
+    /**
+     * @param bucketName 存储桶
+     * @param objectName 文件全路径
+     * @param stream 文件流
+     * @param contentType 内容类型
+     * @return 对象信息
+     */
+    public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream, String contentType) {
         ObjectMetadata objectMetadata = new ObjectMetadata();
         try {
             objectMetadata.setContentLength(stream.available());
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
-        objectMetadata.setContentType("application/octet-stream");
+        objectMetadata.setContentType(contentType);
 
         PutObjectRequest request = new PutObjectRequest(bucketName, objectName, stream, objectMetadata)
                 .withCannedAcl(CannedAccessControlList.PublicRead);
