@@ -7,6 +7,9 @@ on:
       - '**/*src/**/*.java'
       - 'pom.xml'
 
+permissions:
+  contents: read
+
 jobs:
   build:
     #	配置权限
@@ -45,30 +48,32 @@ jobs:
       - name: extract version
         id: get-version
         run: |
-          echo "RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_ENV
+          RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+          echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
       # 获取上一个版本
       - name: Get latest tag
         id: get-latest-tag
         run: |
-          echo "LAST_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)" >> $GITHUB_ENV
+          LAST_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)
+          echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
       # 监听版本变化
       - name: Check if version changed
         id: version_changed
         run: |
-          if [ "${{ steps.getVersion.outputs.RELEASE_VERSION }}" != "${{ steps.get-latest-tag.outputs.LAST_VERSION }}" ]; then
+          if [ "${{ steps.get-version.outputs.RELEASE_VERSION }}" != "${{ steps.get-latest-tag.outputs.LAST_VERSION }}" ]; then
             echo "version_changed=false" >> $GITHUB_ENV
           else
             echo "version_changed=true" >> $GITHUB_ENV
           fi
       # 上传文件并发布 Release
-      - uses: "marvinpinto/action-automatic-releases@latest"
-        with:
-          repo_token: "${{ secrets.RELEASE_TOKEN }}"
-          automatic_release_tag: "${{ env.RELEASE_VERSION }}"
-          prerelease: false
-          title: "v${{ env.RELEASE_VERSION }}"
-          files: |
-            !staging/*javadoc.jar
-            !staging/*sources.jar
-            staging/*.jar
-        if: steps.version_changed.outputs.version_changed == 'true'
+#      - uses: "marvinpinto/action-automatic-releases@latest"
+#        with:
+#          repo_token: "${{ secrets.RELEASE_TOKEN }}"
+#          automatic_release_tag: "${{ env.RELEASE_VERSION }}"
+#          prerelease: false
+#          title: "v${{ env.RELEASE_VERSION }}"
+#          files: |
+#            !staging/*javadoc.jar
+#            !staging/*sources.jar
+#            staging/*.jar
+#        if: steps.version_changed.outputs.version_changed == 'true'
