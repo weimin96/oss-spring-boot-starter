@@ -39,16 +39,6 @@ jobs:
         run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -B package --file pom.xml
         env:
           GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-      # 监听版本变化
-      - name: Check if version changed
-        id: version_changed
-        run: |
-          git fetch --tags
-          if [ "$(git diff HEAD^ HEAD pom.xml | grep '<version>' | wc -l)" -eq "0" ]; then
-            echo "::set-output name=version_changed::false"
-          else
-            echo "::set-output name=version_changed::true"
-          fi
       # 将打包好的 Jar 包 放到 staging 文件夹
       - run: mkdir staging && cp target/*.jar staging
       # 监听版本变化
