@@ -50,7 +50,6 @@ jobs:
       - name: Get latest tag
         id: get-latest-tag
         run: |
-#          git fetch --tags
           echo "LAST_VERSION=$(git describe --tags `git rev-list --tags --max-count=1`)" >> $GITHUB_ENV
       # 监听版本变化
       - name: Check if version changed
