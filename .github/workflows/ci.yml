@@ -18,6 +18,8 @@ jobs:
     steps:
       # 下载代码
       - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
       - name: Set up JDK 8
         # 安装 JDK
         uses: actions/setup-java@v3
