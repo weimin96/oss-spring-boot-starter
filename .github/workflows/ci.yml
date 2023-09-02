@@ -45,7 +45,7 @@ jobs:
       - name: Check if version changed
         id: version_changed
         run: |
-          git fetch --tags
+          git fetch --tags --force
           RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           LAST_VERSION=$(git describe --tags --abbrev=0)
           if [ "$RELEASE_VERSION" = "$LAST_VERSION" ]; then
