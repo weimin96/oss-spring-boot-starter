@@ -45,16 +45,14 @@ jobs:
       - name: Check if version changed
         id: version_changed
         run: |
-          git fetch --tags --force
-          RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          LAST_VERSION=$(git describe --tags --abbrev=0)
+          echo "RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)" >> $GITHUB_ENV
+          $LAST_VERSION=${GITHUB_REF/refs\/tags\//}
+#          LAST_VERSION=$(git describe --tags --abbrev=0)
           if [ "$RELEASE_VERSION" = "$LAST_VERSION" ]; then
             echo "version_changed=false" >> $GITHUB_ENV
           else
             echo "version_changed=true" >> $GITHUB_ENV
           fi
-          echo "RELEASE_VERSION=$RELEASE_VERSION" >> $GITHUB_ENV
-          echo "LAST_VERSION=$LAST_VERSION" >> $GITHUB_ENV
       # 上传文件并发布 Release
       - uses: "marvinpinto/action-automatic-releases@latest"
         with:
