@@ -1,6 +1,7 @@
 package com.wiblog.oss.service;
 
 import com.amazonaws.ClientConfiguration;
+import com.amazonaws.SDKGlobalConfiguration;
 import com.amazonaws.auth.AWSCredentials;
 import com.amazonaws.auth.AWSCredentialsProvider;
 import com.amazonaws.auth.AWSStaticCredentialsProvider;
@@ -53,6 +54,8 @@ public class OssTemplate {
         // fix: SdkClientException: Unable to verify integrity of data upload. Client calculated content hash
         System.setProperty(SkipMd5CheckStrategy.DISABLE_PUT_OBJECT_MD5_VALIDATION_PROPERTY, "true");
         System.setProperty(SkipMd5CheckStrategy.DISABLE_GET_OBJECT_MD5_VALIDATION_PROPERTY, "true");
+        // fix: SdkClientException: Unable to reset stream after calculating AWS4 signature
+        System.setProperty(SDKGlobalConfiguration.DEFAULT_S3_STREAM_BUFFER_SIZE, "1073741824");
         ClientConfiguration clientConfiguration = new ClientConfiguration();
         AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
                 ossProperties.getEndpoint(), null);
