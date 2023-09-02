@@ -62,7 +62,7 @@ jobs:
       - name: Check if version changed
         id: version_changed
         run: |
-          if [ "${{ steps.get-version.outputs.RELEASE_VERSION }}" != "${{ steps.get-latest-tag.outputs.LAST_VERSION }}" ]; then
+          if [ "${{ steps.get-version.outputs.RELEASE_VERSION }}" == "${{ steps.get-latest-tag.outputs.LAST_VERSION }}" ]; then
             echo "version_changed=false" >> $GITHUB_ENV
           else
             echo "version_changed=true" >> $GITHUB_ENV
