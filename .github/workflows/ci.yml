@@ -24,7 +24,7 @@ jobs:
           cache: maven
       # 配置 settings.xml 一般用于 Mavne 私库验证等
       - name: maven-settings-xml-action
-        uses: whelk-io/maven-settings-xml-action@v20
+        uses: whelk-io/maven-settings-xml-action@v21
         with:
           repositories: ''
           servers: ''
@@ -45,6 +45,7 @@ jobs:
       - name: Check if version changed
         id: version_changed
         run: |
+          git fetch --tags
           RELEASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
           LAST_VERSION=$(git describe --tags --abbrev=0)
           if [ "$RELEASE_VERSION" = "$LAST_VERSION" ]; then
