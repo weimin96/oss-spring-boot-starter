@@ -67,17 +67,18 @@ jobs:
           fi
       # 获取changelog
       - name: Get ChangeLog
-        run: echo "CHANGE_LOG=$(git log --pretty=format:'- %s' ${previous_tag}..HEAD)" >> $GITHUB_ENV
+        run: echo "CHANGE_LOG=$(git log --pretty=format:'- %s' ${env.LAST_VERSION}..HEAD)" >> $GITHUB_ENV
       # 将打包好的 Jar 包 放到 staging 文件夹
       - run: mkdir staging && cp target/*.jar staging
       # 发布release
       - uses: ncipollo/release-action@v1
+        if: env.version_changed == 'true'
         with:
           allowUpdates: true
           artifacts: "staging/*.jar"
           name: "v${{ env.RELEASE_VERSION }}"
           tag: "${{ env.RELEASE_VERSION }}"
-          commit: "-main"
+          commit: "main"
           body: "${ env.CHANGE_LOG}"
           token: "${{ secrets.RELEASE_TOKEN }}"
       # 上传文件并发布 Release
