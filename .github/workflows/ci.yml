@@ -65,9 +65,6 @@ jobs:
           else
             echo "version_changed=true" >> $GITHUB_ENV
           fi
-      # 获取changelog
-      - name: Get ChangeLog
-        run: echo "CHANGE_LOG=$(git log --pretty=format:'- %s' ${env.LAST_VERSION}..HEAD)" >> $GITHUB_ENV
       # 将打包好的 Jar 包 放到 staging 文件夹
       - run: mkdir staging && cp target/*.jar staging
       # 发布release
@@ -79,17 +76,5 @@ jobs:
           name: "v${{ env.RELEASE_VERSION }}"
           tag: "${{ env.RELEASE_VERSION }}"
           commit: "main"
-          body: "${ env.CHANGE_LOG}"
+          bodyFile: "document/release.md"
           token: "${{ secrets.RELEASE_TOKEN }}"
-      # 上传文件并发布 Release
-#      - uses: "marvinpinto/action-automatic-releases@latest"
-#        if: env.version_changed == 'true'
-#        with:
-#          repo_token: "${{ secrets.RELEASE_TOKEN }}"
-#          automatic_release_tag: "${{ env.RELEASE_VERSION }}"
-#          prerelease: false
-#          title: "v${{ env.RELEASE_VERSION }}"
-#          files: |
-#            !*javadoc.jar
-#            !*sources.jar
-#            staging/*.jar
