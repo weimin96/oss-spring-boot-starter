@@ -2,10 +2,10 @@ name: Java CI
 
 on:
   push:
-    paths:
-      - '.github/**'
-      - '**/*src/**/*.java'
-      - 'pom.xml'
+    tags-ignore:
+      - '*'
+    branches:
+      - 'main'
 
 permissions:
   contents: read
@@ -44,8 +44,6 @@ jobs:
         run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -B package --file pom.xml
         env:
           GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-      # 将打包好的 Jar 包 放到 staging 文件夹
-      - run: mkdir staging && cp target/*.jar staging
       # 获取当前版本
       - name: extract version
         id: get-version
@@ -67,18 +65,30 @@ jobs:
           else
             echo "version_changed=true" >> $GITHUB_ENV
           fi
-      - name: test
-        run: |
-          echo env.version_changed
-      # 上传文件并发布 Release
-      - uses: "marvinpinto/action-automatic-releases@latest"
+      # 获取changelog
+      - name: Get ChangeLog
+        run: echo "CHANGE_LOG=$(git log --pretty=format:'- %s' ${previous_tag}..HEAD)" >> $GITHUB_ENV
+      # 将打包好的 Jar 包 放到 staging 文件夹
+      - run: mkdir staging && cp target/*.jar staging
+      # 发布release
+      - uses: ncipollo/release-action@v1
         with:
-          repo_token: "${{ secrets.RELEASE_TOKEN }}"
-          automatic_release_tag: "${{ env.RELEASE_VERSION }}"
-          prerelease: false
-          title: "v${{ env.RELEASE_VERSION }}"
-          files: |
-            !staging/*javadoc.jar
-            !staging/*sources.jar
-            staging/*.jar
-        if: env.version_changed == 'true'
+          allowUpdates: true
+          artifacts: "staging/*.jar"
+          name: "v${{ env.RELEASE_VERSION }}"
+          tag: "${{ env.RELEASE_VERSION }}"
+          commit: "-main"
+          body: "${ env.CHANGE_LOG}"
+          token: "${{ secrets.RELEASE_TOKEN }}"
+      # 上传文件并发布 Release
+#      - uses: "marvinpinto/action-automatic-releases@latest"
+#        if: env.version_changed == 'true'
+#        with:
+#          repo_token: "${{ secrets.RELEASE_TOKEN }}"
+#          automatic_release_tag: "${{ env.RELEASE_VERSION }}"
+#          prerelease: false
+#          title: "v${{ env.RELEASE_VERSION }}"
+#          files: |
+#            !*javadoc.jar
+#            !*sources.jar
+#            staging/*.jar
