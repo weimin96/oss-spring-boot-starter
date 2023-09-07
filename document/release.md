@@ -10,7 +10,7 @@
 
 ### 🐞 Bug Fixes
 
-- Fixed SdkClientException: Unable to reset stream after calculating AWS4 signature
+- Fixed getFile throw FileNotFound Exception
 
 ### 📔 Reference Document
 

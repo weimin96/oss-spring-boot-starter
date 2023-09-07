@@ -46,4 +46,20 @@ public class Util {
         }
         return path;
     }
+
+    /**
+     * 判断一个路径是否指向文件
+     * @param path 路径
+     * @return 是否是文件
+     */
+    public static boolean checkIsFile(String path) {
+        if (StringUtils.isNullOrEmpty(path)) {
+            return false;
+        }
+        path = path.replaceAll("\\\\", "/");
+        if (path.endsWith("/")) {
+            return false;
+        }
+        return path.substring(path.lastIndexOf("/")).contains(".");
+    }
 }
