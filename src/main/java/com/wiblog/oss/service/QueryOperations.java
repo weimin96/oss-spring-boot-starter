@@ -230,6 +230,19 @@ public class QueryOperations extends Operations {
     public File getFile(String bucketName, String objectName, String localFilePath) {
         S3Object s3Object = getS3Object(bucketName, objectName);
         File outputFile = new File(localFilePath);
+        if (!outputFile.getParentFile().exists()) {
+            outputFile.getParentFile().mkdirs();
+        }
+        String filename = Util.getFilename(objectName);
+        Util.formatPath(localFilePath);
+        if (!Util.checkIsFile(localFilePath)) {
+            if (!outputFile.exists()) {
+                outputFile.mkdirs();
+            }
+            localFilePath = Util.formatPath(localFilePath);
+            outputFile = new File(localFilePath + filename);
+        }
+
         try (FileOutputStream fos = new FileOutputStream(outputFile)) {
 
             byte[] buffer = new byte[4096];
@@ -244,6 +257,8 @@ public class QueryOperations extends Operations {
         }
         return outputFile;
     }
+
+
 
     /**
      * 预览文件

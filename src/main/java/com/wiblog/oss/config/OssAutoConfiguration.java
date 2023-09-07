@@ -47,6 +47,7 @@ public class OssAutoConfiguration {
      */
     @Bean
     @ConditionalOnWebApplication
+
     @ConditionalOnProperty(prefix = OssProperties.PREFIX, name = "http.enable", matchIfMissing  = true)
     public OssController ossController(OssTemplate template) {
         log.info("========== Initializing OSS Endpoint ==========");
