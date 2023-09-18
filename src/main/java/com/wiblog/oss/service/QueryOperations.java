@@ -11,6 +11,7 @@ import com.wiblog.oss.util.Util;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
+import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -133,9 +134,9 @@ public class QueryOperations extends Operations {
     public ObjectInfo getObjectDetailInfo(String objectName) {
         ObjectInfo objectInfo = getObjectInfo(objectName);
         // 获取文件的访问权限
-        GetObjectAclRequest aclRequest = new GetObjectAclRequest(ossProperties.getBucketName(), objectName);
-        AccessControlList acl = amazonS3.getObjectAcl(aclRequest);
-        objectInfo.setAcl(acl);
+//        GetObjectAclRequest aclRequest = new GetObjectAclRequest(ossProperties.getBucketName(), objectName);
+//        AccessControlList acl = amazonS3.getObjectAcl(aclRequest);
+//        objectInfo.setAcl(acl);
         return objectInfo;
     }
 
@@ -148,6 +149,9 @@ public class QueryOperations extends Operations {
      */
     public S3Object getS3Object(String bucketName, String objectName) {
         try {
+            if (objectName.startsWith("/")) {
+                objectName = objectName.substring(1);
+            }
             return amazonS3.getObject(bucketName, objectName);
         } catch (AmazonS3Exception e) {
             if (e.getStatusCode() == 404) {
@@ -268,6 +272,7 @@ public class QueryOperations extends Operations {
      * @throws IOException io异常
      */
     public void previewObject(HttpServletResponse response, String objectName) throws IOException {
+        objectName = URLDecoder.decode(objectName, "UTF-8");
         S3Object s3Object = amazonS3.getObject(ossProperties.getBucketName(), objectName);
         // 设置响应头信息
         response.setContentType(s3Object.getObjectMetadata().getContentType());
