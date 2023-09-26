@@ -57,6 +57,7 @@ public class OssTemplate {
         // fix: SdkClientException: Unable to reset stream after calculating AWS4 signature
         System.setProperty(SDKGlobalConfiguration.DEFAULT_S3_STREAM_BUFFER_SIZE, "1073741824");
         ClientConfiguration clientConfiguration = new ClientConfiguration();
+        clientConfiguration.withMaxConnections(ossProperties.getMaxConnections()).withConnectionTimeout(ossProperties.getConnectionTimeout());
         AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
                 ossProperties.getEndpoint(), null);
         AWSCredentials awsCredentials = new BasicAWSCredentials(ossProperties.getAccessKey(),

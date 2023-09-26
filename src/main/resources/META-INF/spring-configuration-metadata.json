@@ -52,6 +52,20 @@
       "sourceType": "com.wiblog.oss.bean.OssProperties"
     },
     {
+      "name": "oss.max-connections",
+      "type": "java.lang.String",
+      "description": "最大连接数 默认50",
+      "sourceType": "com.wiblog.oss.bean.OssProperties",
+      "defaultValue": 50
+    },
+    {
+      "name": "oss.connection-timeout",
+      "type": "java.lang.String",
+      "description": "连接超时 默认10000",
+      "sourceType": "com.wiblog.oss.bean.OssProperties",
+      "defaultValue": 10000
+    },
+    {
       "name": "oss.http.prefix",
       "type": "java.lang.String",
       "description": "访问端点前缀",

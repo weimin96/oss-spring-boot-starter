@@ -173,7 +173,11 @@ public class PutOperations extends Operations {
 
     private ObjectInfo putObject(PutObjectRequest request, String objectName) {
         // 执行文件上传
-        amazonS3.putObject(request);
+        try {
+            amazonS3.putObject(request);
+        } catch (Exception e) {
+            log.error("上传失败", e);
+        }
         return buildObjectInfo(objectName);
     }
 
@@ -253,16 +257,21 @@ public class PutOperations extends Operations {
         // 列出文件
         List<S3ObjectSummary> sourceObjects = sourceOssTemplate.query().listObjectSummary(sourceBucketName, sourceDirectoryKey);
         // 遍历并拷贝每个对象到目标存储桶
-        for (S3ObjectSummary object : sourceObjects) {
-            String sourceObjectKey = object.getKey();
+        try {
+            for (S3ObjectSummary object : sourceObjects) {
+                String sourceObjectKey = object.getKey();
 
-            S3Object sourceObject = sourceOssTemplate.query().getS3Object(sourceBucketName, sourceObjectKey);
-            String obsObjectKey = destinationDirectoryKey + sourceObjectKey.substring(sourceDirectoryKey.length());
+                S3Object sourceObject = sourceOssTemplate.query().getS3Object(sourceBucketName, sourceObjectKey);
+                String obsObjectKey = destinationDirectoryKey + sourceObjectKey.substring(sourceDirectoryKey.length());
 
-            PutObjectRequest obsPutObjectRequest = new PutObjectRequest(ossProperties.getBucketName(), obsObjectKey, sourceObject.getObjectContent(), new ObjectMetadata());
-            obsPutObjectRequest.withCannedAcl(CannedAccessControlList.PublicRead);
-            amazonS3.putObject(obsPutObjectRequest);
+                PutObjectRequest obsPutObjectRequest = new PutObjectRequest(ossProperties.getBucketName(), obsObjectKey, sourceObject.getObjectContent(), new ObjectMetadata());
+                obsPutObjectRequest.withCannedAcl(CannedAccessControlList.PublicRead);
+                amazonS3.putObject(obsPutObjectRequest);
+            }
+        } catch (Exception e) {
+            log.error("上传文件异常", e);
         }
+
     }
 
     private String initTask(String objectName) {
@@ -322,19 +331,22 @@ public class PutOperations extends Operations {
     }
 
     private String chunk(Chunk chunk, String uploadId) {
+        // 上传
+        UploadPartRequest uploadRequest = new UploadPartRequest()
+                .withBucketName(ossProperties.getBucketName())
+                .withKey(Util.formatPath(chunk.getPath()) + chunk.getFilename())
+                .withUploadId(uploadId)
+                .withPartNumber(chunk.getChunkNumber())
+                .withPartSize(chunk.getFile().getSize());
         try (InputStream in = chunk.getFile().getInputStream()) {
-            // 上传
-            UploadPartRequest uploadRequest = new UploadPartRequest()
-                    .withBucketName(ossProperties.getBucketName())
-                    .withKey(Util.formatPath(chunk.getPath()) + chunk.getFilename())
-                    .withUploadId(uploadId)
-                    .withInputStream(in)
-                    .withPartNumber(chunk.getChunkNumber())
-                    .withPartSize(chunk.getFile().getSize());
+            uploadRequest.withInputStream(in);
             UploadPartResult uploadResult = amazonS3.uploadPart(uploadRequest);
             return uploadResult.getETag();
         } catch (IOException e) {
             log.error("文件【{}】上传分片【{}】失败", chunk.getFilename(), chunk.getChunkNumber(), e);
+            // 中止上传
+            AbortMultipartUploadRequest abortRequest = new AbortMultipartUploadRequest(uploadRequest.getBucketName(), uploadRequest.getKey(), uploadId);
+            amazonS3.abortMultipartUpload(abortRequest);
             // TODO 失败或取消删除文件
             throw new RuntimeException(e);
         }
