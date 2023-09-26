@@ -8,9 +8,10 @@
 - Support cross-service file transfer `ossTemplate.put().transferObject()`
 - Provide bucket cross-origin configuration `oss.cross=true`
 
-### 🐞 Bug Fixes
+### new Feature
 
-- Fixed getFile throw FileNotFound Exception
+- add maxConnections
+- add connectionTimeout
 
 ### 📔 Reference Document
 

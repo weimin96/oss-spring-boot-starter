@@ -1,6 +1,7 @@
 package com.wiblog.oss.bean;
 
 
+import com.amazonaws.ClientConfiguration;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -50,6 +51,16 @@ public class OssProperties {
      * oss类型 obs/minio
      */
     private String type;
+
+    /**
+     * 最大连接数 默认50
+     */
+    private int maxConnections = ClientConfiguration.DEFAULT_MAX_CONNECTIONS;
+
+    /**
+     * 连接超时 默认10s
+     */
+    private int connectionTimeout = ClientConfiguration.DEFAULT_CONNECTION_TIMEOUT;
 
     @Data
     public static class Http {
