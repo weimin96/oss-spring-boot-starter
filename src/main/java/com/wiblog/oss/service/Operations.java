@@ -7,6 +7,7 @@ import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.constant.ClientEnum;
 import com.wiblog.oss.util.Util;
 
+import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.util.Optional;
@@ -41,13 +42,21 @@ public abstract class Operations {
      * @return ObjectResp
      */
     protected ObjectInfo buildObjectInfo(S3Object object) {
-        return object == null ? null : ObjectInfo.builder()
+        ObjectInfo result = object == null ? null : ObjectInfo.builder()
                 .uri(object.getKey())
                 .url(getDomain() + object.getKey())
                 .name(Util.getFilename(object.getKey()))
                 .metadata(object.getObjectMetadata())
                 .uploadTime(object.getObjectMetadata().getLastModified())
                 .build();
+        if (object != null) {
+            try {
+                object.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+        return result;
     }
 
     /**

@@ -8,10 +8,9 @@
 - Support cross-service file transfer `ossTemplate.put().transferObject()`
 - Provide bucket cross-origin configuration `oss.cross=true`
 
-### new Feature
+### 🐞 Bug Fixes
 
-- add maxConnections
-- add connectionTimeout
+- fix SdkClientException: Unable to execute HTTP request: Timeout waiting for connection from pool
 
 ### 📔 Reference Document
 

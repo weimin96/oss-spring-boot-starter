@@ -297,6 +297,7 @@ public class QueryOperations extends Operations {
         outputStream.flush();
         outputStream.close();
         inputStream.close();
+        s3Object.close();
     }
 
     /**
