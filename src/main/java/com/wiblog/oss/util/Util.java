@@ -1,8 +1,11 @@
 package com.wiblog.oss.util;
 
+import com.amazonaws.services.s3.model.S3ObjectInputStream;
 import com.amazonaws.util.StringUtils;
 
-import java.io.File;
+import java.io.*;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 
 /**
  * 工具类
@@ -61,5 +64,26 @@ public class Util {
             return false;
         }
         return path.substring(path.lastIndexOf("/")).contains(".");
+    }
+
+    /**
+     * 写入文件
+     * @param inputStream 输入流
+     * @param filePath 文件路径
+     */
+    public static void copyInputStreamToFile(S3ObjectInputStream inputStream, String filePath) {
+        File file = new File(filePath);
+        if (!file.getParentFile().exists()) {
+            file.getParentFile().mkdirs();
+        }
+        try (OutputStream outputStream = Files.newOutputStream(Paths.get(filePath))) {
+            byte[] buffer = new byte[4096];
+            int bytesRead;
+            while ((bytesRead = inputStream.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, bytesRead);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

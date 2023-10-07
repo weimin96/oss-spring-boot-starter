@@ -262,6 +262,44 @@ public class QueryOperations extends Operations {
         return outputFile;
     }
 
+    /**
+     * 下载文件夹
+     *
+     * @param objectName    文件全路径
+     * @param localFilePath 存放位置
+     */
+    public void getFolder(String objectName, String localFilePath) {
+        getFolder(ossProperties.getBucketName(), objectName, localFilePath);
+    }
+
+    /**
+     * 下载文件夹
+     *
+     * @param bucketName    存储桶
+     * @param objectName    文件全路径
+     * @param localFilePath 存放位置
+     */
+    public void getFolder(String bucketName, String objectName, String localFilePath) {
+        List<S3ObjectSummary> s3ObjectSummaries = listObjectSummary(bucketName, objectName);
+        if (!localFilePath.endsWith(File.pathSeparator)) {
+            localFilePath += File.separator;
+        }
+        try {
+            for (S3ObjectSummary objectSummary : s3ObjectSummaries) {
+                S3Object s3Object = amazonS3.getObject(objectSummary.getBucketName(), objectSummary.getKey());
+                S3ObjectInputStream inputStream = s3Object.getObjectContent();
+                String filepath;
+                String slash = "/".equals(File.separator) ? "/" : "\\\\";
+                String key = objectSummary.getKey().replace(objectName + "/", "").replaceAll("/", slash);
+                filepath = localFilePath + key;
+                Util.copyInputStreamToFile(inputStream, filepath);
+
+                s3Object.close();
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
 
 
     /**
