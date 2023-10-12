@@ -183,6 +183,9 @@ public class QueryOperations extends Operations {
      */
     public String getContent(String bucketName, String objectName) {
         InputStream inputStream = getInputStream(bucketName, objectName);
+        if (inputStream == null) {
+            return null;
+        }
         try {
             return IOUtils.toString(inputStream);
         } catch (IOException e) {
@@ -209,6 +212,9 @@ public class QueryOperations extends Operations {
      */
     public InputStream getInputStream(String bucketName, String objectName) {
         S3Object s3Object = getS3Object(bucketName, objectName);
+        if (s3Object == null) {
+            return null;
+        }
         return s3Object.getObjectContent().getDelegateStream();
     }
 
