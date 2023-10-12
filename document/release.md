@@ -8,9 +8,9 @@
 - Support cross-service file transfer `ossTemplate.put().transferObject()`
 - Provide bucket cross-origin configuration `oss.cross=true`
 
-### new Feature
+### 🐞 Bug Fixes
 
-- add get folder api
+- fix getContent NullPointerException
 
 ### 📔 Reference Document
 
