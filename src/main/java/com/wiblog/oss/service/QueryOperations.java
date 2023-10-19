@@ -168,7 +168,7 @@ public class QueryOperations extends Operations {
      * 获取文本内容
      *
      * @param objectName 文件全路径
-     * @return InputStream 文件流
+     * @return String 文本
      */
     public String getContent(String objectName) {
         return getContent(ossProperties.getBucketName(), objectName);
