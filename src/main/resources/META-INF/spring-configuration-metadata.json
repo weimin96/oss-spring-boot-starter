@@ -74,7 +74,7 @@
     {
       "name": "oss.http.enable",
       "type": "java.lang.Boolean",
-      "description": "是否启用端点 默认true",
+      "description": "是否启用端点 默认false",
       "sourceType": "com.wiblog.oss.bean.OssProperties.Http"
     }
   ],
@@ -110,9 +110,9 @@
     {
       "name": "oss.enable",
       "type": "java.lang.Boolean",
-      "description": "是否启用 oss，默认为：true",
+      "description": "是否启用 oss，默认为：false",
       "sourceType": "com.wiblog.oss.bean.OssProperties",
-      "defaultValue": true,
+      "defaultValue": false,
       "values": [
         {
           "value": true,
@@ -169,7 +169,7 @@
     {
       "name": "oss.http.enable",
       "type": "java.lang.Boolean",
-      "description": "是否启用Web端点 默认true",
+      "description": "是否启用Web端点 默认false",
       "sourceType": "com.wiblog.oss.bean.OssProperties.Http",
       "values": [
         {

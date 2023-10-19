@@ -316,6 +316,9 @@ public class QueryOperations extends Operations {
      * @throws IOException io异常
      */
     public void previewObject(HttpServletResponse response, String objectName) throws IOException {
+        if (StringUtils.isNullOrEmpty(objectName)) {
+            return;
+        }
         objectName = URLDecoder.decode(objectName, "UTF-8");
         S3Object s3Object = amazonS3.getObject(ossProperties.getBucketName(), objectName);
         // 设置响应头信息

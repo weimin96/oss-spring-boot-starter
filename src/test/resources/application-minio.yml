@@ -1,7 +1,8 @@
 oss:
-  endpoint: https://play.min.io:9000
+  endpoint: http://10.3.1.241:9000
   access-key: minioadmin
   secret-key: minioadmin
-  bucket-name: 123
+  bucket-name: guodi
+  enable: true
   http:
     enable: false
