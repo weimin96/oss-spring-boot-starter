@@ -18,7 +18,7 @@ import org.springframework.context.annotation.Configuration;
  * @author panwm
  */
 @Configuration(proxyBeanMethods = false)
-@ConditionalOnProperty(prefix = OssProperties.PREFIX, name = "enable", matchIfMissing  = true)
+@ConditionalOnProperty(prefix = OssProperties.PREFIX, name = "enable", havingValue = "true")
 @EnableConfigurationProperties({ OssProperties.class })
 public class OssAutoConfiguration {
 
@@ -47,8 +47,7 @@ public class OssAutoConfiguration {
      */
     @Bean
     @ConditionalOnWebApplication
-
-    @ConditionalOnProperty(prefix = OssProperties.PREFIX, name = "http.enable", matchIfMissing  = true)
+    @ConditionalOnProperty(prefix = OssProperties.PREFIX, name = "http.enable", havingValue = "true")
     public OssController ossController(OssTemplate template) {
         log.info("========== Initializing OSS Endpoint ==========");
         return new OssController(template);

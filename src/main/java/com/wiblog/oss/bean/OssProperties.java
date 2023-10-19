@@ -18,9 +18,9 @@ public class OssProperties {
     public static final String PREFIX = "oss";
 
     /**
-     * 是否启用 oss，默认为：true
+     * 是否启用 oss，默认为：false
      */
-    private boolean enable = true;
+    private boolean enable = false;
 
     /**
      * 端点
@@ -73,7 +73,7 @@ public class OssProperties {
         /**
          * 是否启用Web端点 默认true
          */
-        private boolean enable = true;
+        private boolean enable = false;
 
     }
 
