@@ -10,7 +10,7 @@
 
 ### 🐞 Bug Fixes
 
-- fix getContent NullPointerException
+- fix swagger exception
 
 ### 📔 Reference Document
 

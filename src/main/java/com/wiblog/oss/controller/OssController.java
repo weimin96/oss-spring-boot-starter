@@ -66,7 +66,7 @@ public class OssController {
     @PostMapping(value = "/merge", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ApiOperation(value = "文件合并")
     @ApiImplicitParam(name = "guid", value = "文件唯一id", required = true, dataType = "String")
-    public R<ObjectInfo> merge(@RequestParam("guid") @NotBlank String guid) {
+    public R<ObjectInfo> merge(@NotBlank String guid) {
         ObjectInfo merge = ossTemplate.put().merge(guid);
         return R.data(merge);
     }
