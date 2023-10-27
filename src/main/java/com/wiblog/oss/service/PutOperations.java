@@ -128,6 +128,16 @@ public class PutOperations extends Operations {
     }
 
     /**
+     *
+     * @param objectName 文件全路径
+     * @param file 文件
+     * @return 对象信息
+     */
+    public ObjectInfo putObjectForKey(String objectName, File file) {
+        return putObjectForKey(ossProperties.getBucketName(), objectName, file);
+    }
+
+    /**
      * @param bucketName 存储桶
      * @param objectName 文件全路径
      * @param file 文件

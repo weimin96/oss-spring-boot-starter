@@ -61,6 +61,7 @@ oss:
   access-key: YOUR_ACCESS_KEY
   secret-key: YOUR_SECRET_KEY
   bucket-name: your-bucket-name
+  enable: true
 ```
 
 - Code Usage
@@ -79,7 +80,7 @@ Explanation of all configurations:
 
 | Configuration        | Type     | Default Value | Description                  |
 |----------------------|----------|---------------|------------------------------|
-| oss.enable           | boolean  | true          | Enable OSS or not             |
+| oss.enable           | boolean  | false         | Enable OSS or not             |
 | oss.endpoint         | String   |               | Endpoint of the OSS service   |
 | oss.bucket-name      | String   |               | Bucket name                   |
 | oss.access-key       | String   |               | Access key ID                 |
@@ -87,6 +88,6 @@ Explanation of all configurations:
 | oss.cross            | boolean  | false         | Allow cross-origin or not      |
 | oss.type             | String   |               | OSS type (options: obs/minio) |
 | oss.http.prefix      | String   |               | Prefix of the endpoint URL    |
-| oss.http.enable      | boolean  | true          | Enable web endpoints or not    |
+| oss.http.enable      | boolean  | false         | Enable web endpoints or not    |
 
 
