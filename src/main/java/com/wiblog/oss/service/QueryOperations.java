@@ -320,31 +320,26 @@ public class QueryOperations extends Operations {
             return;
         }
         objectName = URLDecoder.decode(objectName, "UTF-8");
-        S3Object s3Object = amazonS3.getObject(ossProperties.getBucketName(), objectName);
-        // 设置响应头信息
-        response.setContentType(s3Object.getObjectMetadata().getContentType());
-        response.setContentLength((int) s3Object.getObjectMetadata().getContentLength());
+        try (S3Object s3Object = amazonS3.getObject(ossProperties.getBucketName(), objectName)) {
+            // 设置响应头信息
+            response.setContentType(s3Object.getObjectMetadata().getContentType());
+            response.setContentLength((int) s3Object.getObjectMetadata().getContentLength());
 
-        // 获取文件输入流
-        InputStream inputStream = s3Object.getObjectContent();
-
-        // 将文件流写入响应输出流
-        OutputStream outputStream = response.getOutputStream();
-        byte[] buffer = new byte[1024];
-        int bytesRead;
-        while ((bytesRead = inputStream.read(buffer)) != -1) {
-            outputStream.write(buffer, 0, bytesRead);
+            String filename = Util.getFilename(s3Object.getKey());
+            response.setHeader("Content-Disposition", "inline; filename=\"" + filename + "\"");
+            // 设置响应内容类型为
+            response.setContentType(s3Object.getObjectMetadata().getContentType());
+            try (InputStream inputStream = s3Object.getObjectContent();
+                 OutputStream outputStream = response.getOutputStream()) {
+                byte[] buffer = new byte[1024];
+                int bytesRead;
+                while ((bytesRead = inputStream.read(buffer)) != -1) {
+                    outputStream.write(buffer, 0, bytesRead);
+                }
+            }
+        } catch (IOException e) {
+            throw new IOException(e);
         }
-        String filename = Util.getFilename(s3Object.getKey());
-        response.setHeader("Content-Disposition", "inline; filename=\"" + filename + "\"");
-        // 设置响应内容类型为
-        response.setContentType(s3Object.getObjectMetadata().getContentType());
-
-        // 关闭流
-        outputStream.flush();
-        outputStream.close();
-        inputStream.close();
-        s3Object.close();
     }
 
     /**

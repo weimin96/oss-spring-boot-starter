@@ -157,10 +157,9 @@ public class OssController {
     @PostMapping(value = "/object")
     @ApiOperation(value = "上传文件")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "file", value = "文件",  required = true, dataType = "file", paramType = "form"),
             @ApiImplicitParam(name = "path", value = "存放路径",  required = true, dataType = "String", paramType = "form")
     })
-    public R<ObjectInfo> uploadObject(@NotNull MultipartFile file,
+    public R<ObjectInfo> uploadObject(@NotNull @RequestParam("file") MultipartFile file,
                                       @NotBlank String path) throws IOException {
         InputStream inputStream = file.getInputStream();
         ObjectInfo objectInfo = ossTemplate.put().putObject(path, file.getOriginalFilename(), inputStream, file.getContentType());
