@@ -1,6 +1,7 @@
 package com.wiblog.oss.service;
 
 import com.amazonaws.services.s3.AmazonS3;
+import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.ListObjectsV2Request;
 import com.amazonaws.services.s3.model.ListObjectsV2Result;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
@@ -9,6 +10,7 @@ import com.wiblog.oss.util.Util;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * 移除操作
@@ -70,9 +72,9 @@ public class DeleteOperations extends Operations {
             }
         } while (response.isTruncated());
 
-        for (S3ObjectSummary objectSummary : objects) {
-            String objectKey = objectSummary.getKey();
-            amazonS3.deleteObject(bucketName, objectKey);
-        }
+        List<DeleteObjectsRequest.KeyVersion> keys = objects.stream().map(e -> new DeleteObjectsRequest.KeyVersion(e.getKey()))
+                .collect(Collectors.toList());
+        DeleteObjectsRequest deleteObjectsRequest = new DeleteObjectsRequest(bucketName).withKeys(keys);
+        amazonS3.deleteObjects(deleteObjectsRequest);
     }
 }

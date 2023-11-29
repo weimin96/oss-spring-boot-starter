@@ -142,6 +142,48 @@ public class QueryOperations extends Operations {
     }
 
     /**
+     * 获取下一层级目录树
+     * @param path 路径
+     * @return List
+     */
+    public List<ObjectTreeNode> listNextLevel(String path) {
+        return listNextLevel(ossProperties.getBucketName(), path);
+    }
+
+    /**
+     * 获取下一层级目录树
+     * @param bucketName 桶名称
+     * @param path 路径
+     * @return List
+     */
+    public List<ObjectTreeNode> listNextLevel(String bucketName, String path) {
+        path = Util.formatPath(path);
+        // 列出存储桶中的对象
+        ListObjectsV2Request request = new ListObjectsV2Request()
+                .withBucketName(bucketName).withPrefix(path).withDelimiter("/");
+
+        List<S3ObjectSummary> objects = new ArrayList<>();
+        List<String> commonPrefixes = new ArrayList<>();
+        ListObjectsV2Result response = null;
+
+        do {
+            response = amazonS3.listObjectsV2(request);
+            objects.addAll(response.getObjectSummaries());
+            commonPrefixes.addAll(response.getCommonPrefixes());
+
+            if (response.isTruncated()) {
+                String token = response.getNextContinuationToken();
+                request.setContinuationToken(token);
+            }
+        } while (response.isTruncated());
+        List<ObjectTreeNode> folders = commonPrefixes.stream().map(this::buildTreeNode).collect(Collectors.toList());
+        List<ObjectTreeNode> files = objects.stream().map(this::buildObjectInfo).collect(Collectors.toList());
+        List<ObjectTreeNode> resultList = new ArrayList<>(folders);
+        resultList.addAll(files);
+        return resultList;
+    }
+
+    /**
      * 校验文件是否存在
      *
      * @param bucketName 桶名称

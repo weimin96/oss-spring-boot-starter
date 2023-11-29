@@ -10,7 +10,8 @@
 
 ### new Feature
 
-- 补充创建文件夹、校验文件等接口
+- 优化删除文件夹
+- 补充树形目录懒加载接口
 
 ### 📔 Reference Document
 
