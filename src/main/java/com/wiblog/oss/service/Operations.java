@@ -2,7 +2,9 @@ package com.wiblog.oss.service;
 
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.S3Object;
+import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.wiblog.oss.bean.ObjectInfo;
+import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.constant.ClientEnum;
 import com.wiblog.oss.util.Util;
@@ -58,6 +60,12 @@ public abstract class Operations {
         return result;
     }
 
+    protected ObjectTreeNode buildObjectInfo(S3ObjectSummary object) {
+        return object == null ? null :
+                new ObjectTreeNode(Util.getFilename(object.getKey()), object.getKey(),
+                        getDomain() + object.getKey(), object.getLastModified(), "file");
+    }
+
     /**
      * 构造返回结构
      *
@@ -70,6 +78,21 @@ public abstract class Operations {
                 .url(getDomain() + objectName)
                 .name(Util.getFilename(objectName))
                 .build();
+    }
+
+    /**
+     * 构造返回结构
+     *
+     * @param objectName objectName
+     * @return ObjectResp
+     */
+    protected ObjectTreeNode buildTreeNode(String objectName) {
+        if (objectName.endsWith("/")) {
+            objectName = objectName.substring(0, objectName.length() - 1);
+        }
+        String[] split = objectName.split("/");
+        String name = split[split.length - 1];
+        return new ObjectTreeNode(name, objectName, getDomain() + objectName, null, "folder");
     }
 
     protected String getDomain() {

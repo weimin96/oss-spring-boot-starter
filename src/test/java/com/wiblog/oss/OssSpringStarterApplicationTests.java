@@ -17,6 +17,7 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.util.ResourceUtils;
 
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
@@ -168,6 +169,13 @@ class OssSpringStarterApplicationTests {
         boolean b = ossTemplate.query().checkExist("test/abc/");
         Assertions.assertTrue(b);
         ossTemplate.delete().removeFolder("test/abc/");
+    }
+
+    @Test
+    void lazyTree() {
+        List<ObjectTreeNode> s3ObjectSummaries = ossTemplate.query().listNextLevel(TEST_UPLOAD_PATH);
+        ObjectTreeNode objectTreeNode = s3ObjectSummaries.stream().filter(e -> TEST_FILE_NAME.equals(e.getName())).findFirst().get();
+        Assertions.assertNotNull(objectTreeNode);
     }
 
 }
