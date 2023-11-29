@@ -62,6 +62,21 @@ public class OssProperties {
      */
     private int connectionTimeout = ClientConfiguration.DEFAULT_CONNECTION_TIMEOUT;
 
+    public OssProperties() {
+    }
+
+    public OssProperties(String endpoint, String accessKey, String secretKey, String type) {
+        this.endpoint = endpoint;
+        this.accessKey = accessKey;
+        this.secretKey = secretKey;
+        this.type = type;
+    }
+
+    public OssProperties(String endpoint, String accessKey, String secretKey, String type, String bucketName) {
+        this(endpoint, accessKey, secretKey, type);
+        this.bucketName = bucketName;
+    }
+
     @Data
     public static class Http {
 

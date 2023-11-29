@@ -8,9 +8,9 @@
 - Support cross-service file transfer `ossTemplate.put().transferObject()`
 - Provide bucket cross-origin configuration `oss.cross=true`
 
-### 🐞 Bug Fixes
+### new Feature
 
-- fix swagger exception
+- 补充创建文件夹、校验文件等接口
 
 ### 📔 Reference Document
 

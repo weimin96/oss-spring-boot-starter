@@ -1,5 +1,6 @@
 package com.wiblog.oss.service;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.util.IOUtils;
@@ -26,6 +27,43 @@ public class QueryOperations extends Operations {
 
     public QueryOperations(AmazonS3 amazonS3, OssProperties ossProperties) {
         super(ossProperties, amazonS3);
+    }
+
+    /**
+     * 测试是否连接成功
+     *
+     * @return boolean
+     */
+    public boolean testConnect() {
+        try {
+            amazonS3.listObjects(new ListObjectsRequest(ossProperties.getBucketName(), null, null, null, 1));
+            return true;
+        } catch (AmazonServiceException e) {
+            return false;
+        }
+    }
+
+    /**
+     * 判断桶是否存在
+     *
+     * @param bucketName 桶名称
+     * @return boolean
+     */
+    public boolean testConnectForBucket(String bucketName) {
+        try {
+            return amazonS3.doesBucketExistV2(bucketName);
+        } catch (AmazonServiceException e) {
+            return false;
+        }
+    }
+
+    /**
+     * 判断桶是否存在
+     *
+     * @return boolean
+     */
+    public boolean testConnectForBucket() {
+        return testConnectForBucket(ossProperties.getBucketName());
     }
 
     /**
@@ -101,6 +139,29 @@ public class QueryOperations extends Operations {
         } while (response.isTruncated());
 
         return objects;
+    }
+
+    /**
+     * 校验文件是否存在
+     *
+     * @param bucketName 桶名称
+     * @param objectName 文件全路径
+     * @return ObjectInfo对象信息
+     */
+    public boolean checkExist(String bucketName, String objectName) {
+        // 判断对象（Object）是否存在。
+        return amazonS3.doesObjectExist(bucketName, objectName);
+    }
+
+    /**
+     * 校验文件是否存在
+     *
+     * @param objectName 文件全路径
+     * @return ObjectInfo对象信息
+     */
+    public boolean checkExist(String objectName) {
+        // 判断对象（Object）是否存在。
+        return checkExist(ossProperties.getBucketName(), objectName);
     }
 
     /**
@@ -391,7 +452,7 @@ public class QueryOperations extends Operations {
         int slashIndex = remainingPath.indexOf('/');
         if (slashIndex == -1) { // 文件节点
             ObjectTreeNode fileNode = new ObjectTreeNode(remainingPath, object.getKey(), getDomain() + object.getKey(), object.getLastModified(), "file");
-            parentNode.getChildren().add(fileNode);
+            parentNode.addChild(fileNode);
         } else { // 文件夹节点
             String folderName = remainingPath.substring(0, slashIndex);
             String newRemainingPath = remainingPath.substring(slashIndex + 1);
@@ -401,7 +462,7 @@ public class QueryOperations extends Operations {
             if (folderNode == null) { // 若不存在，则创建新的文件夹节点
                 String uri = StringUtils.isNullOrEmpty(parentNode.getUri()) ? folderName : parentNode.getUri() + "/" + folderName;
                 folderNode = new ObjectTreeNode(folderName, uri, getDomain() + uri, null, "folder");
-                parentNode.getChildren().add(folderNode);
+                parentNode.addChild(folderNode);
             }
 
             addNode(folderNode, newRemainingPath, object);
@@ -409,6 +470,9 @@ public class QueryOperations extends Operations {
     }
 
     private ObjectTreeNode findFolderNode(List<ObjectTreeNode> nodes, String folderName) {
+        if (nodes == null) {
+            return null;
+        }
         for (ObjectTreeNode node : nodes) {
             if (node.getName().equals(folderName) && "folder".equals(node.getType())) {
                 return node;

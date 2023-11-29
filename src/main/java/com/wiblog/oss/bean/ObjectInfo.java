@@ -2,6 +2,7 @@ package com.wiblog.oss.bean;
 
 import com.amazonaws.services.s3.model.AccessControlList;
 import com.amazonaws.services.s3.model.ObjectMetadata;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -28,10 +29,6 @@ public class ObjectInfo {
 
     private String url;
 
-    private ObjectMetadata metadata;
-
-    private AccessControlList acl;
-
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date uploadTime;
 }

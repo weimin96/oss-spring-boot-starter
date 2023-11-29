@@ -9,6 +9,7 @@ import com.wiblog.oss.bean.chunk.ChunkProcess;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -43,6 +44,7 @@ public class PutOperations extends Operations {
 
     /**
      * 创建bucket
+     *
      * @param bucketName bucket名称
      */
     public void createBucket(String bucketName) {
@@ -118,9 +120,8 @@ public class PutOperations extends Operations {
     }
 
     /**
-     *
      * @param objectName 文件全路径
-     * @param stream 文件流
+     * @param stream     文件流
      * @return 对象信息
      */
     public ObjectInfo putObjectForKey(String objectName, InputStream stream) {
@@ -128,9 +129,8 @@ public class PutOperations extends Operations {
     }
 
     /**
-     *
      * @param objectName 文件全路径
-     * @param file 文件
+     * @param file       文件
      * @return 对象信息
      */
     public ObjectInfo putObjectForKey(String objectName, File file) {
@@ -140,7 +140,7 @@ public class PutOperations extends Operations {
     /**
      * @param bucketName 存储桶
      * @param objectName 文件全路径
-     * @param file 文件
+     * @param file       文件
      * @return 对象信息
      */
     public ObjectInfo putObjectForKey(String bucketName, String objectName, File file) {
@@ -152,7 +152,7 @@ public class PutOperations extends Operations {
     /**
      * @param bucketName 存储桶
      * @param objectName 文件全路径
-     * @param stream 文件流
+     * @param stream     文件流
      * @return 对象信息
      */
     public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
@@ -160,9 +160,9 @@ public class PutOperations extends Operations {
     }
 
     /**
-     * @param bucketName 存储桶
-     * @param objectName 文件全路径
-     * @param stream 文件流
+     * @param bucketName  存储桶
+     * @param objectName  文件全路径
+     * @param stream      文件流
      * @param contentType 内容类型
      * @return 对象信息
      */
@@ -189,6 +189,16 @@ public class PutOperations extends Operations {
             log.error("上传失败", e);
         }
         return buildObjectInfo(objectName);
+    }
+
+    public ObjectInfo mkdirs(String path) {
+        return mkdirs(ossProperties.getBucketName(), path);
+    }
+
+    public ObjectInfo mkdirs(String bucketName, String path) {
+        path = Util.formatPath(path);
+        PutObjectRequest request = new PutObjectRequest(bucketName, path, new ByteArrayInputStream(new byte[0]), null);
+        return putObject(request, path);
     }
 
     /**
@@ -243,7 +253,8 @@ public class PutOperations extends Operations {
 
     /**
      * 拷贝文件
-     * @param sourceDirectoryKey 源路径
+     *
+     * @param sourceDirectoryKey      源路径
      * @param destinationDirectoryKey 目标路径
      */
     public void copyFile(String sourceDirectoryKey, String destinationDirectoryKey) {

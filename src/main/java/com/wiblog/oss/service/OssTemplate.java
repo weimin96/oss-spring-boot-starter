@@ -69,7 +69,7 @@ public class OssTemplate {
                 .withClientConfiguration(clientConfiguration).withCredentials(awsCredentialsProvider)
                 .disableChunkedEncoding().withPathStyleAccessEnabled(true).build();
 
-        if (!amazonS3.doesBucketExistV2(ossProperties.getBucketName())) {
+        if (!StringUtils.isNullOrEmpty(ossProperties.getBucketName()) && !amazonS3.doesBucketExistV2(ossProperties.getBucketName())) {
             amazonS3.createBucket((ossProperties.getBucketName()));
         }
 
@@ -114,6 +114,10 @@ public class OssTemplate {
 
     public DeleteOperations delete() {
         return this.deleteOperations;
+    }
+
+    public void close() {
+        this.amazonS3.shutdown();
     }
 
 }
