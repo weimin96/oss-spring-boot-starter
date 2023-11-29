@@ -74,16 +74,18 @@ ossTemplate.put().putObject("bucket", "1.jpg", new File("/data/1.jpg"));
 
 所有的的配置说明
 
-| 配置项             | 类型     | 默认值   | 说明                    |
-|-----------------| -------- |-------|-----------------------|
-| oss.enable      | boolean  | false | 是否启用 OSS              |
-| oss.endpoint    | String   |       | 端点                    |
-| oss.bucket-name | String   |       | bucket 名称             |
-| oss.access-key  | String   |       | 访问密钥 ID               |
-| oss.secret-key | String   |       | 访问密钥                  |
-| oss.cross       | boolean  | false | 是否允许跨域                |
-| oss.type        | String   |       | OSS 类型（可选值：obs/minio） |
-| oss.http.prefix | String   |       | 访问端点前缀                |
-| oss.http.enable | boolean  | false  | 是否启用 Web 端点           |
+| Configuration        | Type     | Default Value | Description                  |
+|----------------------|----------|---------------|------------------------------|
+| oss.enable           | boolean  | false         | Enable OSS or not             |
+| oss.endpoint         | String   |               | Endpoint of the OSS service   |
+| oss.bucket-name      | String   |               | Bucket name                   |
+| oss.access-key       | String   |               | Access key ID                 |
+| oss.secret-key       | String   |               | Access secret key             |
+| oss.cross            | boolean  | false         | Allow cross-origin or not      |
+| oss.type             | String   |               | OSS type (options: obs/minio) |
+| oss.max-connections       | int   |    50    | 最大连接数 默认50 |
+| oss.connection-timeout        | int   |   10000     | 连接超时 默认10s |
+| oss.http.prefix      | String   |               | Prefix of the endpoint URL    |
+| oss.http.enable      | boolean  | false         | Enable web endpoints or not    |
 
 
