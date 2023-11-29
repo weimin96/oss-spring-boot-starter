@@ -87,6 +87,8 @@ Explanation of all configurations:
 | oss.secret-key       | String   |               | Access secret key             |
 | oss.cross            | boolean  | false         | Allow cross-origin or not      |
 | oss.type             | String   |               | OSS type (options: obs/minio) |
+| oss.max-connections       | int   |    50    | 最大连接数 默认50 |
+| oss.connection-timeout        | int   |   10000     | 连接超时 默认10s |
 | oss.http.prefix      | String   |               | Prefix of the endpoint URL    |
 | oss.http.enable      | boolean  | false         | Enable web endpoints or not    |
 
