@@ -80,16 +80,16 @@ Explanation of all configurations:
 
 | Configuration        | Type     | Default Value | Description                  |
 |----------------------|----------|---------------|------------------------------|
-| oss.enable           | boolean  | false         | Enable OSS or not             |
-| oss.endpoint         | String   |               | Endpoint of the OSS service   |
-| oss.bucket-name      | String   |               | Bucket name                   |
-| oss.access-key       | String   |               | Access key ID                 |
-| oss.secret-key       | String   |               | Access secret key             |
-| oss.cross            | boolean  | false         | Allow cross-origin or not      |
+| oss.enable           | boolean  | false         | Enable OSS or not            |
+| oss.endpoint         | String   |               | Endpoint of the OSS service  |
+| oss.bucket-name      | String   |               | Bucket name                  |
+| oss.access-key       | String   |               | Access key ID                |
+| oss.secret-key       | String   |               | Access secret key            |
+| oss.cross            | boolean  | false         | Allow cross-origin or not    |
 | oss.type             | String   |               | OSS type (options: obs/minio) |
-| oss.max-connections       | int   |    50    | 最大连接数 默认50 |
-| oss.connection-timeout        | int   |   10000     | 连接超时 默认10s |
-| oss.http.prefix      | String   |               | Prefix of the endpoint URL    |
-| oss.http.enable      | boolean  | false         | Enable web endpoints or not    |
+| oss.max-connections       | int   |    50    | max connections              |
+| oss.connection-timeout        | int   |   10000     | connection timeout      |
+| oss.http.prefix      | String   |               | Prefix of the endpoint URL   |
+| oss.http.enable      | boolean  | false         | Enable web endpoints or not  |
 
 
