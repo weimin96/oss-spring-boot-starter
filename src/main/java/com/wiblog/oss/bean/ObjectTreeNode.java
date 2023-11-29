@@ -1,7 +1,6 @@
 package com.wiblog.oss.bean;
 
-import com.amazonaws.services.s3.model.ObjectMetadata;
-import lombok.Data;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.experimental.Accessors;
@@ -13,6 +12,7 @@ import java.util.List;
 
 /**
  * 文件对象树形结构
+ *
  * @author panwm
  * @since 2023/8/22 0:05
  */
@@ -27,7 +27,7 @@ public class ObjectTreeNode extends ObjectInfo {
 
     private String url;
 
-    @DateTimeFormat(pattern = "yyyy-MM-dd HH:mm:ss")
+    @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date uploadTime;
 
     /**
@@ -43,7 +43,7 @@ public class ObjectTreeNode extends ObjectInfo {
         this.url = url;
         this.uploadTime = uploadTime;
         this.type = type;
-        this.children = new ArrayList<>();
+        this.children = null;
     }
 
     public List<ObjectTreeNode> getChildren() {
@@ -51,6 +51,9 @@ public class ObjectTreeNode extends ObjectInfo {
     }
 
     public void addChild(ObjectTreeNode child) {
+        if (this.children == null) {
+            this.children = new ArrayList<>();
+        }
         children.add(child);
     }
 }

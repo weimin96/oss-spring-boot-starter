@@ -4,16 +4,20 @@ import com.amazonaws.services.s3.model.S3ObjectSummary;
 import com.amazonaws.util.IOUtils;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
+import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.service.OssTemplate;
-import org.junit.jupiter.api.*;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
-import org.springframework.test.context.event.annotation.BeforeTestMethod;
 import org.springframework.util.ResourceUtils;
 
-import java.io.*;
+import java.io.File;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
 
@@ -145,6 +149,25 @@ class OssSpringStarterApplicationTests {
         Assertions.assertTrue(content.contains("test!"));
 
         ossTemplate.delete().removeFolder(TEST_UPLOAD_PATH);
+    }
+
+    /**
+     * 测试是否连接成功
+     */
+    @Test
+    void testConnect() {
+        OssProperties properties = new OssProperties("https://play.min.io:9000", "minioadmin", "minioadmin", "minio");
+        OssTemplate template = new OssTemplate(properties);
+        boolean b = template.query().testConnectForBucket("123");
+        Assertions.assertTrue(b);
+    }
+
+    @Test
+    void mkdirs() {
+        ossTemplate.put().mkdirs("test/abc/");
+        boolean b = ossTemplate.query().checkExist("test/abc/");
+        Assertions.assertTrue(b);
+        ossTemplate.delete().removeFolder("test/abc/");
     }
 
 }

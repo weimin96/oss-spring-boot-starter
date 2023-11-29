@@ -46,7 +46,6 @@ public abstract class Operations {
                 .uri(object.getKey())
                 .url(getDomain() + object.getKey())
                 .name(Util.getFilename(object.getKey()))
-                .metadata(object.getObjectMetadata())
                 .uploadTime(object.getObjectMetadata().getLastModified())
                 .build();
         if (object != null) {

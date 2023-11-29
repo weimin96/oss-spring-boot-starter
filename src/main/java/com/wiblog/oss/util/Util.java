@@ -37,7 +37,7 @@ public class Util {
      * @return path
      */
     public static String formatPath(String path) {
-        if (StringUtils.isNullOrEmpty(path)) {
+        if (StringUtils.isNullOrEmpty(path) || "/".equals(path)) {
             return "";
         }
         path = path.replaceAll("\\\\", "/");
