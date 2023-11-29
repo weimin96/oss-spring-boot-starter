@@ -29,9 +29,9 @@
     {
       "name": "oss.enable",
       "type": "java.lang.Boolean",
-      "description": "是否启用 oss，默认为：true",
+      "description": "是否启用 oss，默认为：false",
       "sourceType": "com.wiblog.oss.bean.OssProperties",
-      "defaultValue": true
+      "defaultValue": false
     },
     {
       "name": "oss.endpoint",
