@@ -32,6 +32,23 @@ public class Util {
     }
 
     /**
+     * 截取文件拓展名
+     * @param path 文件路径
+     * @return ext
+     */
+    public static String getExtension(String path) {
+        if (path == null) {
+            return null;
+        } else {
+            path = path.replaceAll("\\\\", "/");
+            String fileName = path.split("/")[path.split("/").length - 1];
+
+            int index = fileName.indexOf(".");
+            return index == -1 ? null : fileName.substring(index + 1);
+        }
+    }
+
+    /**
      * 文件路径适配
      * @param path path
      * @return path

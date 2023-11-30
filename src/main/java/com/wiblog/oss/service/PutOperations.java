@@ -146,7 +146,7 @@ public class PutOperations extends Operations {
     public ObjectInfo putObjectForKey(String bucketName, String objectName, File file) {
         PutObjectRequest request = new PutObjectRequest(bucketName, objectName, file)
                 .withCannedAcl(CannedAccessControlList.PublicRead);
-        return putObject(request, objectName);
+        return putObject(request, objectName, file.length());
     }
 
     /**
@@ -178,27 +178,42 @@ public class PutOperations extends Operations {
         PutObjectRequest request = new PutObjectRequest(bucketName, objectName, stream, objectMetadata)
                 .withCannedAcl(CannedAccessControlList.PublicRead);
 
-        return putObject(request, objectName);
+        try {
+            return putObject(request, objectName, stream.available());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
-    private ObjectInfo putObject(PutObjectRequest request, String objectName) {
+    private ObjectInfo putObject(PutObjectRequest request, String objectName, long fileSize) {
         // 执行文件上传
         try {
             amazonS3.putObject(request);
         } catch (Exception e) {
             log.error("上传失败", e);
         }
-        return buildObjectInfo(objectName);
+        return buildObjectInfo(objectName, fileSize);
     }
 
+    /**
+     * 创建文件夹
+     * @param path 路径
+     * @return ObjectInfo
+     */
     public ObjectInfo mkdirs(String path) {
         return mkdirs(ossProperties.getBucketName(), path);
     }
 
+    /**
+     * 创建文件夹
+     * @param bucketName 桶名称
+     * @param path 路径
+     * @return ObjectInfo
+     */
     public ObjectInfo mkdirs(String bucketName, String path) {
         path = Util.formatPath(path);
         PutObjectRequest request = new PutObjectRequest(bucketName, path, new ByteArrayInputStream(new byte[0]), null);
-        return putObject(request, path);
+        return putObject(request, path , 0L);
     }
 
     /**

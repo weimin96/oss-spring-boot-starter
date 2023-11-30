@@ -29,6 +29,10 @@ public class ObjectInfo {
 
     private String url;
 
+    private long size;
+
+    private String ext;
+
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date uploadTime;
 }

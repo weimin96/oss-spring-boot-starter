@@ -126,11 +126,12 @@ public class QueryOperations extends Operations {
                 .withBucketName(bucketName).withPrefix(path);
 
         List<S3ObjectSummary> objects = new ArrayList<>();
-        ListObjectsV2Result response = null;
+        ListObjectsV2Result response;
 
         do {
             response = amazonS3.listObjectsV2(request);
-            objects.addAll(response.getObjectSummaries());
+            List<S3ObjectSummary> collect = response.getObjectSummaries().stream().filter(e -> e.getSize() > 0).collect(Collectors.toList());
+            objects.addAll(collect);
 
             if (response.isTruncated()) {
                 String token = response.getNextContinuationToken();
@@ -177,7 +178,7 @@ public class QueryOperations extends Operations {
             }
         } while (response.isTruncated());
         List<ObjectTreeNode> folders = commonPrefixes.stream().map(this::buildTreeNode).collect(Collectors.toList());
-        List<ObjectTreeNode> files = objects.stream().map(this::buildObjectInfo).collect(Collectors.toList());
+        List<ObjectTreeNode> files = objects.stream().filter(e -> e.getSize() > 0).map(this::buildObjectInfo).collect(Collectors.toList());
         List<ObjectTreeNode> resultList = new ArrayList<>(folders);
         resultList.addAll(files);
         return resultList;
@@ -226,21 +227,6 @@ public class QueryOperations extends Operations {
     public ObjectInfo getObjectInfo(String bucketName, String objectName) {
         S3Object object = getS3Object(bucketName, objectName);
         return buildObjectInfo(object);
-    }
-
-    /**
-     * 获取文件信息
-     *
-     * @param objectName 文件全路径
-     * @return ObjectInfo对象信息
-     */
-    public ObjectInfo getObjectDetailInfo(String objectName) {
-        ObjectInfo objectInfo = getObjectInfo(objectName);
-        // 获取文件的访问权限
-//        GetObjectAclRequest aclRequest = new GetObjectAclRequest(ossProperties.getBucketName(), objectName);
-//        AccessControlList acl = amazonS3.getObjectAcl(aclRequest);
-//        objectInfo.setAcl(acl);
-        return objectInfo;
     }
 
     /**
@@ -476,7 +462,7 @@ public class QueryOperations extends Operations {
             rootName = (i > 0) ? objectName.substring(i + 1) : objectName;
         }
 
-        ObjectTreeNode root = new ObjectTreeNode(rootName, objectName, getDomain() + objectName, null, "folder");
+        ObjectTreeNode root = new ObjectTreeNode(rootName, objectName, getDomain() + objectName, null, "folder", 0, null);
 
         for (S3ObjectSummary object : objectList) {
             if (object.getKey().startsWith(objectName + "/")) {
@@ -493,7 +479,8 @@ public class QueryOperations extends Operations {
     private void addNode(ObjectTreeNode parentNode, String remainingPath, S3ObjectSummary object) {
         int slashIndex = remainingPath.indexOf('/');
         if (slashIndex == -1) { // 文件节点
-            ObjectTreeNode fileNode = new ObjectTreeNode(remainingPath, object.getKey(), getDomain() + object.getKey(), object.getLastModified(), "file");
+            ObjectTreeNode fileNode = new ObjectTreeNode(remainingPath, object.getKey(), getDomain() + object.getKey(),
+                    object.getLastModified(), "file", object.getSize(), Util.getExtension(object.getKey()));
             parentNode.addChild(fileNode);
         } else { // 文件夹节点
             String folderName = remainingPath.substring(0, slashIndex);
@@ -503,7 +490,7 @@ public class QueryOperations extends Operations {
             ObjectTreeNode folderNode = findFolderNode(parentNode.getChildren(), folderName);
             if (folderNode == null) { // 若不存在，则创建新的文件夹节点
                 String uri = StringUtils.isNullOrEmpty(parentNode.getUri()) ? folderName : parentNode.getUri() + "/" + folderName;
-                folderNode = new ObjectTreeNode(folderName, uri, getDomain() + uri, null, "folder");
+                folderNode = new ObjectTreeNode(folderName, uri, getDomain() + uri, null, "folder", 0, null);
                 parentNode.addChild(folderNode);
             }
 
