@@ -35,15 +35,21 @@ public class ObjectTreeNode extends ObjectInfo {
      */
     private String type;
 
+    private long size;
+
+    private String ext;
+
     private List<ObjectTreeNode> children;
 
-    public ObjectTreeNode(String name, String uri, String url, Date uploadTime, String type) {
+    public ObjectTreeNode(String name, String uri, String url, Date uploadTime, String type, long size, String ext) {
         this.name = name;
         this.uri = uri;
         this.url = url;
         this.uploadTime = uploadTime;
         this.type = type;
         this.children = null;
+        this.size = size;
+        this.ext = ext;
     }
 
     public List<ObjectTreeNode> getChildren() {

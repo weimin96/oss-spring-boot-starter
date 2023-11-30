@@ -88,22 +88,6 @@ public class OssController {
     }
 
     /**
-     * 获取文件详细信息
-     *
-     * @param objectName 文件路径
-     * @return 响应
-     */
-    @GetMapping("/object/getObjectDetail")
-    @ApiOperation(value = "获取文件详细信息")
-    @ApiImplicitParams({
-            @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "form")
-    })
-    public R<ObjectInfo> getObjectDetail(@NotBlank String objectName) {
-        ObjectInfo object = ossTemplate.query().getObjectDetailInfo(objectName);
-        return R.data(object);
-    }
-
-    /**
      * 预览文件
      * @param response 响应
      * @param request 请求
