@@ -291,7 +291,7 @@ public class PutOperations extends Operations {
         sourceDirectoryKey = Util.formatPath(sourceDirectoryKey);
         destinationDirectoryKey = Util.formatPath(destinationDirectoryKey);
         // 列出文件
-        List<S3ObjectSummary> sourceObjects = sourceOssTemplate.query().listObjectSummary(sourceBucketName, sourceDirectoryKey);
+        List<S3ObjectSummary> sourceObjects = sourceOssTemplate.query().listObjectSummary(sourceBucketName, sourceDirectoryKey, null);
         // 遍历并拷贝每个对象到目标存储桶
         try {
             for (S3ObjectSummary object : sourceObjects) {
