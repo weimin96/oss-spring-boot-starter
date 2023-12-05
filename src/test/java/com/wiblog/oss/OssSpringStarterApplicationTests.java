@@ -21,6 +21,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.regex.Pattern;
 
 @SpringBootApplication(scanBasePackages = "com.wiblog.oss")
 @SpringBootTest
@@ -119,6 +120,16 @@ class OssSpringStarterApplicationTests {
     @Test
     void getTree() {
         ObjectTreeNode treeList = ossTemplate.query().getTreeList(TEST_UPLOAD_PATH);
+        Assertions.assertEquals(treeList.getName(), TEST_UPLOAD_PATH);
+        Assertions.assertEquals(treeList.getChildren().get(0).getName(), TEST_FILE_NAME);
+    }
+
+    /**
+     * 测试获取目录树
+     */
+    @Test
+    void getTreeByName() {
+        ObjectTreeNode treeList = ossTemplate.query().getTreeListByRegex(TEST_UPLOAD_PATH, ".*test.*");
         Assertions.assertEquals(treeList.getName(), TEST_UPLOAD_PATH);
         Assertions.assertEquals(treeList.getChildren().get(0).getName(), TEST_FILE_NAME);
     }

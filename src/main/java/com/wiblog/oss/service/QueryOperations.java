@@ -15,6 +15,7 @@ import java.io.*;
 import java.net.URLDecoder;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 /**
@@ -93,7 +94,7 @@ public class QueryOperations extends Operations {
      * @return Object信息列表
      */
     public List<ObjectInfo> listObjects(String bucketName, String path) {
-        List<S3ObjectSummary> s3ObjectSummaries = listObjectSummary(bucketName, path);
+        List<S3ObjectSummary> s3ObjectSummaries = listObjectSummary(bucketName, path, null);
         return s3ObjectSummaries.stream().map(e -> ObjectInfo.builder()
                 .uri(e.getKey())
                 .url(getDomain() + e.getKey())
@@ -109,7 +110,7 @@ public class QueryOperations extends Operations {
      * @return Object列表
      */
     public List<S3ObjectSummary> listObjectSummary(String path) {
-        return listObjectSummary(ossProperties.getBucketName(), path);
+        return listObjectSummary(ossProperties.getBucketName(), path, null);
     }
 
     /**
@@ -119,7 +120,7 @@ public class QueryOperations extends Operations {
      * @param bucketName 桶名称
      * @return Object列表
      */
-    public List<S3ObjectSummary> listObjectSummary(String bucketName, String path) {
+    public List<S3ObjectSummary> listObjectSummary(String bucketName, String path, String regex) {
         path = Util.formatPath(path);
         // 列出存储桶中的对象
         ListObjectsV2Request request = new ListObjectsV2Request()
@@ -130,7 +131,12 @@ public class QueryOperations extends Operations {
 
         do {
             response = amazonS3.listObjectsV2(request);
-            List<S3ObjectSummary> collect = response.getObjectSummaries().stream().filter(e -> e.getSize() > 0).collect(Collectors.toList());
+            List<S3ObjectSummary> collect;
+            if (StringUtils.isNullOrEmpty(regex)) {
+                collect = response.getObjectSummaries().stream().filter(e -> e.getSize() > 0).collect(Collectors.toList());
+            } else {
+                collect = response.getObjectSummaries().stream().filter(e -> e.getSize() > 0).filter(e -> Pattern.matches(regex, e.getKey())).collect(Collectors.toList());
+            }
             objects.addAll(collect);
 
             if (response.isTruncated()) {
@@ -375,7 +381,7 @@ public class QueryOperations extends Operations {
      * @param localFilePath 存放位置
      */
     public void getFolder(String bucketName, String objectName, String localFilePath) {
-        List<S3ObjectSummary> s3ObjectSummaries = listObjectSummary(bucketName, objectName);
+        List<S3ObjectSummary> s3ObjectSummaries = listObjectSummary(bucketName, objectName, null);
         if (!localFilePath.endsWith(File.pathSeparator)) {
             localFilePath += File.separator;
         }
@@ -426,10 +432,24 @@ public class QueryOperations extends Operations {
                     outputStream.write(buffer, 0, bytesRead);
                 }
             }
+        } catch (AmazonS3Exception e) {
+            if (e.getStatusCode() == 404) {
+                response.setHeader("content-type","text/html;charset=utf-8");
+                // 文件不存在
+                PrintWriter writer = response.getWriter();
+                writer.println("文件不存在");
+                writer.flush();
+                writer.close();
+            } else {
+                // 其他异常，继续抛出
+                throw e;
+            }
         } catch (IOException e) {
             throw new IOException(e);
         }
     }
+
+
 
     /**
      * 获取目录结构
@@ -449,8 +469,30 @@ public class QueryOperations extends Operations {
      * @return 树形结构
      */
     public ObjectTreeNode getTreeList(String bucketName, String path) {
-        List<S3ObjectSummary> objects = listObjectSummary(bucketName, path);
+        List<S3ObjectSummary> objects = listObjectSummary(bucketName, path, null);
         return buildTree(objects, path);
+    }
+
+    /**
+     * 获取目录结构
+     * @param bucketName 存储桶
+     * @param path 目录
+     * @param regex 正则
+     * @return 树形结构
+     */
+    public ObjectTreeNode getTreeListByRegex(String bucketName, String path, String regex) {
+        List<S3ObjectSummary> objects = listObjectSummary(bucketName, path, regex);
+        return buildTree(objects, path);
+    }
+
+    /**
+     * 获取目录结构
+     * @param path 目录
+     * @param regex 正则
+     * @return 树形结构
+     */
+    public ObjectTreeNode getTreeListByRegex(String path, String regex) {
+        return getTreeListByRegex(ossProperties.getBucketName(), path, regex);
     }
 
     private ObjectTreeNode buildTree(List<S3ObjectSummary> objectList, String objectName) {
