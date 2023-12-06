@@ -9,6 +9,7 @@ import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.util.Util;
+import org.apache.tika.Tika;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
@@ -402,7 +403,6 @@ public class QueryOperations extends Operations {
         }
     }
 
-
     /**
      * 预览文件
      *
@@ -417,13 +417,12 @@ public class QueryOperations extends Operations {
         objectName = URLDecoder.decode(objectName, "UTF-8");
         try (S3Object s3Object = amazonS3.getObject(ossProperties.getBucketName(), objectName)) {
             // 设置响应头信息
-            response.setContentType(s3Object.getObjectMetadata().getContentType());
-            response.setContentLength((int) s3Object.getObjectMetadata().getContentLength());
-
             String filename = Util.getFilename(s3Object.getKey());
-            response.setHeader("Content-Disposition", "inline; filename=\"" + filename + "\"");
+            Tika tika = new Tika();
+            response.setContentType(tika.detect(filename));
+            response.setContentLength((int) s3Object.getObjectMetadata().getContentLength());
+            response.setHeader("Content-Disposition", "inline; filename=" + filename);
             // 设置响应内容类型为
-            response.setContentType(s3Object.getObjectMetadata().getContentType());
             try (InputStream inputStream = s3Object.getObjectContent();
                  OutputStream outputStream = response.getOutputStream()) {
                 byte[] buffer = new byte[1024];
