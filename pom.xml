@@ -10,7 +10,7 @@
     </parent>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-starter</artifactId>
-    <version>1.0.5</version>
+    <version>1.0.6</version>
     <packaging>jar</packaging>
     <name>oss-spring-starter</name>
     <description>oss-spring-starter is a toolkit based on Spring Boot and Amazon S3. With this toolkit, you can easily perform operations related to OSS (Object Storage Service) storage.</description>
@@ -51,6 +51,7 @@
         <swagger.version>1.5.20</swagger.version>
         <swagger.v3.version>2.1.2</swagger.v3.version>
         <validation.version>3.0.2</validation.version>
+        <tika-core.version>2.9.1</tika-core.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -67,6 +68,12 @@
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-java-sdk-s3</artifactId>
             <version>${aws.version}</version>
+        </dependency>
+
+        <dependency>
+            <groupId>org.apache.tika</groupId>
+            <artifactId>tika-core</artifactId>
+            <version>${tika-core.version}</version>
         </dependency>
 
         <!--lombok 插件-->
