@@ -134,9 +134,9 @@ public class QueryOperations extends Operations {
             response = amazonS3.listObjectsV2(request);
             List<S3ObjectSummary> collect;
             if (StringUtils.isNullOrEmpty(regex)) {
-                collect = response.getObjectSummaries().stream().filter(e -> e.getSize() > 0).collect(Collectors.toList());
+                collect = response.getObjectSummaries().stream().collect(Collectors.toList());
             } else {
-                collect = response.getObjectSummaries().stream().filter(e -> e.getSize() > 0).filter(e -> Pattern.matches(regex, e.getKey())).collect(Collectors.toList());
+                collect = response.getObjectSummaries().stream().filter(e -> Pattern.matches(regex, e.getKey())).collect(Collectors.toList());
             }
             objects.addAll(collect);
 

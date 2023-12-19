@@ -70,7 +70,12 @@ public class OssTemplate {
                 .disableChunkedEncoding().withPathStyleAccessEnabled(true).build();
 
         if (!StringUtils.isNullOrEmpty(ossProperties.getBucketName()) && !amazonS3.doesBucketExistV2(ossProperties.getBucketName())) {
-            amazonS3.createBucket((ossProperties.getBucketName()));
+            if (ossProperties.isAutoCreateBucket()) {
+                amazonS3.createBucket(ossProperties.getBucketName());
+            } else {
+                throw new IllegalArgumentException("bucket not found");
+            }
+
         }
 
         if (ossProperties.isCross()) {
