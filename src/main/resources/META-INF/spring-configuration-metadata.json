@@ -27,6 +27,13 @@
       "defaultValue": false
     },
     {
+      "name": "oss.auto_create_bucket",
+      "type": "java.lang.Boolean",
+      "description": "是否自动创建bucket 默认不允许",
+      "sourceType": "com.wiblog.oss.bean.OssProperties",
+      "defaultValue": false
+    },
+    {
       "name": "oss.enable",
       "type": "java.lang.Boolean",
       "description": "是否启用 oss，默认为：false",

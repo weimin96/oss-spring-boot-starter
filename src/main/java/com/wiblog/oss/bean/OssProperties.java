@@ -33,6 +33,11 @@ public class OssProperties {
     private String bucketName;
 
     /**
+     * 自动创建bucket
+     */
+    private boolean autoCreateBucket = false;
+
+    /**
      * 访问密钥id
      */
     private String accessKey;
