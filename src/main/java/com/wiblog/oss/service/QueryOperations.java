@@ -121,7 +121,7 @@ public class QueryOperations extends Operations {
      * @param bucketName 桶名称
      * @return Object列表
      */
-    public List<S3ObjectSummary> listObjectSummary(String bucketName, String path, String regex) {
+    public List<S3ObjectSummary> listObjectSummary(String bucketName, String path, String keyword) {
         path = Util.formatPath(path);
         // 列出存储桶中的对象
         ListObjectsV2Request request = new ListObjectsV2Request()
@@ -133,10 +133,10 @@ public class QueryOperations extends Operations {
         do {
             response = amazonS3.listObjectsV2(request);
             List<S3ObjectSummary> collect;
-            if (StringUtils.isNullOrEmpty(regex)) {
+            if (StringUtils.isNullOrEmpty(keyword)) {
                 collect = response.getObjectSummaries().stream().collect(Collectors.toList());
             } else {
-                collect = response.getObjectSummaries().stream().filter(e -> Pattern.matches(regex, e.getKey())).collect(Collectors.toList());
+                collect = response.getObjectSummaries().stream().filter(e -> e.getKey().contains(keyword)).collect(Collectors.toList());
             }
             objects.addAll(collect);
 
@@ -476,22 +476,22 @@ public class QueryOperations extends Operations {
      * 获取目录结构
      * @param bucketName 存储桶
      * @param path 目录
-     * @param regex 正则
+     * @param keyword 关键字
      * @return 树形结构
      */
-    public ObjectTreeNode getTreeListByRegex(String bucketName, String path, String regex) {
-        List<S3ObjectSummary> objects = listObjectSummary(bucketName, path, regex);
+    public ObjectTreeNode getTreeListByName(String bucketName, String path, String keyword) {
+        List<S3ObjectSummary> objects = listObjectSummary(bucketName, path, keyword);
         return buildTree(objects, path);
     }
 
     /**
      * 获取目录结构
      * @param path 目录
-     * @param regex 正则
+     * @param keyword 关键字
      * @return 树形结构
      */
-    public ObjectTreeNode getTreeListByRegex(String path, String regex) {
-        return getTreeListByRegex(ossProperties.getBucketName(), path, regex);
+    public ObjectTreeNode getTreeListByName(String path, String keyword) {
+        return getTreeListByName(ossProperties.getBucketName(), path, keyword);
     }
 
     private ObjectTreeNode buildTree(List<S3ObjectSummary> objectList, String objectName) {
@@ -520,6 +520,9 @@ public class QueryOperations extends Operations {
     private void addNode(ObjectTreeNode parentNode, String remainingPath, S3ObjectSummary object) {
         int slashIndex = remainingPath.indexOf('/');
         if (slashIndex == -1) { // 文件节点
+            if (StringUtils.isNullOrEmpty(remainingPath)) {
+                return;
+            }
             ObjectTreeNode fileNode = new ObjectTreeNode(remainingPath, object.getKey(), getDomain() + object.getKey(),
                     object.getLastModified(), "file", object.getSize(), Util.getExtension(object.getKey()));
             parentNode.addChild(fileNode);

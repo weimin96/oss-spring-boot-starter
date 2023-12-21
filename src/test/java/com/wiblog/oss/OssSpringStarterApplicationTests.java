@@ -129,7 +129,7 @@ class OssSpringStarterApplicationTests {
      */
     @Test
     void getTreeByName() {
-        ObjectTreeNode treeList = ossTemplate.query().getTreeListByRegex(TEST_UPLOAD_PATH, ".*test.*");
+        ObjectTreeNode treeList = ossTemplate.query().getTreeListByName(TEST_UPLOAD_PATH, "test");
         Assertions.assertEquals(treeList.getName(), TEST_UPLOAD_PATH);
         Assertions.assertEquals(treeList.getChildren().get(0).getName(), TEST_FILE_NAME);
     }
