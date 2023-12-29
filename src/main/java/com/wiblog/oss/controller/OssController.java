@@ -1,5 +1,6 @@
 package com.wiblog.oss.controller;
 
+import com.amazonaws.util.StringUtils;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.chunk.Chunk;
@@ -141,12 +142,15 @@ public class OssController {
     @PostMapping(value = "/object")
     @ApiOperation(value = "上传文件")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "path", value = "存放路径",  required = true, dataType = "String", paramType = "form")
+            @ApiImplicitParam(name = "path", value = "存放路径",  required = true, dataType = "String", paramType = "form"),
+            @ApiImplicitParam(name = "filename", value = "文件名",  required = false, dataType = "String", paramType = "form")
     })
     public R<ObjectInfo> uploadObject(@NotNull @RequestParam("file") MultipartFile file,
-                                      @NotBlank String path) throws IOException {
+                                      @NotBlank String path,
+                                      String filename) throws IOException {
         InputStream inputStream = file.getInputStream();
-        ObjectInfo objectInfo = ossTemplate.put().putObject(path, file.getOriginalFilename(), inputStream, file.getContentType());
+        filename = StringUtils.isNullOrEmpty(filename) ? file.getOriginalFilename(): filename;
+        ObjectInfo objectInfo = ossTemplate.put().putObject(path, filename, inputStream, file.getContentType());
         return R.data(objectInfo);
     }
 
