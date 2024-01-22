@@ -445,6 +445,9 @@ public class QueryOperations extends Operations {
                 throw e;
             }
         } catch (IOException e) {
+            if ("Broken pipe".equals(e.getMessage())) {
+                return;
+            }
             throw new IOException(e);
         }
     }
