@@ -10,8 +10,7 @@
 
 ### new Feature
 
-- 优化删除文件夹
-- 补充树形目录懒加载接口
+- 补充大文件上传接口
 
 ### 📔 Reference Document
 
