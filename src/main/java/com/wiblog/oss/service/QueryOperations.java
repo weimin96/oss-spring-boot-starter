@@ -414,8 +414,10 @@ public class QueryOperations extends Operations {
         if (StringUtils.isNullOrEmpty(objectName)) {
             return;
         }
-//        objectName = URLDecoder.decode(objectName, "UTF-8");
-//        objectName = objectName.replaceAll(" ", "+");
+        if (objectName.contains("%")) {
+            objectName = URLDecoder.decode(objectName, "UTF-8");
+        }
+
         try (S3Object s3Object = amazonS3.getObject(ossProperties.getBucketName(), objectName)) {
             // 设置响应头信息
             String filename = Util.getFilename(s3Object.getKey());

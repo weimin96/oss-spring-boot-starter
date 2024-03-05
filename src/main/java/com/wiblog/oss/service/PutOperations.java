@@ -8,6 +8,7 @@ import com.wiblog.oss.bean.chunk.Chunk;
 import com.wiblog.oss.bean.chunk.ChunkProcess;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.io.FileUtils;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
@@ -16,10 +17,10 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -197,6 +198,7 @@ public class PutOperations extends Operations {
 
     /**
      * 创建文件夹
+     *
      * @param path 路径
      * @return ObjectInfo
      */
@@ -206,14 +208,15 @@ public class PutOperations extends Operations {
 
     /**
      * 创建文件夹
+     *
      * @param bucketName 桶名称
-     * @param path 路径
+     * @param path       路径
      * @return ObjectInfo
      */
     public ObjectInfo mkdirs(String bucketName, String path) {
         path = Util.formatPath(path);
         PutObjectRequest request = new PutObjectRequest(bucketName, path, new ByteArrayInputStream(new byte[0]), null);
-        return putObject(request, path , 0L);
+        return putObject(request, path, 0L);
     }
 
     /**
@@ -402,6 +405,83 @@ public class PutOperations extends Operations {
                 .url(getDomain() + chunkProcess.getObjectKey())
                 .name(Util.getFilename(chunkProcess.getObjectKey()))
                 .build();
+    }
+
+    /**
+     * 上传大文件
+     * @param bucketName 存储桶
+     * @param objectName 文件全路径
+     * @param stream 文件流
+     */
+    public void uploadBigFile(String bucketName, String objectName, InputStream stream) {
+        // 声明线程池
+        ExecutorService exec = Executors.newFixedThreadPool(3);
+        int size = 0;
+        try {
+            size = stream.available();
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        int minPartSize = 10 * 1024 * 1024;
+        // 得到总共的段数，和 分段后，每个段的开始上传的字节位置
+        List<Long> positions = Collections.synchronizedList(new ArrayList<>());
+        long filePosition = 0;
+        while (filePosition < size) {
+            positions.add(filePosition);
+            filePosition += Math.min(minPartSize, (size - filePosition));
+        }
+        log.info("总大小：{}，分为{}段", size, positions.size());
+        // 创建一个列表保存所有分传的 PartETag, 在分段完成后会用到
+        List<PartETag> partETags = Collections.synchronizedList(new ArrayList<>());
+        // 第一步，初始化，声明下面将有一个 Multipart Upload
+        InitiateMultipartUploadRequest initRequest = new InitiateMultipartUploadRequest(bucketName, objectName);
+        InitiateMultipartUploadResult initResponse = amazonS3.initiateMultipartUpload(initRequest);
+        log.info("开始上传");
+        long begin = System.currentTimeMillis();
+        try {
+            // MultipartFile 转 File
+            File toFile = new File(objectName);
+            FileUtils.copyInputStreamToFile(stream, toFile);
+            for (int i = 0; i < positions.size(); i++) {
+                int finalI = i;
+                int finalSize = size;
+                exec.execute(() -> {
+                    long time1 = System.currentTimeMillis();
+                    UploadPartRequest uploadRequest = new UploadPartRequest()
+                            .withBucketName(bucketName)
+                            .withKey(objectName)
+                            .withUploadId(initResponse.getUploadId())
+                            .withPartNumber(finalI + 1)
+                            .withFileOffset(positions.get(finalI))
+                            .withFile(toFile)
+                            .withPartSize(Math.min(minPartSize, (finalSize - positions.get(finalI))));
+                    // 第二步，上传分段，并把当前段的 PartETag 放到列表中
+                    partETags.add(amazonS3.uploadPart(uploadRequest).getPartETag());
+                    long time2 = System.currentTimeMillis();
+                    log.info("第{}段上传耗时：{}", finalI + 1, (time2 - time1));
+                });
+            }
+            //任务结束关闭线程池
+            exec.shutdown();
+            //判断线程池是否结束，不加会直接结束方法
+            while (true) {
+                if (exec.isTerminated()) {
+                    break;
+                }
+            }
+
+            // 第三步，完成上传，合并分段
+            CompleteMultipartUploadRequest compRequest = new CompleteMultipartUploadRequest(bucketName, objectName,
+                    initResponse.getUploadId(), partETags);
+            amazonS3.completeMultipartUpload(compRequest);
+            //删除本地缓存文件
+            toFile.delete();
+        } catch (Exception e) {
+            amazonS3.abortMultipartUpload(new AbortMultipartUploadRequest(bucketName, objectName, initResponse.getUploadId()));
+            log.error("Failed to upload, " + e.getMessage());
+        }
+        long end = System.currentTimeMillis();
+        log.info("总上传耗时：{}", (end - begin));
     }
 
 }
