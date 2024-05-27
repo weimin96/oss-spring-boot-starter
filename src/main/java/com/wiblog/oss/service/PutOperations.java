@@ -14,6 +14,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -188,11 +189,7 @@ public class PutOperations extends Operations {
 
     private ObjectInfo putObject(PutObjectRequest request, String objectName, long fileSize) {
         // 执行文件上传
-        try {
-            amazonS3.putObject(request);
-        } catch (Exception e) {
-            log.error("上传失败", e);
-        }
+        amazonS3.putObject(request);
         return buildObjectInfo(objectName, fileSize);
     }
 
@@ -225,7 +222,7 @@ public class PutOperations extends Operations {
      * @param path   存放路径
      * @param folder 文件夹
      */
-    public void putFolder(String path, File folder) {
+    public void putFolder(String path, File folder) throws IOException {
         putFolder(path, folder, true);
     }
 
@@ -236,7 +233,7 @@ public class PutOperations extends Operations {
      * @param folder              文件夹
      * @param isIncludeFolderName 存放路径是否包含文件夹名称
      */
-    public void putFolder(String path, File folder, boolean isIncludeFolderName) {
+    public void putFolder(String path, File folder, boolean isIncludeFolderName) throws IOException {
         putFolder(ossProperties.getBucketName(), path, folder, isIncludeFolderName);
     }
 
@@ -248,7 +245,7 @@ public class PutOperations extends Operations {
      * @param folder              文件夹
      * @param isIncludeFolderName 存放路径是否包含文件夹名称
      */
-    public void putFolder(String bucketName, String path, File folder, boolean isIncludeFolderName) {
+    public void putFolder(String bucketName, String path, File folder, boolean isIncludeFolderName) throws IOException {
         if (!folder.exists() || !folder.isDirectory()) {
             throw new IllegalArgumentException("Invalid folder path: " + folder.getPath());
         }
@@ -261,11 +258,9 @@ public class PutOperations extends Operations {
             String finalPath = path;
             paths.filter(Files::isRegularFile)
                     .forEach(filePath -> {
-                        String key = finalPath + folder.toURI().relativize(filePath.toUri()).getPath();
+                        String key = finalPath + filePath.toUri().getPath().substring(folder.toURI().getPath().length());
                         putObjectForKey(bucketName, key, filePath.toFile());
                     });
-        } catch (Exception e) {
-            e.printStackTrace();
         }
     }
 
@@ -409,9 +404,10 @@ public class PutOperations extends Operations {
 
     /**
      * 上传大文件
+     *
      * @param bucketName 存储桶
      * @param objectName 文件全路径
-     * @param stream 文件流
+     * @param stream     文件流
      */
     public void uploadBigFile(String bucketName, String objectName, InputStream stream) {
         // 声明线程池
