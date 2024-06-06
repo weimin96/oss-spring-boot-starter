@@ -436,12 +436,10 @@ public class QueryOperations extends Operations {
             }
         } catch (AmazonS3Exception e) {
             if (e.getStatusCode() == 404) {
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
                 response.setHeader("content-type","text/html;charset=utf-8");
                 // 文件不存在
-                PrintWriter writer = response.getWriter();
-                writer.println("文件不存在");
-                writer.flush();
-                writer.close();
+                response.getWriter().println("<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1></body></html>");
             } else {
                 // 其他异常，继续抛出
                 throw e;
