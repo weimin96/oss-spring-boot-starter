@@ -37,14 +37,11 @@ public class Util {
      * @return ext
      */
     public static String getExtension(String path) {
-        if (path == null) {
-            return null;
+        int lastIndex = path.lastIndexOf('.');
+        if (lastIndex != -1 && lastIndex < path.length() - 1) {
+            return path.substring(lastIndex + 1);
         } else {
-            path = path.replaceAll("\\\\", "/");
-            String fileName = path.split("/")[path.split("/").length - 1];
-
-            int index = fileName.indexOf(".");
-            return index == -1 ? null : fileName.substring(index + 1);
+            return null;
         }
     }
 
