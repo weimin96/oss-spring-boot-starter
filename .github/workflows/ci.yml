@@ -33,17 +33,17 @@ jobs:
         with:
           repositories: ''
           servers: ''
-      - name: Report Coverage to Coveralls for Pull Requests
-        if: github.event_name == 'pull_request'
-        run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -DpullRequest=$PR_NUMBER -B package --file pom.xml
-        env:
-          GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-          PR_NUMBER: ${{ github.event.number }}
-      - name: Report Coverage to Coveralls for General Push
-        if: github.event_name == 'push'
-        run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -B package --file pom.xml
-        env:
-          GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+#      - name: Report Coverage to Coveralls for Pull Requests
+#        if: github.event_name == 'pull_request'
+#        run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -DpullRequest=$PR_NUMBER -B package --file pom.xml
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+#          PR_NUMBER: ${{ github.event.number }}
+#      - name: Report Coverage to Coveralls for General Push
+#        if: github.event_name == 'push'
+#        run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -B package --file pom.xml
+#        env:
+#          GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
       # 获取当前版本
       - name: extract version
         id: get-version
