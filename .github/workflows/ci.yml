@@ -44,6 +44,9 @@ jobs:
 #        run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -B package --file pom.xml
 #        env:
 #          GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+      - name: package
+        if: github.event_name == 'push'
+        run: mvn clean test -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -B package --file pom.xml
       # 获取当前版本
       - name: extract version
         id: get-version
