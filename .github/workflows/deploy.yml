@@ -23,9 +23,9 @@ jobs:
         with: # overwrite settings.xml
           java-version: '8'
           distribution: 'adopt'
-          server-id: ossrh
-          server-username: OSSRH_JIRA_USERNAME
-          server-password: OSSRH_JIRA_PASSWORD
+          server-id: center
+          server-username: CENTER_USERNAME
+          server-password: CENTER_PASSWORD
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
           gpg-passphrase: GPG_PASSPHRASE
       # 设置 jobs Maven pom 版本环境变量
@@ -36,5 +36,5 @@ jobs:
         run:  mvn clean deploy -P release -Dmaven.test.skip=true
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
-          OSSRH_JIRA_USERNAME: ${{ secrets.OSSRH_JIRA_USERNAME }}
-          OSSRH_JIRA_PASSWORD: ${{ secrets.OSSRH_JIRA_PASSWORD }}
+          CENTER_USERNAME: ${{ secrets.CENTER_USERNAME }}
+          CENTER_PASSWORD: ${{ secrets.CENTER_PASSWORD }}

@@ -1,14 +1,14 @@
 <settings>
     <servers>
         <server>
-            <id>ossrh</id>
-            <username>${OSSRH_JIRA_USERNAME}</username>
-            <password>${OSSRH_JIRA_PASSWORD}</password>
+            <id>central</id>
+            <username>${CENTER_USERNAME}</username>
+            <password>${CENTER_PASSWORD}</password>
         </server>
     </servers>
     <profiles>
         <profile>
-            <id>ossrh</id>
+            <id>central</id>
             <activation>
                 <activeByDefault>true</activeByDefault>
             </activation>

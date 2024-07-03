@@ -1,17 +1,17 @@
 # OSS Spring Starter
 
-[![Java CI](https://github.com/weimin96/oss-spring-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/weimin96/oss-spring-starter/actions/workflows/ci.yml)
-[![Coverage Status](https://coveralls.io/repos/github/weimin96/oss-spring-starter/badge.svg?branch=main)](https://coveralls.io/github/weimin96/oss-spring-starter?branch=main)
-[![Maven central](https://maven-badges.herokuapp.com/maven-central/io.github.weimin96/oss-spring-starter/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.github.weimin96/oss-spring-starter)
+[![Java CI](https://github.com/weimin96/oss-spring-boot-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/weimin96/oss-spring-boot-starter/actions/workflows/ci.yml)
+[![Coverage Status](https://coveralls.io/repos/github/weimin96/oss-spring-boot-starter/badge.svg?branch=main)](https://coveralls.io/github/weimin96/oss-spring-boot-starter?branch=main)
+[![Maven central](https://maven-badges.herokuapp.com/maven-central/io.github.weimin96/oss-spring-boot-starter/badge.svg)](https://maven-badges.herokuapp.com/maven-central/io.github.weimin96/oss-spring-boot-starter)
 [![License](https://img.shields.io/:license-apache-brightgreen.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-[![Last Commit](https://img.shields.io/github/last-commit/weimin96/oss-spring-starter.svg)](https://github.com/weimin96/oss-spring-starter)
+[![Last Commit](https://img.shields.io/github/last-commit/weimin96/oss-spring-boot-starter.svg)](https://github.com/weimin96/oss-spring-boot-starter)
 
 
 
 
 README: [English](README.md) | [中文](README-zh-CN.md)
 
-Wiki: [Wiki](https://github.com/weimin96/oss-spring-starter/wiki)
+Wiki: [Wiki](https://github.com/weimin96/oss-spring-boot-starter/wiki)
 
 ## Introduction
 
@@ -41,7 +41,7 @@ This project mainly utilizes the mainstream OSS object storage services (`Tencen
 ```xml
 <dependency>
     <groupId>io.github.weimin96</groupId>
-    <artifactId>oss-spring-starter</artifactId>
+    <artifactId>oss-spring-boot-starter</artifactId>
     <version>${lastVersion}</version>
 </dependency>
 ```
@@ -50,7 +50,7 @@ This project mainly utilizes the mainstream OSS object storage services (`Tencen
 
 ```gradle
 dependencies {
-  implementation 'io.github.weimin96:oss-spring-starter:${lastVersion}'
+  implementation 'io.github.weimin96:oss-spring-boot-starter:${lastVersion}'
 }
 ```
 
