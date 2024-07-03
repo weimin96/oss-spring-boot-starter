@@ -23,7 +23,7 @@ jobs:
         with: # overwrite settings.xml
           java-version: '8'
           distribution: 'adopt'
-          server-id: center
+          server-id: central
           server-username: CENTER_USERNAME
           server-password: CENTER_PASSWORD
           gpg-private-key: ${{ secrets.GPG_PRIVATE_KEY }}
