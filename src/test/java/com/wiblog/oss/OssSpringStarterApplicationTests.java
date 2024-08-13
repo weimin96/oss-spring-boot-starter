@@ -169,17 +169,6 @@ class OssSpringStarterApplicationTests {
         ossTemplate.delete().removeFolder(TEST_UPLOAD_PATH);
     }
 
-    /**
-     * 测试是否连接成功
-     */
-    @Test
-    void testConnect() {
-        OssProperties properties = new OssProperties("http://10.224.187.221:8095", "HTTAUGBFZ1DP3ZUVKIKC", "BMpMS3KvO2xSxBg04lBfUisHzQnPVTdsfi74W2o6", "obs");
-        OssTemplate template = new OssTemplate(properties);
-        boolean b = template.query().testConnectForBucket("zjj-jyjzbim-cs-1100g");
-        Assertions.assertTrue(b);
-    }
-
     @Test
     void mkdirs() {
         ossTemplate.put().mkdirs("test/abc/");
