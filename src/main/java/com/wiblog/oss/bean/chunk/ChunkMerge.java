@@ -1,30 +1,16 @@
 package com.wiblog.oss.bean.chunk;
 
-import io.swagger.annotations.ApiModel;
 import io.swagger.annotations.ApiModelProperty;
 import lombok.Data;
-import org.springframework.web.multipart.MultipartFile;
 
 import javax.validation.constraints.NotBlank;
-import javax.validation.constraints.NotNull;
-
 
 /**
- * 文件块
- *
  * @author panwm
- * @since 2023/8/20 23:10
+ * @since 2024/8/14 0:18
  */
 @Data
-@ApiModel(value = "文件分片上传")
-public class Chunk {
-
-    /**
-     * 当前文件块，从1开始
-     */
-    @ApiModelProperty(value = "当前文件块，从1开始", required = true)
-    @NotNull
-    private Integer chunkNumber;
+public class ChunkMerge {
 
     /**
      * 文件名
@@ -41,17 +27,9 @@ public class Chunk {
     private String path;
 
     /**
-     * 分块文件内容
-     */
-    @ApiModelProperty(value = "分块文件内容", required = true)
-    @NotNull
-    private MultipartFile file;
-
-    /**
      * oss 分片上传uploadId
      */
     @ApiModelProperty(value = "上传任务id", required = true)
     @NotBlank
     private String uploadId;
-
 }

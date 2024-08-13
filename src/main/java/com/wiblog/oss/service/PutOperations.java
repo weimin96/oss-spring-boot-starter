@@ -3,7 +3,9 @@ package com.wiblog.oss.service;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.bean.chunk.Chunk;
+import com.wiblog.oss.bean.chunk.ChunkMerge;
 import com.wiblog.oss.bean.chunk.ChunkProcess;
+import com.wiblog.oss.bean.chunk.ChunkTask;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
@@ -34,11 +36,6 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class PutOperations extends Operations {
-
-    /**
-     * 分片进度
-     */
-    private static final Map<String, ChunkProcess> CHUNK_PROCESS_STORAGE = new ConcurrentHashMap<>();
 
     public PutOperations(OssProperties ossProperties, S3AsyncClient client, S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
@@ -299,7 +296,13 @@ public class PutOperations extends Operations {
         handleRequest(() -> client.copyObject(copyReq));
     }
 
-    private String initTask(String objectName) {
+    /**
+     * 初始化分片上传任务
+     * @param chunkTask  分片任务
+     * @return uploadId
+     */
+    public String initTask(ChunkTask chunkTask) {
+        String objectName = formatPath(chunkTask.getPath()) + chunkTask.getFilename();
         // 初始化分片上传任务
         CreateMultipartUploadResponse createMultipartUploadResponse = client.createMultipartUpload(b -> b
                 .bucket(ossProperties.getBucketName())
@@ -309,50 +312,14 @@ public class PutOperations extends Operations {
 
     /**
      * 接收文件分片
-     *
-     * @param chunk 文件分片
+     * @param chunk 分片
      */
     public void chunk(Chunk chunk) {
-        String guid = chunk.getGuid();
-        String objectKey = formatPath(chunk.getPath()) + chunk.getFilename();
-
-        ChunkProcess chunkProcess = CHUNK_PROCESS_STORAGE.computeIfAbsent(guid, k -> {
-            String uploadId = initTask(objectKey);
-            return new ChunkProcess().setObjectKey(objectKey).setUploadId(uploadId).setChunkList(new CopyOnWriteArrayList<>());
-        });
-
-        String uploadId = chunkProcess.getUploadId();
-
-        AtomicBoolean isUploaded = new AtomicBoolean(false);
-        Optional.ofNullable(chunkProcess.getChunkList()).ifPresent(chunkPartList ->
-                isUploaded.set(chunkPartList.stream().anyMatch(chunkPart -> chunkPart.getChunkNumber() == chunk.getChunkNumber())));
-        if (isUploaded.get()) {
-            log.debug("文件【{}】分块【{}】已经上传，跳过", chunk.getFilename(), chunk.getChunkNumber());
-            return;
-        }
-        String chunkETag = chunk(chunk, uploadId);
-        chunkProcess.getChunkList().add(new ChunkProcess.ChunkPart(chunkETag, chunk.getChunkNumber()));
-    }
-
-    /**
-     * 合并分片
-     *
-     * @param guid 文件唯一id
-     * @return ObjectInfo文件信息
-     */
-    public ObjectInfo merge(String guid) {
-        ChunkProcess chunkProcess = CHUNK_PROCESS_STORAGE.get(guid);
-        ObjectInfo objectInfo = merge(chunkProcess);
-        CHUNK_PROCESS_STORAGE.remove(guid);
-        return objectInfo;
-    }
-
-    private String chunk(Chunk chunk, String uploadId) {
         // 上传
         UploadPartRequest uploadRequest = UploadPartRequest.builder()
                 .bucket(ossProperties.getBucketName())
                 .key(formatPath(chunk.getPath()) + chunk.getFilename())
-                .uploadId(uploadId)
+                .uploadId(chunk.getUploadId())
                 .partNumber(chunk.getChunkNumber())
                 .contentLength(chunk.getFile().getSize())
                 .build();
@@ -360,51 +327,49 @@ public class PutOperations extends Operations {
         try {
             ByteBuffer byteBuffer = ByteBuffer.wrap(chunk.getFile().getBytes());
             AsyncRequestBody body = AsyncRequestBody.fromByteBuffer(byteBuffer);
-            UploadPartResponse uploadPartResponse = client.uploadPart(uploadRequest, body).get();
-            return uploadPartResponse.eTag();
-        } catch (IOException e) {
+            client.uploadPart(uploadRequest, body).join();
+        } catch (Exception e) {
             log.error("文件【{}】上传分片【{}】失败", chunk.getFilename(), chunk.getChunkNumber(), e);
             throw new RuntimeException("上传分片失败", e);
-        } catch (ExecutionException e) {
-            throw new RuntimeException(e);
-        } catch (InterruptedException e) {
-            throw new RuntimeException(e);
         }
     }
 
-    private void cleanUpPartialUpload(String key) {
-        try {
-            // 实现删除S3中未完成的文件
-            DeleteObjectRequest request = DeleteObjectRequest.builder()
-                    .bucket(ossProperties.getBucketName())
-                    .key(key)
-                    .build();
-            client.deleteObject(request);
-        } catch (Exception e) {
-            log.error("清理未完成上传任务时出错，文件键：{}", key, e);
-        }
-    }
-
-    private ObjectInfo merge(ChunkProcess chunkProcess) {
-        List<CompletedPart> completedParts = chunkProcess.getChunkList()
-                .stream()
-                .map(chunkPart -> CompletedPart.builder()
-                        .partNumber(chunkPart.getChunkNumber())
-                        .eTag(chunkPart.getLocation())
+    /**
+     * 合并文件
+     * @param chunkMerge 合并对象
+     * @return ObjectInfo
+     */
+    public ObjectInfo merge(ChunkMerge chunkMerge) {
+        String objectName = formatPath(chunkMerge.getPath()) + chunkMerge.getFilename();
+        List<Part> parts = listParts(ossProperties.getBucketName(), objectName, chunkMerge.getUploadId());
+        List<CompletedPart> completedParts = parts.stream().map(part -> CompletedPart.builder()
+                        .partNumber(part.partNumber())
+                        .eTag(part.eTag())
                         .build())
-                .sorted(Comparator.comparingInt(CompletedPart::partNumber))
                 .collect(Collectors.toList());
+
         client.completeMultipartUpload(b -> b
                 .bucket(ossProperties.getBucketName())
-                .key(chunkProcess.getObjectKey())
-                .uploadId(chunkProcess.getUploadId())
+                .key(objectName)
+                .uploadId(chunkMerge.getUploadId())
                 .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build())).join();
 
         return ObjectInfo.builder()
-                .uri(chunkProcess.getObjectKey())
-                .url(getDomain() + chunkProcess.getObjectKey())
-                .name(Util.getFilename(chunkProcess.getObjectKey()))
+                .uri(objectName)
+                .url(getDomain() + objectName)
+                .name(Util.getFilename(objectName))
                 .build();
+    }
+
+    private List<Part> listParts(String bucketName, String objectName, String uploadId) {
+        ListPartsRequest request = ListPartsRequest.builder()
+                .bucket(bucketName)
+                .key(objectName)
+                .uploadId(uploadId)
+                .maxParts(Integer.MAX_VALUE)
+                .build();
+        ListPartsResponse response = client.listParts(request).join();
+        return response.parts();
     }
 
 }

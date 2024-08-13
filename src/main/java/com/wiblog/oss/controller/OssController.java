@@ -3,6 +3,8 @@ package com.wiblog.oss.controller;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.chunk.Chunk;
+import com.wiblog.oss.bean.chunk.ChunkMerge;
+import com.wiblog.oss.bean.chunk.ChunkTask;
 import com.wiblog.oss.resp.R;
 import com.wiblog.oss.service.OssTemplate;
 import com.wiblog.oss.util.Util;
@@ -46,7 +48,20 @@ public class OssController {
     private final AntPathMatcher antPathMatcher = new AntPathMatcher();
 
     /**
-     * 分块上传文件
+     * 初始化分片上传任务
+     *
+     * @param chunkTask 分片任务
+     * @return 响应
+     */
+    @PostMapping(value = "/initTask")
+    @ApiOperation(value = "初始化分片上传任务")
+    public R<String> initTask(@Validated ChunkTask chunkTask) {
+        String uploadId = ossTemplate.put().initTask(chunkTask);
+        return R.data(uploadId);
+    }
+
+    /**
+     * 分片上传文件
      *
      * @param chunk 文件块信息
      * @return 响应
@@ -55,20 +70,22 @@ public class OssController {
     @ApiOperation(value = "分片上传大文件")
     public R<String> chunk(@Validated Chunk chunk) {
         ossTemplate.put().chunk(chunk);
+        // 记录分片上传成功状态 path+chunkNumber
         return R.data("File Chunk Upload Success");
     }
 
     /**
      * 文件合并
      *
-     * @param guid 文件guid
+     * @param chunkMerge 文件合并对象
      * @return 响应
      */
     @PostMapping(value = "/merge", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ApiOperation(value = "文件合并")
-    @ApiImplicitParam(name = "guid", value = "文件唯一id", required = true, dataType = "String", dataTypeClass = String.class)
-    public R<ObjectInfo> merge(@NotBlank String guid) {
-        ObjectInfo merge = ossTemplate.put().merge(guid);
+    public R<ObjectInfo> merge(@Validated ChunkMerge chunkMerge) {
+        ObjectInfo merge = ossTemplate.put().merge(chunkMerge);
+        // 删除分片上传状态
+        // 数据库记录文件唯一标识(path)代表上传成功
         return R.data(merge);
     }
 
