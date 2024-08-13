@@ -1,11 +1,11 @@
 package com.wiblog.oss.controller;
 
-import com.amazonaws.util.StringUtils;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.chunk.Chunk;
 import com.wiblog.oss.resp.R;
 import com.wiblog.oss.service.OssTemplate;
+import com.wiblog.oss.util.Util;
 import io.swagger.annotations.Api;
 import io.swagger.annotations.ApiImplicitParam;
 import io.swagger.annotations.ApiImplicitParams;
@@ -66,7 +66,7 @@ public class OssController {
      */
     @PostMapping(value = "/merge", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ApiOperation(value = "文件合并")
-    @ApiImplicitParam(name = "guid", value = "文件唯一id", required = true, dataType = "String")
+    @ApiImplicitParam(name = "guid", value = "文件唯一id", required = true, dataType = "String", dataTypeClass = String.class)
     public R<ObjectInfo> merge(@NotBlank String guid) {
         ObjectInfo merge = ossTemplate.put().merge(guid);
         return R.data(merge);
@@ -81,7 +81,7 @@ public class OssController {
     @GetMapping("/object/getObject")
     @ApiOperation(value = "获取文件信息")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "form")
+            @ApiImplicitParam(name = "objectName", value = "文件全路径", required = true, dataType = "String", paramType = "form", dataTypeClass = String.class)
     })
     public R<ObjectInfo> getObject(@NotBlank String objectName) {
         ObjectInfo object = ossTemplate.query().getObjectInfo(objectName);
@@ -112,7 +112,7 @@ public class OssController {
      */
     @GetMapping("/object/tree")
     @ApiOperation(value = "获取文件目录树")
-    @ApiImplicitParam(name = "objectName", value = "文件目录", required = true, dataType = "String", paramType = "form")
+    @ApiImplicitParam(name = "objectName", value = "文件目录", required = true, dataType = "String", paramType = "form", dataTypeClass = String.class)
     public R<ObjectTreeNode> getObjectTree(@NotBlank String objectName) {
         ObjectTreeNode tree = ossTemplate.query().getTreeList(objectName);
         return R.data(tree);
@@ -126,31 +126,32 @@ public class OssController {
      */
     @GetMapping("/object/list")
     @ApiOperation(value = "获取文件件列表")
-    @ApiImplicitParam(name = "objectName", value = "文件目录", dataType = "String", paramType = "form")
+    @ApiImplicitParam(name = "objectName", value = "文件目录", dataType = "String", paramType = "form", dataTypeClass = String.class)
     public R<List<ObjectInfo>> getObjectList(@NotBlank String objectName) {
         List<ObjectInfo> list = ossTemplate.query().listObjects(objectName);
         return R.data(list);
     }
 
     /**
-     * 上传文件
+     *
      * @param file 文件
      * @param path 存放路径
+     * @param filename 文件名
      * @return 响应
      * @throws IOException io异常
      */
     @PostMapping(value = "/object")
     @ApiOperation(value = "上传文件")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "path", value = "存放路径",  required = true, dataType = "String", paramType = "form"),
-            @ApiImplicitParam(name = "filename", value = "文件名",  required = false, dataType = "String", paramType = "form")
+            @ApiImplicitParam(name = "path", value = "存放路径",  required = true, dataType = "String", paramType = "form", dataTypeClass = String.class),
+            @ApiImplicitParam(name = "filename", value = "文件名",  required = false, dataType = "String", paramType = "form", dataTypeClass = String.class)
     })
     public R<ObjectInfo> uploadObject(@NotNull @RequestParam("file") MultipartFile file,
                                       @NotBlank String path,
                                       String filename) throws IOException {
         InputStream inputStream = file.getInputStream();
-        filename = StringUtils.isNullOrEmpty(filename) ? file.getOriginalFilename(): filename;
-        ObjectInfo objectInfo = ossTemplate.put().putObject(path, filename, inputStream, file.getContentType());
+        filename = Util.isBlank(filename) ? file.getOriginalFilename(): filename;
+        ObjectInfo objectInfo = ossTemplate.put().putObject(path, filename, inputStream);
         return R.data(objectInfo);
     }
 

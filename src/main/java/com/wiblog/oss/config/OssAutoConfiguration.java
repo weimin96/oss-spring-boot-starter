@@ -8,7 +8,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
-import org.springframework.boot.context.properties.ConfigurationPropertiesScan;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -33,7 +32,7 @@ public class OssAutoConfiguration {
      * @param properties properties配置
      * @return OSS操作模板
      */
-    @Bean
+    @Bean(destroyMethod = "stop")
     @ConditionalOnMissingBean(OssTemplate.class)
     public OssTemplate ossTemplate(OssProperties properties) {
         log.info("========== Initializing OSS ==========");
