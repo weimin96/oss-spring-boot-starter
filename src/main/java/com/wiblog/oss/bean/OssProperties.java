@@ -1,7 +1,6 @@
 package com.wiblog.oss.bean;
 
 
-import com.amazonaws.ClientConfiguration;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
@@ -48,11 +47,6 @@ public class OssProperties {
     private String secretKey;
 
     /**
-     * 是否允许跨域 默认不允许
-     */
-    private boolean cross = false;
-
-    /**
      * oss类型 obs/minio
      */
     private String type;
@@ -60,12 +54,12 @@ public class OssProperties {
     /**
      * 最大连接数 默认50
      */
-    private int maxConnections = ClientConfiguration.DEFAULT_MAX_CONNECTIONS;
+    private int maxConnections = 50;
 
     /**
      * 连接超时 默认10s
      */
-    private int connectionTimeout = ClientConfiguration.DEFAULT_CONNECTION_TIMEOUT;
+    private long connectionTimeout = 10_000;
 
     public OssProperties() {
     }

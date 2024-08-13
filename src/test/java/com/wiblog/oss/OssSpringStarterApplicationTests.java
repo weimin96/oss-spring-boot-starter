@@ -1,11 +1,10 @@
 package com.wiblog.oss;
 
-import com.amazonaws.services.s3.model.S3ObjectSummary;
-import com.amazonaws.util.IOUtils;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.service.OssTemplate;
+import org.apache.commons.io.IOUtils;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -15,15 +14,15 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.util.ResourceUtils;
+import software.amazon.awssdk.services.s3.model.S3Object;
 
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.util.List;
-import java.util.regex.Pattern;
 
-//@SpringBootApplication(scanBasePackages = "com.wiblog.oss")
+@SpringBootApplication(scanBasePackages = "com.wiblog.oss")
 @SpringBootTest(classes = OssSpringStarterApplicationTests.class)
 @ActiveProfiles("minio")
 class OssSpringStarterApplicationTests {
@@ -36,20 +35,21 @@ class OssSpringStarterApplicationTests {
     /**
      * 测试文件夹
      */
-    private static final String TEST_FOLDER_NAME= "data";
+    private static final String TEST_FOLDER_NAME = "data";
 
     /**
      * 测试上传路径
      */
     private static final String TEST_UPLOAD_PATH = "upload";
 
-//    @Autowired
-//    private OssTemplate ossTemplate;
+    @Autowired
+    private OssTemplate ossTemplate;
 
     /**
      * 上传文件
+     *
      * @throws IOException IOException
-     *//*
+     */
     @BeforeEach
     void init() throws IOException {
         File file = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
@@ -63,24 +63,30 @@ class OssSpringStarterApplicationTests {
         Assertions.assertNull(objectInfo);
     }
 
-    *//**
+    /**
      * 测试上传文件夹
-     *//*
-//    @Test
-//    void testPutFolder() throws IOException {
-//        File folder = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + TEST_FOLDER_NAME);
-//        ossTemplate.put().putFolder(TEST_UPLOAD_PATH, folder);
-//
-//        InputStream inputStream = ossTemplate.query().getInputStream(TEST_UPLOAD_PATH + "/" + TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
-//        String content = IOUtils.toString(inputStream);
-//        Assertions.assertTrue(content.contains("test!"));
-//
-//        ossTemplate.delete().removeFolder(TEST_UPLOAD_PATH);
-//    }
+     */
+    @Test
+    void testPutFolder() throws IOException {
+        File folder = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + TEST_FOLDER_NAME);
+        ossTemplate.put().putFolder(TEST_UPLOAD_PATH, folder);
 
-    *//**
+        InputStream inputStream = ossTemplate.query().getInputStream(TEST_UPLOAD_PATH + "/" + TEST_FOLDER_NAME + "/" + TEST_FILE_NAME);
+        String content = IOUtils.toString(inputStream);
+        Assertions.assertTrue(content.contains("test!"));
+
+        ossTemplate.delete().removeFolder(TEST_UPLOAD_PATH);
+    }
+
+    @Test
+    void testPutFolder1() throws IOException {
+        File folder = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX);
+        ossTemplate.put().putFolder(TEST_UPLOAD_PATH, folder, false);
+    }
+
+    /**
      * 测试拷贝文件
-     *//*
+     */
     @Test
     public void testCopyFile() throws IOException {
         String copyPath = "copy/" + TEST_FILE_NAME;
@@ -95,9 +101,9 @@ class OssSpringStarterApplicationTests {
         ossTemplate.delete().removeObject(copyPath);
     }
 
-    *//**
+    /**
      * 测试获取文件信息
-     *//*
+     */
     @Test
     void getObject() {
         ObjectInfo object = ossTemplate.query().getObjectInfo(TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME);
@@ -105,18 +111,18 @@ class OssSpringStarterApplicationTests {
         Assertions.assertEquals(TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME, object.getUri());
     }
 
-    *//**
+    /**
      * 测试获取文件信息
-     *//*
+     */
     @Test
     void getInputStream() {
-        String content = ossTemplate.query().getContent( TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME);
+        String content = ossTemplate.query().getContent(TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME);
         Assertions.assertTrue(content.contains("test!"));
     }
 
-    *//**
+    /**
      * 测试获取目录树
-     *//*
+     */
     @Test
     void getTree() {
         ObjectTreeNode treeList = ossTemplate.query().getTreeList(TEST_UPLOAD_PATH);
@@ -124,9 +130,9 @@ class OssSpringStarterApplicationTests {
         Assertions.assertEquals(treeList.getChildren().get(0).getName(), TEST_FILE_NAME);
     }
 
-    *//**
+    /**
      * 测试获取目录树
-     *//*
+     */
     @Test
     void getTreeByName() {
         ObjectTreeNode treeList = ossTemplate.query().getTreeListByName(TEST_UPLOAD_PATH, "test");
@@ -134,18 +140,18 @@ class OssSpringStarterApplicationTests {
         Assertions.assertEquals(treeList.getChildren().get(0).getName(), TEST_FILE_NAME);
     }
 
-    *//**
+    /**
      * 测试获取列表
-     *//*
+     */
     @Test
     void getListObjectSummary() {
-        List<S3ObjectSummary> s3ObjectSummaries = ossTemplate.query().listObjectSummary(TEST_UPLOAD_PATH);
-        Assertions.assertEquals(s3ObjectSummaries.get(0).getKey(), TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME);
+        List<S3Object> s3ObjectSummaries = ossTemplate.query().listObject(TEST_UPLOAD_PATH);
+        Assertions.assertEquals(s3ObjectSummaries.get(0).key(), TEST_UPLOAD_PATH + "/" + TEST_FILE_NAME);
     }
 
-    *//**
+    /**
      * 测试获取文件夹
-     *//*
+     */
     @Test
     void getFolder() throws IOException {
         File folder = ResourceUtils.getFile(ResourceUtils.CLASSPATH_URL_PREFIX + TEST_FOLDER_NAME);
@@ -163,14 +169,14 @@ class OssSpringStarterApplicationTests {
         ossTemplate.delete().removeFolder(TEST_UPLOAD_PATH);
     }
 
-    *//**
+    /**
      * 测试是否连接成功
-     *//*
+     */
     @Test
     void testConnect() {
-        OssProperties properties = new OssProperties("https://play.min.io:9000", "minioadmin", "minioadmin", "minio");
+        OssProperties properties = new OssProperties("http://10.224.187.221:8095", "HTTAUGBFZ1DP3ZUVKIKC", "BMpMS3KvO2xSxBg04lBfUisHzQnPVTdsfi74W2o6", "obs");
         OssTemplate template = new OssTemplate(properties);
-        boolean b = template.query().testConnectForBucket("123");
+        boolean b = template.query().testConnectForBucket("zjj-jyjzbim-cs-1100g");
         Assertions.assertTrue(b);
     }
 
@@ -180,6 +186,8 @@ class OssSpringStarterApplicationTests {
         boolean b = ossTemplate.query().checkExist("test/abc/");
         Assertions.assertTrue(b);
         ossTemplate.delete().removeFolder("test/abc/");
+        b = ossTemplate.query().checkExist("test/abc/");
+        Assertions.assertFalse(b);
     }
 
     @Test
@@ -187,11 +195,5 @@ class OssSpringStarterApplicationTests {
         List<ObjectTreeNode> s3ObjectSummaries = ossTemplate.query().listNextLevel(TEST_UPLOAD_PATH);
         ObjectTreeNode objectTreeNode = s3ObjectSummaries.stream().filter(e -> TEST_FILE_NAME.equals(e.getName())).findFirst().get();
         Assertions.assertNotNull(objectTreeNode);
-    }*/
-
-    @Test
-    public void test() {
-        System.out.println(1);
     }
-
 }

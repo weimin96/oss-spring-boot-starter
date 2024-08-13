@@ -1,23 +1,21 @@
 package com.wiblog.oss.service;
 
-import com.amazonaws.ClientConfiguration;
-import com.amazonaws.SDKGlobalConfiguration;
-import com.amazonaws.auth.AWSCredentials;
-import com.amazonaws.auth.AWSCredentialsProvider;
-import com.amazonaws.auth.AWSStaticCredentialsProvider;
-import com.amazonaws.auth.BasicAWSCredentials;
-import com.amazonaws.client.builder.AwsClientBuilder;
-import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.AmazonS3ClientBuilder;
-import com.amazonaws.services.s3.internal.SkipMd5CheckStrategy;
-import com.amazonaws.services.s3.model.*;
-import com.amazonaws.util.StringUtils;
 import com.wiblog.oss.bean.OssProperties;
-import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.InitializingBean;
+import com.wiblog.oss.util.Util;
+import org.springframework.util.Assert;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Configuration;
+import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
+import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
+import software.amazon.awssdk.services.s3.model.HeadBucketResponse;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.net.URI;
+import java.util.concurrent.CompletableFuture;
 
 /**
  * @author panwm
@@ -27,7 +25,15 @@ public class OssTemplate {
 
     private final OssProperties ossProperties;
 
-    private AmazonS3 amazonS3;
+    /**
+     * Amazon S3 异步客户端
+     */
+    private S3AsyncClient client;
+
+    /**
+     * 用于管理 S3 数据传输的高级工具
+     */
+    private S3TransferManager transferManager;
 
     private PutOperations putOperations;
 
@@ -36,77 +42,67 @@ public class OssTemplate {
     private DeleteOperations deleteOperations;
 
     public OssTemplate(OssProperties ossProperties) {
+        Assert.notNull(ossProperties.getEndpoint(), "illegal argument oss.endpoint");
+        Assert.notNull(ossProperties.getAccessKey(), "illegal argument oss.access-key");
+        Assert.notNull(ossProperties.getSecretKey(), "illegal argument oss.secret-key");
         this.ossProperties = ossProperties;
-        initClient();
-        initOps();
+        this.start();
     }
 
-    private void initClient() {
-        if (StringUtils.isNullOrEmpty(ossProperties.getEndpoint())) {
-            throw new IllegalArgumentException("illegal argument oss.endpoint");
-        }
-        if (StringUtils.isNullOrEmpty(ossProperties.getAccessKey())) {
-            throw new IllegalArgumentException("illegal argument oss.access-key");
-        }
-        if (StringUtils.isNullOrEmpty(ossProperties.getSecretKey())) {
-            throw new IllegalArgumentException("illegal argument oss.secret-key");
-        }
-        // fix: SdkClientException: Unable to verify integrity of data upload. Client calculated content hash
-        System.setProperty(SkipMd5CheckStrategy.DISABLE_PUT_OBJECT_MD5_VALIDATION_PROPERTY, "true");
-        System.setProperty(SkipMd5CheckStrategy.DISABLE_GET_OBJECT_MD5_VALIDATION_PROPERTY, "true");
-        // fix: SdkClientException: Unable to reset stream after calculating AWS4 signature
-        System.setProperty(SDKGlobalConfiguration.DEFAULT_S3_STREAM_BUFFER_SIZE, "1073741824");
-        ClientConfiguration clientConfiguration = new ClientConfiguration();
-        clientConfiguration.withMaxConnections(ossProperties.getMaxConnections()).withConnectionTimeout(ossProperties.getConnectionTimeout())
-                .withClientExecutionTimeout(60000).withRequestTimeout(60000);
-        AwsClientBuilder.EndpointConfiguration endpointConfiguration = new AwsClientBuilder.EndpointConfiguration(
-                ossProperties.getEndpoint(), null);
-        AWSCredentials awsCredentials = new BasicAWSCredentials(ossProperties.getAccessKey(),
-                ossProperties.getSecretKey());
+    public void start() {
+        // 凭证
+        StaticCredentialsProvider credentialsProvider = StaticCredentialsProvider.create(
+                AwsBasicCredentials.create(ossProperties.getAccessKey(), ossProperties.getSecretKey()));
 
-        AWSCredentialsProvider awsCredentialsProvider = new AWSStaticCredentialsProvider(awsCredentials);
-        this.amazonS3 = AmazonS3ClientBuilder.standard().withEndpointConfiguration(endpointConfiguration)
-                .withClientConfiguration(clientConfiguration).withCredentials(awsCredentialsProvider)
-                .disableChunkedEncoding().withPathStyleAccessEnabled(true).build();
+        this.client = S3AsyncClient.crtBuilder()
+                .credentialsProvider(credentialsProvider)
+                .endpointOverride(URI.create(ossProperties.getEndpoint()))
+                .region(Region.US_EAST_1)
+                .targetThroughputInGbps(20.0)
+                .minimumPartSizeInBytes(10 * 1024 * 1024L)
+                .checksumValidationEnabled(false)
+                .build();
 
-        if (!StringUtils.isNullOrEmpty(ossProperties.getBucketName()) && !amazonS3.doesBucketExistV2(ossProperties.getBucketName())) {
-            if (ossProperties.isAutoCreateBucket()) {
-                amazonS3.createBucket(ossProperties.getBucketName());
-            } else {
-                throw new IllegalArgumentException("bucket not found");
+        //AWS基于 CRT 的 S3 AsyncClient 实例用作 S3 传输管理器的底层客户端
+        this.transferManager = S3TransferManager.builder().s3Client(this.client).build();
+
+        // 创建存储桶
+        createBucket();
+        // 初始化
+        initOperations();
+    }
+
+    public void stop() {
+        this.client.close();
+        this.transferManager.close();
+    }
+
+    private void createBucket() {
+        if (!Util.isBlank(ossProperties.getBucketName())) {
+            HeadBucketRequest headBucketRequest = HeadBucketRequest.builder().bucket(ossProperties.getBucketName()).build();
+            try {
+                CompletableFuture<HeadBucketResponse> headBucketResponseCompletableFuture = this.client.headBucket(headBucketRequest);
+                HeadBucketResponse join = headBucketResponseCompletableFuture.join();
+            } catch (NoSuchBucketException e1) {
+                // 自动创建
+                if (ossProperties.isAutoCreateBucket()) {
+                    CreateBucketRequest bucketRequest = CreateBucketRequest.builder()
+                            .bucket(ossProperties.getBucketName())
+                            .build();
+                    this.client.createBucket(bucketRequest);
+                } else {
+                    throw new IllegalArgumentException("bucket not found");
+                }
+            } catch (Exception e) {
+                e.printStackTrace();
             }
-
-        }
-
-        if (ossProperties.isCross()) {
-            cross();
         }
     }
 
-    /**
-     * 跨域设置
-     */
-    private void cross() {
-
-        // 创建CORS规则列表
-        List<CORSRule> corsRules = new ArrayList<>();
-        // 添加允许跨域访问的规则
-        CORSRule corsRule = new CORSRule();
-        corsRule.setAllowedOrigins("*");
-        corsRule.setAllowedMethods(CORSRule.AllowedMethods.GET);
-        corsRule.setAllowedHeaders("*");
-        corsRules.add(corsRule);
-
-        // 创建BucketCrossOriginConfiguration对象
-        BucketCrossOriginConfiguration configuration = new BucketCrossOriginConfiguration(corsRules);
-        amazonS3.setBucketCrossOriginConfiguration(ossProperties.getBucketName(), configuration);
-
-    }
-
-    private void initOps() {
-        this.putOperations = new PutOperations(this.amazonS3, ossProperties);
-        this.queryOperations = new QueryOperations(this.amazonS3, ossProperties);
-        this.deleteOperations = new DeleteOperations(this.amazonS3, ossProperties);
+    private void initOperations() {
+        this.putOperations = new PutOperations(this.ossProperties, this.client, this.transferManager);
+        this.queryOperations = new QueryOperations(this.ossProperties, this.client, this.transferManager);
+        this.deleteOperations = new DeleteOperations(this.ossProperties, this.client, this.transferManager);
     }
 
     public PutOperations put() {
@@ -119,10 +115,6 @@ public class OssTemplate {
 
     public DeleteOperations delete() {
         return this.deleteOperations;
-    }
-
-    public void close() {
-        this.amazonS3.shutdown();
     }
 
 }
