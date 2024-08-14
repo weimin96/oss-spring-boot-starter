@@ -41,6 +41,13 @@ public class Chunk {
     private String path;
 
     /**
+     * 唯一id
+     */
+    @ApiModelProperty(value = "唯一id", required = true)
+    @NotBlank
+    private String guid;
+
+    /**
      * 分块文件内容
      */
     @ApiModelProperty(value = "分块文件内容", required = true)
