@@ -2,10 +2,7 @@ package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.OssProperties;
-import com.wiblog.oss.bean.chunk.Chunk;
-import com.wiblog.oss.bean.chunk.ChunkMerge;
-import com.wiblog.oss.bean.chunk.ChunkProcess;
-import com.wiblog.oss.bean.chunk.ChunkTask;
+import com.wiblog.oss.bean.chunk.*;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.io.IOUtils;
@@ -313,8 +310,10 @@ public class PutOperations extends Operations {
     /**
      * 接收文件分片
      * @param chunk 分片
+     * @return ChunkTarget
      */
-    public void chunk(Chunk chunk) {
+    public ChunkTarget chunk(Chunk chunk) {
+        ChunkTarget target = new ChunkTarget();
         // 上传
         UploadPartRequest uploadRequest = UploadPartRequest.builder()
                 .bucket(ossProperties.getBucketName())
@@ -327,11 +326,14 @@ public class PutOperations extends Operations {
         try {
             ByteBuffer byteBuffer = ByteBuffer.wrap(chunk.getFile().getBytes());
             AsyncRequestBody body = AsyncRequestBody.fromByteBuffer(byteBuffer);
-            client.uploadPart(uploadRequest, body).join();
+            String etag = client.uploadPart(uploadRequest, body).join().eTag();
+            target.setEtag(etag.replace("\"", ""));
+            target.setPartNumber(chunk.getChunkNumber());
         } catch (Exception e) {
             log.error("文件【{}】上传分片【{}】失败", chunk.getFilename(), chunk.getChunkNumber(), e);
             throw new RuntimeException("上传分片失败", e);
         }
+        return target;
     }
 
     /**
@@ -341,11 +343,13 @@ public class PutOperations extends Operations {
      */
     public ObjectInfo merge(ChunkMerge chunkMerge) {
         String objectName = formatPath(chunkMerge.getPath()) + chunkMerge.getFilename();
-        List<Part> parts = listParts(ossProperties.getBucketName(), objectName, chunkMerge.getUploadId());
-        List<CompletedPart> completedParts = parts.stream().map(part -> CompletedPart.builder()
-                        .partNumber(part.partNumber())
-                        .eTag(part.eTag())
+
+
+        List<CompletedPart> completedParts = chunkMerge.getChunkTargetList().stream().map(part -> CompletedPart.builder()
+                        .partNumber(part.getPartNumber())
+                        .eTag(part.getEtag())
                         .build())
+                .sorted(Comparator.comparingInt(CompletedPart::partNumber))
                 .collect(Collectors.toList());
 
         client.completeMultipartUpload(b -> b
@@ -361,7 +365,7 @@ public class PutOperations extends Operations {
                 .build();
     }
 
-    private List<Part> listParts(String bucketName, String objectName, String uploadId) {
+    public List<Part> listParts(String bucketName, String objectName, String uploadId) {
         ListPartsRequest request = ListPartsRequest.builder()
                 .bucket(bucketName)
                 .key(objectName)

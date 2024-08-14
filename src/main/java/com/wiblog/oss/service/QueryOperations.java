@@ -395,12 +395,12 @@ public class QueryOperations extends Operations {
             // 设置响应内容类型为
             try (InputStream inputStream = getInputStream(objectName);
                  OutputStream outputStream = response.getOutputStream()) {
+                response.setContentLength(inputStream.available());
                 byte[] buffer = new byte[1024];
                 int bytesRead;
                 while ((bytesRead = inputStream.read(buffer)) != -1) {
                     outputStream.write(buffer, 0, bytesRead);
                 }
-                response.setContentLength(inputStream.available());
             }
         } catch (NoSuchKeyException e) {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);

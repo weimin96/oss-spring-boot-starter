@@ -4,6 +4,7 @@ import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.chunk.Chunk;
 import com.wiblog.oss.bean.chunk.ChunkMerge;
+import com.wiblog.oss.bean.chunk.ChunkTarget;
 import com.wiblog.oss.bean.chunk.ChunkTask;
 import com.wiblog.oss.resp.R;
 import com.wiblog.oss.service.OssTemplate;
@@ -68,10 +69,10 @@ public class OssController {
      */
     @PostMapping(value = "/chunk")
     @ApiOperation(value = "分片上传大文件")
-    public R<String> chunk(@Validated Chunk chunk) {
-        ossTemplate.put().chunk(chunk);
+    public R<ChunkTarget> chunk(@Validated Chunk chunk) {
+        ChunkTarget chunkTarget = ossTemplate.put().chunk(chunk);
         // 记录分片上传成功状态 path+chunkNumber
-        return R.data("File Chunk Upload Success");
+        return R.data(chunkTarget);
     }
 
     /**
