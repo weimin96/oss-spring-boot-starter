@@ -43,6 +43,5 @@ public class ChunkMerge {
     private String guid;
 
     @ApiModelProperty(value = "分片结果", required = true)
-    @NotNull
     private List<ChunkTarget> chunkTargetList;
 }
