@@ -2,6 +2,7 @@ package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.util.Util;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.Assert;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
@@ -21,6 +22,7 @@ import java.util.concurrent.CompletableFuture;
  * @author panwm
  * @since 2023/8/20 1:33
  */
+@Slf4j
 public class OssTemplate {
 
     private final OssProperties ossProperties;
@@ -82,19 +84,22 @@ public class OssTemplate {
             HeadBucketRequest headBucketRequest = HeadBucketRequest.builder().bucket(ossProperties.getBucketName()).build();
             try {
                 CompletableFuture<HeadBucketResponse> headBucketResponseCompletableFuture = this.client.headBucket(headBucketRequest);
-                HeadBucketResponse join = headBucketResponseCompletableFuture.join();
-            } catch (NoSuchBucketException e1) {
-                // 自动创建
-                if (ossProperties.isAutoCreateBucket()) {
-                    CreateBucketRequest bucketRequest = CreateBucketRequest.builder()
-                            .bucket(ossProperties.getBucketName())
-                            .build();
-                    this.client.createBucket(bucketRequest);
-                } else {
-                    throw new IllegalArgumentException("bucket not found");
-                }
+                headBucketResponseCompletableFuture.join();
             } catch (Exception e) {
-                e.printStackTrace();
+                if (e.getCause() instanceof NoSuchBucketException) {
+                    // 自动创建
+                    if (ossProperties.isAutoCreateBucket()) {
+                        CreateBucketRequest bucketRequest = CreateBucketRequest.builder()
+                                .bucket(ossProperties.getBucketName())
+                                .build();
+                        this.client.createBucket(bucketRequest);
+                    } else {
+                        throw new IllegalArgumentException("bucket not found");
+                    }
+                } else {
+                    log.error(e.getMessage(), e);
+                }
+
             }
         }
     }

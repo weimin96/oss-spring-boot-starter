@@ -15,6 +15,8 @@ README: [English](README.md) | [中文](README-zh-CN.md)
 
 Wiki: [Wiki](https://github.com/weimin96/oss-spring-boot-starter/wiki)
 
+Front-end companion code [oss-spring-boot-starter-ui-demo](https://github.com/weimin96/oss-spring-boot-starter-ui-demo)
+
 ## Introduction
 
 This project mainly utilizes the mainstream OSS object storage services (`Tencent Cloud OSS` / `Alibaba Cloud OSS` / `Huawei Cloud OBS` / `Qiniu Cloud` / `MinIo`) that are compatible with Amazon S3 (Simple Storage Service) protocol. It provides a series of object storage operations based on the automated configuration feature of Spring Boot.
