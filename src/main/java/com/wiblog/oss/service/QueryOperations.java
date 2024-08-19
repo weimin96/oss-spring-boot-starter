@@ -10,6 +10,7 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.*;
 import java.net.URLDecoder;
@@ -301,6 +302,25 @@ public class QueryOperations extends Operations {
     }
 
     /**
+     * 获取文件流
+     *
+     * @param bucketName 存储桶
+     * @param objectName 文件全路径
+     * @param range      分段
+     * @return InputStream 文件流
+     */
+    public InputStream getInputStream(String bucketName, String objectName, String range) {
+        GetObjectRequest request = GetObjectRequest.builder().bucket(bucketName).key(Util.formatPath(objectName)).range(range).build();
+        return handleRequest(() -> client.getObject(request, AsyncResponseTransformer.toBytes()).thenApply(responseBytes -> {
+            ByteBuffer buffer = responseBytes.asByteBuffer();
+            byte[] bytesArray = new byte[buffer.remaining()];
+            buffer.get(bytesArray);
+            return new ByteArrayInputStream(bytesArray);
+        }));
+    }
+
+
+    /**
      * 下载文件
      *
      * @param objectName    文件全路径
@@ -375,11 +395,12 @@ public class QueryOperations extends Operations {
     /**
      * 预览文件
      *
+     * @param request    请求
      * @param response   响应
      * @param objectName 文件全路径
      * @throws IOException io异常
      */
-    public void previewObject(HttpServletResponse response, String objectName) throws IOException {
+    public void previewObject(HttpServletRequest request, HttpServletResponse response, String objectName) throws IOException {
         if (Util.isBlank(objectName)) {
             return;
         }
@@ -389,19 +410,61 @@ public class QueryOperations extends Operations {
 
         try {
             // 设置响应头信息
-            String filename = Util.getFilename(objectName);
+            String fileName = Util.getFilename(objectName);
+            String encodedFileName = java.net.URLEncoder.encode(fileName, "UTF-8").replaceAll("\\+", "%20");
+            ObjectInfo objectInfo = getObjectInfo(objectName);
+            long fileSize = objectInfo.getSize();
+
             response.setContentType(Util.getContentType(objectName));
-            response.setHeader("Content-Disposition", "inline; filename=" + filename);
-            // 设置响应内容类型为
-            try (InputStream inputStream = getInputStream(objectName);
-                 OutputStream outputStream = response.getOutputStream()) {
-                response.setContentLength(inputStream.available());
-                byte[] buffer = new byte[1024];
-                int bytesRead;
-                while ((bytesRead = inputStream.read(buffer)) != -1) {
-                    outputStream.write(buffer, 0, bytesRead);
+            response.setHeader("Content-Disposition", "attachment; filename=\"" + encodedFileName + "\"; filename*=UTF-8''" + encodedFileName);
+            response.setHeader("Accept-Ranges", "bytes");
+            String rangeHeader = request.getHeader("Range");
+            if (rangeHeader == null) {
+                // 完整下载
+                try (InputStream inputStream = getInputStream(objectName);
+                     OutputStream outputStream = response.getOutputStream()) {
+                    response.setContentLengthLong(fileSize);
+                    byte[] buffer = new byte[2 * 1024];
+                    int bytesRead;
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        outputStream.write(buffer, 0, bytesRead);
+                    }
+                }
+            } else {
+                // 分段下载
+                long start;
+                long end;
+                String[] range = rangeHeader.split("=")[1].split("-");
+                if (range.length == 1) {
+                    start = Long.parseLong(range[0]);
+                    end = fileSize - 1;
+                } else {
+                    start = Long.parseLong(range[0]);
+                    end = Long.parseLong(range[1]);
+                }
+                long contentLength = end - start + 1;
+                // 返回头里存放每次读取的开始和结束字节
+                response.setHeader("Content-Length", String.valueOf(contentLength));
+                response.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + fileSize);
+                try (InputStream inputStream = getInputStream(ossProperties.getBucketName(), objectName, rangeHeader);
+                     OutputStream outputStream = response.getOutputStream()) {
+                    // 跳到第start字节
+//                    inputStream.skip(start);
+                    byte[] buffer = new byte[2 * 1024];
+                    int bytesRead;
+                    long bytesWritten = 0;
+                    while ((bytesRead = inputStream.read(buffer)) != -1) {
+                        if (bytesWritten + bytesRead > contentLength) {
+                            outputStream.write(buffer, 0, (int) (contentLength - bytesWritten));
+                            break;
+                        } else {
+                            outputStream.write(buffer, 0, bytesRead);
+                            bytesWritten += bytesRead;
+                        }
+                    }
                 }
             }
+
         } catch (NoSuchKeyException e) {
             response.setStatus(HttpServletResponse.SC_NOT_FOUND);
             response.setHeader("content-type", "text/html;charset=utf-8");

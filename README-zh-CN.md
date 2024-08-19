@@ -13,6 +13,8 @@ README: [English](README.md) | [中文](README-zh-CN.md)
 
 Wiki: [Wiki](https://github.com/weimin96/oss-spring-boot-starter/wiki)
 
+前端配套代码 [oss-spring-boot-starter-ui-demo](https://github.com/weimin96/oss-spring-boot-starter-ui-demo)
+
 ## 简介
 
 该项目主要是利用主流的OSS对象存储服务（`腾讯云OSS`/`阿里云OSS`/`华为云OBS`/`七牛云`/`MinIo`）都兼容Amazon S3（Simple Storage Service）协议的特性，基于Spring Boot的自动化配置特性提供一系列对象存储操作。

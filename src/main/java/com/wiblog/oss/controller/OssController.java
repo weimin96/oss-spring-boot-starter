@@ -31,6 +31,7 @@ import java.util.List;
 
 /**
  * web端点
+ *
  * @author panwm
  * @since 2023/8/20 1:38
  */
@@ -108,18 +109,19 @@ public class OssController {
 
     /**
      * 预览文件
+     *
      * @param response 响应
-     * @param request 请求
+     * @param request  请求
      * @throws IOException io异常
      */
     @GetMapping("/object/preview/**")
     @ApiOperation(value = "预览文件")
     public void previewObject(HttpServletResponse response,
                               HttpServletRequest request) throws IOException {
-        String path  = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
+        String path = (String) request.getAttribute(HandlerMapping.PATH_WITHIN_HANDLER_MAPPING_ATTRIBUTE);
         String matchPattern = (String) request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
         String objectName = antPathMatcher.extractPathWithinPattern(matchPattern, path);
-        ossTemplate.query().previewObject(response, objectName);
+        ossTemplate.query().previewObject(request, response, objectName);
     }
 
     /**
@@ -151,9 +153,8 @@ public class OssController {
     }
 
     /**
-     *
-     * @param file 文件
-     * @param path 存放路径
+     * @param file     文件
+     * @param path     存放路径
      * @param filename 文件名
      * @return 响应
      * @throws IOException io异常
@@ -161,14 +162,14 @@ public class OssController {
     @PostMapping(value = "/object")
     @ApiOperation(value = "上传文件")
     @ApiImplicitParams({
-            @ApiImplicitParam(name = "path", value = "存放路径",  required = true, dataType = "String", paramType = "form", dataTypeClass = String.class),
-            @ApiImplicitParam(name = "filename", value = "文件名",  required = false, dataType = "String", paramType = "form", dataTypeClass = String.class)
+            @ApiImplicitParam(name = "path", value = "存放路径", required = true, dataType = "String", paramType = "form", dataTypeClass = String.class),
+            @ApiImplicitParam(name = "filename", value = "文件名", required = false, dataType = "String", paramType = "form", dataTypeClass = String.class)
     })
     public R<ObjectInfo> uploadObject(@NotNull @RequestParam("file") MultipartFile file,
                                       @NotBlank String path,
                                       String filename) throws IOException {
         InputStream inputStream = file.getInputStream();
-        filename = Util.isBlank(filename) ? file.getOriginalFilename(): filename;
+        filename = Util.isBlank(filename) ? file.getOriginalFilename() : filename;
         ObjectInfo objectInfo = ossTemplate.put().putObject(path, filename, inputStream);
         return R.data(objectInfo);
     }
