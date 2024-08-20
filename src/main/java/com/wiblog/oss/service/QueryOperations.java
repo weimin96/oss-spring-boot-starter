@@ -424,7 +424,7 @@ public class QueryOperations extends Operations {
             long fileSize = objectInfo.getSize();
 
             response.setContentType(Util.getContentType(objectName));
-            response.setHeader("Content-Disposition", "attachment; filename=\"" + encodedFileName + "\"; filename*=UTF-8''" + encodedFileName);
+            response.setHeader("Content-Disposition", "inline; filename=\"" + encodedFileName + "\"; filename*=UTF-8''" + encodedFileName);
             response.setHeader("Accept-Ranges", "bytes");
             String rangeHeader = request.getHeader("Range");
             if ("HEAD".equals(request.getMethod())) {
