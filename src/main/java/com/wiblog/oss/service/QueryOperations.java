@@ -412,6 +412,7 @@ public class QueryOperations extends Operations {
             // 设置响应头信息
             String fileName = Util.getFilename(objectName);
             String encodedFileName = java.net.URLEncoder.encode(fileName, "UTF-8").replaceAll("\\+", "%20");
+
             ObjectInfo objectInfo = getObjectInfo(objectName);
             long fileSize = objectInfo.getSize();
 
@@ -419,6 +420,10 @@ public class QueryOperations extends Operations {
             response.setHeader("Content-Disposition", "attachment; filename=\"" + encodedFileName + "\"; filename*=UTF-8''" + encodedFileName);
             response.setHeader("Accept-Ranges", "bytes");
             String rangeHeader = request.getHeader("Range");
+            if ("HEAD".equals(request.getMethod())) {
+                response.setContentLengthLong(fileSize);
+                return;
+            }
             if (rangeHeader == null) {
                 // 完整下载
                 try (InputStream inputStream = getInputStream(objectName);
