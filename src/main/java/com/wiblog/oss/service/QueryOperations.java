@@ -414,6 +414,13 @@ public class QueryOperations extends Operations {
             String encodedFileName = java.net.URLEncoder.encode(fileName, "UTF-8").replaceAll("\\+", "%20");
 
             ObjectInfo objectInfo = getObjectInfo(objectName);
+            if (objectInfo == null) {
+                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+                response.setHeader("content-type", "text/html;charset=utf-8");
+                // 文件不存在
+                response.getWriter().println("<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1></body></html>");
+                return;
+            }
             long fileSize = objectInfo.getSize();
 
             response.setContentType(Util.getContentType(objectName));
