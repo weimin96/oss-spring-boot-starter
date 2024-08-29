@@ -1,15 +1,12 @@
 package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.OssProperties;
-import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 import java.util.ArrayList;
-import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * 移除操作
@@ -61,10 +58,17 @@ public class DeleteOperations extends Operations {
      * @param path       文件夹
      */
     public void removeFolder(String bucketName, String path) {
+        ListObjectsV2Request listObjectsRequest = ListObjectsV2Request.builder()
+                .bucket(bucketName)
+                .prefix(path)
+                .build();
+
+        ListObjectsV2Response listObjectsResponse = handleRequest(() -> client.listObjectsV2(listObjectsRequest));
         ArrayList<ObjectIdentifier> toDelete = new ArrayList<>();
-        toDelete.add(ObjectIdentifier.builder()
-                .key(formatPath(path))
-                .build());
+        listObjectsResponse.contents().forEach(s3Object -> toDelete.add(ObjectIdentifier.builder()
+                .key(formatPath(s3Object.key()))
+                .build()));
+
         DeleteObjectsRequest deleteObjectsRequest = DeleteObjectsRequest.builder()
                 .bucket(bucketName)
                 .delete(Delete.builder().objects(toDelete).build())
