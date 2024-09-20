@@ -117,7 +117,7 @@ public class QueryOperations extends Operations {
      * @return Object列表
      */
     public List<S3Object> listObject(String bucketName, String path) {
-        return listObject(ossProperties.getBucketName(), path, null);
+        return listObject(bucketName, path, null);
     }
 
     /**
