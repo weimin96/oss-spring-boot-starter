@@ -137,6 +137,7 @@ public class QueryOperations extends Operations {
      * @return Object列表
      */
     public List<S3Object> listObject(String bucketName, String path, String keyword) {
+        List<S3Object> collect = new ArrayList<>();
         path = Util.formatPath(path);
         // 列出存储桶中的对象
         ListObjectsV2Request request = ListObjectsV2Request
@@ -145,13 +146,20 @@ public class QueryOperations extends Operations {
                 .prefix(path)
                 .build();
 
-        ListObjectsV2Response response = client.listObjectsV2(request).join();
-        List<S3Object> collect;
-        if (Util.isBlank(keyword)) {
-            collect = response.contents();
-        } else {
-            collect = response.contents().stream().filter(e -> e.key().contains(keyword)).collect(Collectors.toList());
+        boolean done = false;
+        while (!done) {
+            ListObjectsV2Response response = client.listObjectsV2(request).join();
+
+            if (Util.isBlank(keyword)) {
+                collect.addAll(response.contents());
+            } else {
+                collect.addAll(response.contents().stream().filter(e -> e.key().contains(keyword)).collect(Collectors.toList()));
+            }
+            if (response.nextContinuationToken() == null) {
+                done = true;
+            }
         }
+
         return collect;
     }
 
@@ -173,21 +181,30 @@ public class QueryOperations extends Operations {
      * @return List
      */
     public List<ObjectTreeNode> listNextLevel(String bucketName, String path) {
+        List<ObjectTreeNode> resultList = new ArrayList<>();
         path = Util.formatPath(path);
         // 列出存储桶中的对象
         ListObjectsV2Request request = ListObjectsV2Request.builder()
                 .bucket(bucketName)
                 .prefix(path)
+                .maxKeys(20)
                 .delimiter("/")
                 .build();
 
-        ListObjectsV2Response response = client.listObjectsV2(request).join();
-        List<S3Object> objects = response.contents();
-        List<CommonPrefix> commonPrefixes = response.commonPrefixes();
-        List<ObjectTreeNode> folders = commonPrefixes.stream().map(e -> buildTreeNode(e.prefix())).collect(Collectors.toList());
-        List<ObjectTreeNode> files = objects.stream().filter(e -> e.size() > 0).map(this::buildTreeNode).collect(Collectors.toList());
-        List<ObjectTreeNode> resultList = new ArrayList<>(folders);
-        resultList.addAll(files);
+        boolean done = false;
+        while (!done) {
+            ListObjectsV2Response response = client.listObjectsV2(request).join();
+            List<S3Object> objects = response.contents();
+            List<CommonPrefix> commonPrefixes = response.commonPrefixes();
+            List<ObjectTreeNode> folders = commonPrefixes.stream().map(e -> buildTreeNode(e.prefix())).collect(Collectors.toList());
+            List<ObjectTreeNode> files = objects.stream().filter(e -> e.size() > 0).map(this::buildTreeNode).collect(Collectors.toList());
+
+            resultList.addAll(folders);
+            resultList.addAll(files);
+            if (response.nextContinuationToken() == null) {
+                done = true;
+            }
+        }
         return resultList;
     }
 

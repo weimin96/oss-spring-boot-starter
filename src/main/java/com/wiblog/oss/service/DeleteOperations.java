@@ -61,18 +61,26 @@ public class DeleteOperations extends Operations {
         ListObjectsV2Request listObjectsRequest = ListObjectsV2Request.builder()
                 .bucket(bucketName)
                 .prefix(path)
+                .maxKeys(20)
                 .build();
 
-        ListObjectsV2Response listObjectsResponse = handleRequest(() -> client.listObjectsV2(listObjectsRequest));
-        ArrayList<ObjectIdentifier> toDelete = new ArrayList<>();
-        listObjectsResponse.contents().forEach(s3Object -> toDelete.add(ObjectIdentifier.builder()
-                .key(formatPath(s3Object.key()))
-                .build()));
+        boolean done = false;
+        while (!done) {
+            ListObjectsV2Response listObjectsResponse = handleRequest(() -> client.listObjectsV2(listObjectsRequest));
+            ArrayList<ObjectIdentifier> toDelete = new ArrayList<>();
+            listObjectsResponse.contents().forEach(s3Object -> toDelete.add(ObjectIdentifier.builder()
+                    .key(formatPath(s3Object.key()))
+                    .build()));
 
-        DeleteObjectsRequest deleteObjectsRequest = DeleteObjectsRequest.builder()
-                .bucket(bucketName)
-                .delete(Delete.builder().objects(toDelete).build())
-                .build();
-        handleRequest(() -> client.deleteObjects(deleteObjectsRequest));
+            DeleteObjectsRequest deleteObjectsRequest = DeleteObjectsRequest.builder()
+                    .bucket(bucketName)
+                    .delete(Delete.builder().objects(toDelete).build())
+                    .build();
+            handleRequest(() -> client.deleteObjects(deleteObjectsRequest));
+
+            if (listObjectsResponse.nextContinuationToken() == null) {
+                done = true;
+            }
+        }
     }
 }
