@@ -8,6 +8,7 @@ import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 import javax.servlet.http.HttpServletRequest;
@@ -19,6 +20,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
 /**
@@ -137,7 +139,7 @@ public class QueryOperations extends Operations {
      * @return Object列表
      */
     public List<S3Object> listObject(String bucketName, String path, String keyword) {
-        List<S3Object> collect = new ArrayList<>();
+        List<S3Object> list = new ArrayList<>();
         path = Util.formatPath(path);
         // 列出存储桶中的对象
         ListObjectsV2Request request = ListObjectsV2Request
@@ -146,21 +148,15 @@ public class QueryOperations extends Operations {
                 .prefix(path)
                 .build();
 
-        boolean done = false;
-        while (!done) {
-            ListObjectsV2Response response = client.listObjectsV2(request).join();
-
+        ListObjectsV2Publisher publisher = client.listObjectsV2Paginator(request);
+        publisher.subscribe(response -> {
             if (Util.isBlank(keyword)) {
-                collect.addAll(response.contents());
+                list.addAll(response.contents());
             } else {
-                collect.addAll(response.contents().stream().filter(e -> e.key().contains(keyword)).collect(Collectors.toList()));
+                list.addAll(response.contents().stream().filter(e -> e.key().contains(keyword)).collect(Collectors.toList()));
             }
-            if (response.nextContinuationToken() == null) {
-                done = true;
-            }
-        }
-
-        return collect;
+        }).join();
+        return list;
     }
 
     /**
@@ -187,24 +183,19 @@ public class QueryOperations extends Operations {
         ListObjectsV2Request request = ListObjectsV2Request.builder()
                 .bucket(bucketName)
                 .prefix(path)
-                .maxKeys(20)
                 .delimiter("/")
                 .build();
 
-        boolean done = false;
-        while (!done) {
-            ListObjectsV2Response response = client.listObjectsV2(request).join();
+
+        ListObjectsV2Publisher publisher = client.listObjectsV2Paginator(request);
+        publisher.subscribe(response -> {
             List<S3Object> objects = response.contents();
             List<CommonPrefix> commonPrefixes = response.commonPrefixes();
             List<ObjectTreeNode> folders = commonPrefixes.stream().map(e -> buildTreeNode(e.prefix())).collect(Collectors.toList());
             List<ObjectTreeNode> files = objects.stream().filter(e -> e.size() > 0).map(this::buildTreeNode).collect(Collectors.toList());
-
             resultList.addAll(folders);
             resultList.addAll(files);
-            if (response.nextContinuationToken() == null) {
-                done = true;
-            }
-        }
+        }).join();
         return resultList;
     }
 
