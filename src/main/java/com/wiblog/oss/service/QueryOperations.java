@@ -7,7 +7,9 @@ import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Iterable;
 import software.amazon.awssdk.services.s3.paginators.ListObjectsV2Publisher;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
@@ -17,9 +19,7 @@ import java.io.*;
 import java.net.URLDecoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -145,6 +145,7 @@ public class QueryOperations extends Operations {
         ListObjectsV2Request request = ListObjectsV2Request
                 .builder()
                 .bucket(bucketName)
+                .maxKeys(100)
                 .prefix(path)
                 .build();
 
@@ -183,18 +184,29 @@ public class QueryOperations extends Operations {
         ListObjectsV2Request request = ListObjectsV2Request.builder()
                 .bucket(bucketName)
                 .prefix(path)
+                .maxKeys(100)
                 .delimiter("/")
                 .build();
 
-
         ListObjectsV2Publisher publisher = client.listObjectsV2Paginator(request);
+        Set<String> keySet = new HashSet<>(64);
         publisher.subscribe(response -> {
             List<S3Object> objects = response.contents();
+            if (!objects.isEmpty()) {
+                List<ObjectTreeNode> files = objects.stream().filter(e -> e.size() > 0).map(this::buildTreeNode).collect(Collectors.toList());
+                resultList.addAll(files);
+            }
             List<CommonPrefix> commonPrefixes = response.commonPrefixes();
-            List<ObjectTreeNode> folders = commonPrefixes.stream().map(e -> buildTreeNode(e.prefix())).collect(Collectors.toList());
-            List<ObjectTreeNode> files = objects.stream().filter(e -> e.size() > 0).map(this::buildTreeNode).collect(Collectors.toList());
-            resultList.addAll(folders);
-            resultList.addAll(files);
+            if (!commonPrefixes.isEmpty()) {
+                List<ObjectTreeNode> folders = commonPrefixes.stream()
+                        .map(CommonPrefix::prefix)
+                        .distinct()
+                        .filter(e -> !keySet.contains(e))
+                        .peek(keySet::add)
+                        .map(this::buildTreeNode)
+                        .collect(Collectors.toList());
+                resultList.addAll(folders);
+            }
         }).join();
         return resultList;
     }
