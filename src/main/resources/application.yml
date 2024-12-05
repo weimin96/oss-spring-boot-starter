@@ -4,3 +4,15 @@ spring:
       enabled: true
       max-file-size: 1GB
       max-request-size: 1GB
+  main:
+    allow-bean-definition-overriding: true
+oss:
+  endpoint: http://127.0.0.1:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket-name: test
+  enable: true
+  autoCreateBucket: true
+  type: minio
+  http:
+    enable: true
