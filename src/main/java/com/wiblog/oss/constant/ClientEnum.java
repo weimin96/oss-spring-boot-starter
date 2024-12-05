@@ -1,7 +1,7 @@
 package com.wiblog.oss.constant;
 
 /**
- * describe:
+ * describe: 客户端枚举
  *
  * @author panwm
  * @since 2023/8/24 16:06
@@ -9,7 +9,8 @@ package com.wiblog.oss.constant;
 public enum ClientEnum {
 
     OBS("obs", "obs客户端"),
-    MINIO("minio", "minio客户端");
+    MINIO("minio", "minio客户端"),
+    COS("cos", "腾讯云cos客户端");
 
     final String name;
     final String type;
