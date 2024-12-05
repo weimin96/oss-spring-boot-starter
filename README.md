@@ -8,18 +8,15 @@
 [![Last Commit](https://img.shields.io/github/last-commit/weimin96/oss-spring-boot-starter.svg)](https://github.com/weimin96/oss-spring-boot-starter)
 [![GitHub commit activity](https://img.shields.io/github/commit-activity/m/weimin96/oss-spring-boot-starter.svg)](https://github.com/weimin96/oss-spring-boot-starter)
 
-
-
-
 README: [English](README.md) | [中文](README-zh-CN.md)
 
 Wiki: [Wiki](https://github.com/weimin96/oss-spring-boot-starter/wiki)
 
-Front-end companion code [oss-spring-boot-starter-ui-demo](https://github.com/weimin96/oss-spring-boot-starter-ui-demo)
+Front-end companion code [oss-spring-boot3-starter-ui-demo](https://github.com/weimin96/oss-spring-boot-starter-ui-demo)
 
 ## Introduction
 
-This project mainly utilizes the mainstream OSS object storage services (`Tencent Cloud OSS` / `Alibaba Cloud OSS` / `Huawei Cloud OBS` / `Qiniu Cloud` / `MinIo`) that are compatible with Amazon S3 (Simple Storage Service) protocol. It provides a series of object storage operations based on the automated configuration feature of Spring Boot.
+This project mainly utilizes the mainstream OSS object storage services (`Tencent Cloud COS` / `Alibaba Cloud OSS` / `Huawei Cloud OBS` / `Qiniu Cloud` / `MinIo`) that are compatible with Amazon S3 (Simple Storage Service) protocol. It provides a series of object storage operations based on the automated configuration feature of Spring Boot.
 
 ## Features
 
@@ -33,8 +30,10 @@ This project mainly utilizes the mainstream OSS object storage services (`Tencen
 
 ## Version Basics
 
-- JDK 1.8
-- Spring Boot 2.x
+- JDK 21
+- Spring Boot 3.x
+
+[Spring Boot 2.x](https://github.com/weimin96/oss-spring-boot-starter/tree/spring2)
 
 ## How to Use
 
@@ -45,7 +44,7 @@ This project mainly utilizes the mainstream OSS object storage services (`Tencen
 ```xml
 <dependency>
     <groupId>io.github.weimin96</groupId>
-    <artifactId>oss-spring-boot-starter</artifactId>
+    <artifactId>oss-spring-boot3-starter</artifactId>
     <version>${lastVersion}</version>
 </dependency>
 ```
@@ -54,7 +53,7 @@ This project mainly utilizes the mainstream OSS object storage services (`Tencen
 
 ```gradle
 dependencies {
-  implementation 'io.github.weimin96:oss-spring-boot-starter:${lastVersion}'
+  implementation 'io.github.weimin96:oss-spring-boot3-starter:${lastVersion}'
 }
 ```
 
@@ -82,18 +81,18 @@ ossTemplate.put().putObject("bucket", "1.jpg", new File("/data/1.jpg"));
 
 Explanation of all configurations:
 
-| Configuration        | Type     | Default Value | Description                  |
-|----------------------|----------|---------------|------------------------------|
-| oss.enable           | boolean  | false         | Enable OSS or not            |
-| oss.endpoint         | String   |               | Endpoint of the OSS service  |
-| oss.bucket-name      | String   |               | Bucket name                  |
-| oss.access-key       | String   |               | Access key ID                |
-| oss.secret-key       | String   |               | Access secret key            |
-| oss.cross            | boolean  | false         | Allow cross-origin or not    |
-| oss.type             | String   |               | OSS type (options: obs/minio) |
-| oss.max-connections       | int   |    50    | max connections              |
-| oss.connection-timeout        | int   |   10000     | connection timeout      |
-| oss.http.prefix      | String   |               | Prefix of the endpoint URL   |
-| oss.http.enable      | boolean  | false         | Enable web endpoints or not  |
+| Configuration        | Type     | Default Value | Description                       |
+|----------------------|----------|---------------|-----------------------------------|
+| oss.enable           | boolean  | false         | Enable OSS or not                 |
+| oss.endpoint         | String   |               | Endpoint of the OSS service       |
+| oss.bucket-name      | String   |               | Bucket name                       |
+| oss.access-key       | String   |               | Access key ID                     |
+| oss.secret-key       | String   |               | Access secret key                 |
+| oss.cross            | boolean  | false         | Allow cross-origin or not         |
+| oss.type             | String   |               | OSS type (options: obs/minio/cos) |
+| oss.max-connections       | int   |    50    | max connections                   |
+| oss.connection-timeout        | int   |   10000     | connection timeout                |
+| oss.http.prefix      | String   |               | Prefix of the endpoint URL        |
+| oss.http.enable      | boolean  | false         | Enable web endpoints or not       |
 
 
