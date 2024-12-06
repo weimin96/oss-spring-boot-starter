@@ -3,10 +3,12 @@ package com.wiblog.oss.service;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.util.Util;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
@@ -165,6 +167,69 @@ public class QueryOperations extends Operations {
      */
     public List<ObjectTreeNode> listNextLevel(String path) {
         return listNextLevel(ossProperties.getBucketName(), path);
+    }
+
+    /**
+     * 分页查找下一级列表
+     *
+     * @param path       路径
+     * @param maxKeys 查询数量（不精确）
+     * @param continuationToken 下一页标识
+     * @return List
+     */
+    public LazyDataList<ObjectInfo> lazyList(String path, int maxKeys, String continuationToken) {
+        return lazyList(ossProperties.getBucketName(), path, maxKeys, continuationToken);
+    }
+
+    /**
+     * 分页查找下一级列表
+     *
+     * @param bucketName 桶名称
+     * @param path       路径
+     * @param maxKeys 查询数量（不精确）
+     * @param continuationToken 下一页标识
+     * @return List
+     */
+    public LazyDataList<ObjectInfo> lazyList(String bucketName, String path, int maxKeys, String continuationToken) {
+        LazyDataList<ObjectInfo> resultList = new LazyDataList<>();
+        if (maxKeys <= 0) {
+            maxKeys = 1000;
+        }
+
+        ListObjectsV2Request.Builder builder = ListObjectsV2Request.builder()
+                .bucket(bucketName)
+                .prefix(Util.formatPath(path))
+                .maxKeys(maxKeys)
+                .delimiter("/");
+        if (StringUtils.hasText(continuationToken)) {
+            builder.continuationToken(continuationToken);
+        }
+        ListObjectsV2Request request = builder.build();
+
+        ListObjectsV2Response response = client.listObjectsV2(request).join();
+        Set<String> keySet = new HashSet<>(64);
+            List<S3Object> objects = response.contents();
+            List<CommonPrefix> commonPrefixes = response.commonPrefixes();
+            if (!commonPrefixes.isEmpty()) {
+                List<ObjectInfo> folders = commonPrefixes.stream()
+                        .map(CommonPrefix::prefix)
+                        .distinct()
+                        .filter(e -> !keySet.contains(e))
+                        .peek(keySet::add)
+                        .map(this::buildTreeNode)
+                        .collect(Collectors.toList());
+                resultList.addAll(folders);
+            }
+        if (!objects.isEmpty()) {
+            List<ObjectInfo> files = objects.stream()
+                    .filter(e -> e.size() > 0)
+                    .map(e -> this.buildObjectInfo(e.key(), Date.from(e.lastModified()), e.size()))
+                    .collect(Collectors.toList());
+            resultList.addAll(files);
+        }
+        resultList.setMaxKeys(maxKeys);
+        resultList.setContinuationToken(response.nextContinuationToken());
+        return resultList;
     }
 
     /**

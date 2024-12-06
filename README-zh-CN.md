@@ -22,11 +22,13 @@ Wiki: [Wiki](https://github.com/weimin96/oss-spring-boot-starter/wiki)
 
 - 支持：腾讯云、阿里云、华为云、七牛云、京东云、MinIo
 - 提供一系列的基础 web 端点和 swagger 文档，支持自由开启
-- - 提供大文件分片上传
-- - 提供文件预览
-- - ......
-- 支持跨服务传输文件 `ossTemplate.put().transferObject()`
-- 提供存储桶跨域配置 `oss.cross=true`
+- 提供大文件分片上传、普通上传
+- 提供大文件分片下载、普通下载
+- 提供文件预览
+- 提供文件列表懒加载查询、树形查询
+- 文件删除、文件夹删除
+- 文件详情
+- 支持跨服务传输文件
 
 ## 版本基础
 
@@ -86,7 +88,6 @@ ossTemplate.put().putObject("bucket", "1.jpg", new File("/data/1.jpg"));
 | oss.bucket-name        | String  |       | Bucket name                       |
 | oss.access-key         | String  |       | Access key ID                     |
 | oss.secret-key         | String  |       | Access secret key                 |
-| oss.cross              | boolean | false | Allow cross-origin or not         |
 | oss.type               | String  |       | OSS type (options: obs/minio/cos) |
 | oss.max-connections    | int     | 50    | 最大连接数 默认50                        |
 | oss.connection-timeout | int     | 10000 | 连接超时 默认10s                        |
