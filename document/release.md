@@ -6,11 +6,10 @@
 - - Provides file preview
 - - ......
 - Support cross-service file transfer `ossTemplate.put().transferObject()`
-- Provide bucket cross-origin configuration `oss.cross=true`
 
 ### new Feature
 
-- 2.0 版本升级
+- Lazy load query is supported
 
 ### 📔 Reference Document
 

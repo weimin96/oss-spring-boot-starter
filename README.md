@@ -22,11 +22,13 @@ This project mainly utilizes the mainstream OSS object storage services (`Tencen
 
 - Support: Tencent Cloud, Alibaba Cloud, Huawei Cloud, Qiniu Cloud, JD Cloud, MinIo
 - Provide a series of basic web endpoints and swagger documentation, supporting freedom to enable
-- - Provides large file chunk uploading
-- - Provides file preview
-- - ......
-- Support cross-service file transfer `ossTemplate.put().transferObject()`
-- Provide bucket cross-origin configuration `oss.cross=true`
+- Provide large file fragment upload and regular upload
+- Provide large file shard downloads and regular downloads
+- Provide file preview
+- Provide lazy loading queries and tree based queries for file lists
+- File deletion, folder deletion
+- File Details
+- Support cross service file transfer
 
 ## Version Basics
 
@@ -88,7 +90,6 @@ Explanation of all configurations:
 | oss.bucket-name      | String   |               | Bucket name                       |
 | oss.access-key       | String   |               | Access key ID                     |
 | oss.secret-key       | String   |               | Access secret key                 |
-| oss.cross            | boolean  | false         | Allow cross-origin or not         |
 | oss.type             | String   |               | OSS type (options: obs/minio/cos) |
 | oss.max-connections       | int   |    50    | max connections                   |
 | oss.connection-timeout        | int   |   10000     | connection timeout                |
