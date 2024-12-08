@@ -1,9 +1,9 @@
 package com.wiblog.oss.service;
 
+import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.OssProperties;
-import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.util.Util;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -172,8 +172,8 @@ public class QueryOperations extends Operations {
     /**
      * 分页查找下一级列表
      *
-     * @param path       路径
-     * @param maxKeys 查询数量（不精确）
+     * @param path              路径
+     * @param maxKeys           查询数量（不精确）
      * @param continuationToken 下一页标识
      * @return List
      */
@@ -182,11 +182,13 @@ public class QueryOperations extends Operations {
     }
 
     /**
-     * 分页查找下一级列表
+     * 懒加载查询列表
+     * 第一次会查询所有文件夹
+     * maxKey 不包含文件夹数量
      *
-     * @param bucketName 桶名称
-     * @param path       路径
-     * @param maxKeys 查询数量（不精确）
+     * @param bucketName        桶名称
+     * @param path              路径
+     * @param maxKeys           查询数量（不精确）
      * @param continuationToken 下一页标识
      * @return List
      */
@@ -203,23 +205,16 @@ public class QueryOperations extends Operations {
                 .delimiter("/");
         if (StringUtils.hasText(continuationToken)) {
             builder.continuationToken(continuationToken);
+        } else {
+            // 查询文件夹
+            List<ObjectInfo> folderList = listFolder(path);
+            resultList.addAll(folderList);
         }
         ListObjectsV2Request request = builder.build();
 
         ListObjectsV2Response response = client.listObjectsV2(request).join();
-        Set<String> keySet = new HashSet<>(64);
-            List<S3Object> objects = response.contents();
-            List<CommonPrefix> commonPrefixes = response.commonPrefixes();
-            if (!commonPrefixes.isEmpty()) {
-                List<ObjectInfo> folders = commonPrefixes.stream()
-                        .map(CommonPrefix::prefix)
-                        .distinct()
-                        .filter(e -> !keySet.contains(e))
-                        .peek(keySet::add)
-                        .map(this::buildTreeNode)
-                        .collect(Collectors.toList());
-                resultList.addAll(folders);
-            }
+        List<S3Object> objects = response.contents();
+
         if (!objects.isEmpty()) {
             List<ObjectInfo> files = objects.stream()
                     .filter(e -> e.size() > 0)
@@ -229,6 +224,51 @@ public class QueryOperations extends Operations {
         }
         resultList.setMaxKeys(maxKeys);
         resultList.setContinuationToken(response.nextContinuationToken());
+        return resultList;
+    }
+
+    /**
+     * 查询文件夹列表
+     *
+     * @param path 路径
+     * @return 文件夹列表
+     */
+    public List<ObjectInfo> listFolder(String path) {
+        return listFolder(ossProperties.getBucketName(), path);
+    }
+
+    /**
+     * 查询文件夹列表
+     *
+     * @param bucketName 桶名称
+     * @param path       路径
+     * @return 文件夹列表
+     */
+    public List<ObjectInfo> listFolder(String bucketName, String path) {
+        List<ObjectInfo> resultList = new ArrayList<>();
+        path = Util.formatPath(path);
+        // 列出存储桶中的对象
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
+                .bucket(bucketName)
+                .prefix(path)
+                .delimiter("/")
+                .build();
+
+        ListObjectsV2Publisher publisher = client.listObjectsV2Paginator(request);
+        Set<String> keySet = new HashSet<>(64);
+        publisher.subscribe(response -> {
+            List<CommonPrefix> commonPrefixes = response.commonPrefixes();
+            if (!commonPrefixes.isEmpty()) {
+                List<ObjectTreeNode> folders = commonPrefixes.stream()
+                        .map(CommonPrefix::prefix)
+                        .distinct()
+                        .filter(e -> !keySet.contains(e))
+                        .peek(keySet::add)
+                        .map(this::buildTreeNode)
+                        .collect(Collectors.toList());
+                resultList.addAll(folders);
+            }
+        }).join();
         return resultList;
     }
 
