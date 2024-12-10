@@ -21,12 +21,6 @@ import java.util.List;
 @Accessors(chain = true)
 public class ObjectTreeNode extends ObjectInfo {
 
-    private String name;
-
-    private String uri;
-
-    private String url;
-
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date uploadTime;
 
@@ -34,10 +28,6 @@ public class ObjectTreeNode extends ObjectInfo {
      * 文件类型 folder/file
      */
     private String type;
-
-    private long size;
-
-    private String ext;
 
     private List<ObjectTreeNode> children;
 
