@@ -170,7 +170,9 @@ public class QueryOperations extends Operations {
     }
 
     /**
-     * 分页查找下一级列表
+     * 懒加载查询列表
+     * 第一次会查询当前层级所有文件夹
+     * maxKey 不包含文件夹数量
      *
      * @param path              路径
      * @param maxKeys           查询数量（不精确）
@@ -183,7 +185,7 @@ public class QueryOperations extends Operations {
 
     /**
      * 懒加载查询列表
-     * 第一次会查询所有文件夹
+     * 第一次会查询当前层级所有文件夹
      * maxKey 不包含文件夹数量
      *
      * @param bucketName        桶名称
@@ -224,6 +226,50 @@ public class QueryOperations extends Operations {
         }
         resultList.setMaxKeys(maxKeys);
         resultList.setContinuationToken(response.nextContinuationToken());
+        return resultList;
+    }
+
+    /**
+     * 查询下一层级文件夹树形列表
+     * @param path 路径
+     * @return 文件夹树形列表
+     */
+    public List<ObjectTreeNode> treeListFolder(String path) {
+        return treeListFolder(ossProperties.getBucketName(), path);
+    }
+
+    /**
+     * 查询下一层级文件夹树形列表
+     * @param bucketName 存储桶
+     * @param path 路径
+     * @return 文件夹树形列表
+     */
+    public List<ObjectTreeNode> treeListFolder(String bucketName, String path) {
+        List<ObjectTreeNode> resultList = new ArrayList<>();
+        path = Util.formatPath(path);
+        // 列出存储桶中的对象
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
+                .bucket(bucketName)
+                .prefix(path)
+                .maxKeys(100)
+                .delimiter("/")
+                .build();
+
+        ListObjectsV2Publisher publisher = client.listObjectsV2Paginator(request);
+        Set<String> keySet = new HashSet<>(64);
+        publisher.subscribe(response -> {
+            List<CommonPrefix> commonPrefixes = response.commonPrefixes();
+            if (!commonPrefixes.isEmpty()) {
+                List<ObjectTreeNode> folders = commonPrefixes.stream()
+                        .map(CommonPrefix::prefix)
+                        .distinct()
+                        .filter(e -> !keySet.contains(e))
+                        .peek(keySet::add)
+                        .map(this::buildTreeNode)
+                        .collect(Collectors.toList());
+                resultList.addAll(folders);
+            }
+        }).join();
         return resultList;
     }
 
