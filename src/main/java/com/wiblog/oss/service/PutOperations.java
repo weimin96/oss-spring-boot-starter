@@ -376,4 +376,29 @@ public class PutOperations extends Operations {
         return response.parts();
     }
 
+    /**
+     * 移动文件
+     * @param sourceObjectName 源文件路径
+     * @param destinationDirectory 目标路径（不包含文件名）
+     */
+    public void move(String sourceObjectName, String destinationDirectory) {
+        move(ossProperties.getBucketName(), sourceObjectName, destinationDirectory);
+    }
+
+    /**
+     * 移动文件
+     * @param bucketName 存储桶
+     * @param sourceObjectName 源文件路径
+     * @param destinationDirectory 目标路径（不包含文件名）
+     */
+    public void move(String bucketName, String sourceObjectName, String destinationDirectory) {
+        String filename = Util.getFilename(sourceObjectName);
+        destinationDirectory = Util.formatPath(destinationDirectory) + filename;
+        copyFile(bucketName, bucketName, sourceObjectName, destinationDirectory);
+        // 删除原文件
+        handleRequest(() -> client.deleteObject(x -> x.bucket(bucketName)
+                .key(formatPath(sourceObjectName))
+                .build()));
+    }
+
 }

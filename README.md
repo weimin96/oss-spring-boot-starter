@@ -22,13 +22,20 @@ This project mainly utilizes the mainstream OSS object storage services (`Tencen
 
 - Support: Tencent Cloud, Alibaba Cloud, Huawei Cloud, Qiniu Cloud, JD Cloud, MinIo
 - Provide a series of basic web endpoints and swagger documentation, supporting freedom to enable
-- Provide large file fragment upload and regular upload
-- Provide large file shard downloads and regular downloads
-- Provide file preview
-- Provide lazy loading queries and tree based queries for file lists
-- File deletion, folder deletion
-- File Details
-- Support cross service file transfer
+- Search
+- - Connection testing
+- - Bucket query
+- - Large file shard download, regular download
+- Lazy file list loading query, tree query, fuzzy query, hierarchical query
+- - Folder list query
+- - File preview, text retrieval, file details
+- Operation
+- - Large file fragment upload, regular upload
+- - Create folders, upload folders
+- Copy files, move files
+- - Verify if it exists
+- Delete
+- - File deletion, folder deletion
 
 ## Version Basics
 
