@@ -20,16 +20,16 @@ import java.util.Date;
 @Accessors(chain = true)
 public class ObjectInfo {
 
-    private String name;
+    protected String name;
 
-    private String uri;
+    protected String uri;
 
-    private String url;
+    protected String url;
 
-    private long size;
+    protected long size;
 
-    private String ext;
+    protected String ext;
 
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
-    private Date uploadTime;
+    protected Date uploadTime;
 }
