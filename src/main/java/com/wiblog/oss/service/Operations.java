@@ -48,7 +48,7 @@ public abstract class Operations {
                 log.debug("OSS Error：文件不存在");
             } else if (e.getCause() instanceof S3Exception) {
                 S3Exception s3Exception = (S3Exception) e.getCause();
-                log.error("OSS Error: " + s3Exception.awsErrorDetails().errorMessage());
+                log.warn("OSS Warn: " + s3Exception.awsErrorDetails().errorMessage());
             } else {
                 log.error(e.getMessage(), e);
             }
@@ -130,7 +130,7 @@ public abstract class Operations {
     }
 
     protected String getDomain() {
-        if (ClientEnum.OBS.getType().equals(ossProperties.getType())) {
+        if (ClientEnum.OBS.getType().equals(ossProperties.getType()) || ClientEnum.COS.getType().equals(ossProperties.getType())) {
             URL url;
             try {
                 url = new URL(ossProperties.getEndpoint());
