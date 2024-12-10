@@ -209,7 +209,7 @@ public class QueryOperations extends Operations {
             builder.continuationToken(continuationToken);
         } else {
             // 查询文件夹
-            List<ObjectInfo> folderList = listFolder(path);
+            List<ObjectInfo> folderList = listNextLevelFolder(path);
             resultList.addAll(folderList);
         }
         ListObjectsV2Request request = builder.build();
@@ -231,46 +231,37 @@ public class QueryOperations extends Operations {
 
     /**
      * 查询下一层级文件夹树形列表
+     *
      * @param path 路径
      * @return 文件夹树形列表
      */
-    public List<ObjectTreeNode> treeListFolder(String path) {
-        return treeListFolder(ossProperties.getBucketName(), path);
+    public List<ObjectTreeNode> getFolderTreeList(String path) {
+        return getFolderTreeList(ossProperties.getBucketName(), path);
     }
 
     /**
-     * 查询下一层级文件夹树形列表
+     * 查询文件夹树形列表
+     *
      * @param bucketName 存储桶
-     * @param path 路径
+     * @param path       路径
      * @return 文件夹树形列表
      */
-    public List<ObjectTreeNode> treeListFolder(String bucketName, String path) {
-        List<ObjectTreeNode> resultList = new ArrayList<>();
+    public List<ObjectTreeNode> getFolderTreeList(String bucketName, String path) {
+        List<S3Object> list = new ArrayList<>();
         path = Util.formatPath(path);
         // 列出存储桶中的对象
-        ListObjectsV2Request request = ListObjectsV2Request.builder()
+        ListObjectsV2Request request = ListObjectsV2Request
+                .builder()
                 .bucket(bucketName)
-                .prefix(path)
                 .maxKeys(100)
-                .delimiter("/")
+                .prefix(path)
                 .build();
 
         ListObjectsV2Publisher publisher = client.listObjectsV2Paginator(request);
-        Set<String> keySet = new HashSet<>(64);
         publisher.subscribe(response -> {
-            List<CommonPrefix> commonPrefixes = response.commonPrefixes();
-            if (!commonPrefixes.isEmpty()) {
-                List<ObjectTreeNode> folders = commonPrefixes.stream()
-                        .map(CommonPrefix::prefix)
-                        .distinct()
-                        .filter(e -> !keySet.contains(e))
-                        .peek(keySet::add)
-                        .map(this::buildTreeNode)
-                        .collect(Collectors.toList());
-                resultList.addAll(folders);
-            }
+            list.addAll(response.contents());
         }).join();
-        return resultList;
+        return buildFolderTree(list, path).getChildren();
     }
 
     /**
@@ -279,8 +270,8 @@ public class QueryOperations extends Operations {
      * @param path 路径
      * @return 文件夹列表
      */
-    public List<ObjectInfo> listFolder(String path) {
-        return listFolder(ossProperties.getBucketName(), path);
+    public List<ObjectInfo> listNextLevelFolder(String path) {
+        return listNextLevelFolder(ossProperties.getBucketName(), path);
     }
 
     /**
@@ -290,7 +281,7 @@ public class QueryOperations extends Operations {
      * @param path       路径
      * @return 文件夹列表
      */
-    public List<ObjectInfo> listFolder(String bucketName, String path) {
+    public List<ObjectInfo> listNextLevelFolder(String bucketName, String path) {
         List<ObjectInfo> resultList = new ArrayList<>();
         path = Util.formatPath(path);
         // 列出存储桶中的对象
@@ -706,6 +697,29 @@ public class QueryOperations extends Operations {
         return getTreeListByName(ossProperties.getBucketName(), path, keyword);
     }
 
+    private ObjectTreeNode buildFolderTree(List<S3Object> objectList, String objectName) {
+        String rootName;
+        if (Util.isBlank(objectName)) {
+            rootName = "";
+        } else {
+            int i = objectName.lastIndexOf("/");
+            rootName = (i > 0) ? objectName.substring(i + 1) : objectName;
+        }
+
+        ObjectTreeNode root = new ObjectTreeNode(rootName, objectName, getDomain() + objectName, null, "folder", 0, null);
+
+        for (S3Object object : objectList) {
+            if (object.key().startsWith(objectName + "/")) {
+                String remainingPath = object.key().substring(objectName.length() + 1);
+                addFolderNode(root, remainingPath);
+            } else if (objectName != null) {
+                addFolderNode(root, object.key());
+            }
+        }
+
+        return root;
+    }
+
     private ObjectTreeNode buildTree(List<S3Object> objectList, String objectName) {
         String rootName;
         if (Util.isBlank(objectName)) {
@@ -721,7 +735,7 @@ public class QueryOperations extends Operations {
             if (object.key().startsWith(objectName + "/")) {
                 String remainingPath = object.key().substring(objectName.length() + 1);
                 addNode(root, remainingPath, object);
-            } else if (!Util.isBlank(objectName)) {
+            } else if (objectName != null) {
                 addNode(root, object.key(), object);
             }
         }
@@ -754,6 +768,23 @@ public class QueryOperations extends Operations {
         }
     }
 
+    private void addFolderNode(ObjectTreeNode parentNode, String remainingPath) {
+        int slashIndex = remainingPath.indexOf('/');
+        if (slashIndex != -1) { // 文件夹节点
+            String folderName = remainingPath.substring(0, slashIndex);
+            String newRemainingPath = remainingPath.substring(slashIndex + 1);
+
+            // 在当前节点的子节点中查找是否已存在同名文件夹节点
+            ObjectTreeNode folderNode = findFolderNode(parentNode.getChildren(), folderName);
+            if (folderNode == null) { // 若不存在，则创建新的文件夹节点
+                String uri = Util.isBlank(parentNode.getUri()) ? folderName : parentNode.getUri() + "/" + folderName;
+                folderNode = new ObjectTreeNode(folderName, uri, getDomain() + uri, null, "folder", 0, null);
+                parentNode.addChild(folderNode);
+            }
+            addFolderNode(folderNode, newRemainingPath);
+        }
+    }
+
     private ObjectTreeNode findFolderNode(List<ObjectTreeNode> nodes, String folderName) {
         if (nodes == null) {
             return null;
@@ -765,4 +796,5 @@ public class QueryOperations extends Operations {
         }
         return null;
     }
+
 }
