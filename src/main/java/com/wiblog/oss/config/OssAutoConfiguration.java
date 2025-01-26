@@ -32,7 +32,7 @@ public class OssAutoConfiguration {
      * @param properties properties配置
      * @return OSS操作模板
      */
-    @Bean(destroyMethod = "stop")
+    @Bean(destroyMethod = "stop", name = "ossTemplate")
     @ConditionalOnMissingBean(OssTemplate.class)
     public OssTemplate ossTemplate(OssProperties properties) {
         log.info("========== Initializing OSS ==========");
