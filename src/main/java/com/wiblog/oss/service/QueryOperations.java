@@ -560,6 +560,19 @@ public class QueryOperations extends Operations {
      * @throws IOException io异常
      */
     public void previewObject(HttpServletRequest request, HttpServletResponse response, String objectName) throws IOException {
+        previewObject(request, response, objectName, false);
+    }
+
+    /**
+     * 预览文件
+     *
+     * @param request    请求
+     * @param response   响应
+     * @param objectName 文件全路径
+     * @param isDownload 是否下载
+     * @throws IOException io异常
+     */
+    public void previewObject(HttpServletRequest request, HttpServletResponse response, String objectName, boolean isDownload) throws IOException {
         if (Util.isBlank(objectName)) {
             return;
         }
@@ -583,7 +596,8 @@ public class QueryOperations extends Operations {
             long fileSize = objectInfo.getSize();
 
             response.setContentType(Util.getContentType(objectName));
-            response.setHeader("Content-Disposition", "inline; filename=\"" + encodedFileName + "\"; filename*=UTF-8''" + encodedFileName);
+            String Disposition = isDownload ? "attachment" : "inline";
+            response.setHeader("Content-Disposition", Disposition + "; filename=\"" + encodedFileName + "\"; filename*=UTF-8''" + encodedFileName);
             response.setHeader("Accept-Ranges", "bytes");
             String rangeHeader = request.getHeader("Range");
             if ("HEAD".equals(request.getMethod())) {
