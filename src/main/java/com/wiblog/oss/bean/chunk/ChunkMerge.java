@@ -1,46 +1,37 @@
 package com.wiblog.oss.bean.chunk;
 
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
 import java.util.List;
 
 /**
+ * 分片合并参数。
+ *
  * @author panwm
  * @since 2024/8/14 0:18
  */
 @Data
+@Schema(description = "分片合并参数")
 public class ChunkMerge {
 
-    /**
-     * 文件名
-     */
-    @ApiModelProperty(value = "文件名", required = true)
+    @Schema(description = "文件名", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     private String filename;
 
-    /**
-     * 存放路径
-     */
-    @ApiModelProperty(value = "存放路径（通过文件MD5生成）", required = true)
+    @Schema(description = "存放路径，通过文件 MD5 生成", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     private String path;
 
-    /**
-     * oss 分片上传uploadId
-     */
-    @ApiModelProperty(value = "上传任务id", required = true)
+    @Schema(description = "上传任务 ID", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     private String uploadId;
 
-    /**
-     * 唯一id
-     */
-    @ApiModelProperty(value = "唯一id", required = true)
+    @Schema(description = "文件唯一标识", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     private String guid;
 
-    @ApiModelProperty(value = "分片结果", required = true)
+    @Schema(description = "已上传分片结果列表", requiredMode = Schema.RequiredMode.REQUIRED)
     private List<ChunkTarget> chunkTargetList;
 }

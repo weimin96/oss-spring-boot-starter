@@ -1,39 +1,45 @@
 package com.wiblog.oss.resp;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
+import lombok.Getter;
+import lombok.Setter;
 import org.springframework.lang.Nullable;
 
+import java.io.Serial;
 import java.io.Serializable;
 import java.util.Optional;
 
 /**
- * describe:
+ * 统一响应包装类。
  *
  * @author panwm
- * @since 2023/8/24 15:54
  */
-@ApiModel(description = "返回信息")
+@Setter
+@Getter
+@Schema(description = "统一响应")
 public class R<T> implements Serializable {
 
+    @Serial
     private static final long serialVersionUID = 1L;
-    @ApiModelProperty(
-            value = "状态码",
-            required = true
-    )
+
+    private static final String MSG_SUCCESS = "操作成功";
+    private static final String MSG_FAILURE = "操作失败";
+    private static final String MSG_NO_DATA = "暂无承载数据";
+
+    @Schema(description = "状态码", requiredMode = Schema.RequiredMode.REQUIRED)
     private int code;
-    @ApiModelProperty(
-            value = "是否成功",
-            required = true
-    )
+
+    @Schema(description = "是否成功", requiredMode = Schema.RequiredMode.REQUIRED)
     private boolean success;
-    @ApiModelProperty("承载数据")
+
+    @Schema(description = "承载数据")
     private T data;
-    @ApiModelProperty(
-            value = "返回消息",
-            required = true
-    )
+
+    @Schema(description = "返回消息", requiredMode = Schema.RequiredMode.REQUIRED)
     private String msg;
+
+    public R() {
+    }
 
     private R(IResultCode resultCode) {
         this(resultCode, null, resultCode.getMessage());
@@ -66,98 +72,70 @@ public class R<T> implements Serializable {
     }
 
     public static boolean isSuccess(@Nullable R<?> result) {
-        return Optional.ofNullable(result).map((x) -> ResultCode.SUCCESS.code == x.code).orElse(Boolean.FALSE);
+        return Optional.ofNullable(result)
+                .map(x -> ResultCode.SUCCESS.code == x.code)
+                .orElse(Boolean.FALSE);
     }
 
     public static boolean isNotSuccess(@Nullable R<?> result) {
         return !isSuccess(result);
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> R<T> data(T data) {
-        return data(data, "操作成功");
+        // 按是否有承载数据区分默认文案，避免调用方重复判断空值。
+        return (R<T>) new R<>(200, data, data == null ? MSG_NO_DATA : MSG_SUCCESS);
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> R<T> data(T data, String msg) {
-        return data(200, data, msg);
+        return (R<T>) new R<>(200, data, data == null ? MSG_NO_DATA : msg);
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> R<T> data(int code, T data, String msg) {
-        return new R(code, data, data == null ? "暂无承载数据" : msg);
+        return (R<T>) new R<>(code, data, data == null ? MSG_NO_DATA : msg);
     }
 
+    @SuppressWarnings("unchecked")
     public static <T> R<T> data(int code, T data, String msg, Boolean success) {
-        return new R(code, data, data == null ? "暂无承载数据" : msg, success);
+        return (R<T>) new R<>(code, data, data == null ? MSG_NO_DATA : msg, success);
     }
 
     public static <T> R<T> success(String msg) {
-        return new R(ResultCode.SUCCESS, msg);
+        return new R<>(ResultCode.SUCCESS, msg);
     }
 
     public static <T> R<T> success(IResultCode resultCode) {
-        return new R(resultCode);
+        return new R<>(resultCode);
     }
 
     public static <T> R<T> success(IResultCode resultCode, String msg) {
-        return new R(resultCode, msg);
+        return new R<>(resultCode, msg);
     }
 
     public static <T> R<T> fail(String msg) {
-        return new R(ResultCode.FAILURE, msg);
+        return new R<>(ResultCode.FAILURE, msg);
     }
 
     public static <T> R<T> fail(int code, String msg) {
-        return new R(code, (Object)null, msg);
+        return new R<>(code, null, msg);
     }
 
     public static <T> R<T> fail(IResultCode resultCode) {
-        return new R(resultCode);
+        return new R<>(resultCode);
     }
 
     public static <T> R<T> fail(IResultCode resultCode, String msg) {
-        return new R(resultCode, msg);
+        return new R<>(resultCode, msg);
     }
 
     public static <T> R<T> status(boolean flag) {
-        return flag ? success("操作成功") : fail("操作失败");
-    }
-
-    public int getCode() {
-        return this.code;
-    }
-
-    public boolean isSuccess() {
-        return this.success;
-    }
-
-    public T getData() {
-        return this.data;
-    }
-
-    public String getMsg() {
-        return this.msg;
-    }
-
-    public void setCode(final int code) {
-        this.code = code;
-    }
-
-    public void setSuccess(final boolean success) {
-        this.success = success;
-    }
-
-    public void setData(final T data) {
-        this.data = data;
-    }
-
-    public void setMsg(final String msg) {
-        this.msg = msg;
+        return flag ? success(MSG_SUCCESS) : fail(MSG_FAILURE);
     }
 
     @Override
     public String toString() {
-        return "R(code=" + this.getCode() + ", success=" + this.isSuccess() + ", data=" + this.getData() + ", msg=" + this.getMsg() + ")";
-    }
-
-    public R() {
+        return "R(code=" + code + ", success=" + success + ", data=" + data + ", msg=" + msg + ")";
     }
 }
