@@ -10,7 +10,7 @@ import org.apache.tika.Tika;
 public final class Util {
 
     /**
-     * 单例：Tika 是线程安全的，避免每次调用都重新初始化（原代码问题）
+     * 单例：Tika 是线程安全的，避免每次调用都重新初始化
      */
     private static final Tika TIKA = new Tika();
 
