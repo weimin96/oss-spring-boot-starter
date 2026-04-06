@@ -8,11 +8,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
-import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
-import software.amazon.awssdk.services.s3.model.HeadBucketResponse;
-import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
-import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 import java.net.URI;
@@ -34,6 +30,10 @@ public class OssTemplate {
     private volatile PutOperations putOperations;
     private volatile QueryOperations queryOperations;
     private volatile DeleteOperations deleteOperations;
+    private volatile StreamUnzipOperations streamUnzipOperations;
+    private volatile PresignOperations presignOperations;
+    private volatile TaggingOperations taggingOperations;
+    private volatile BucketOperations bucketOperations;
 
     public OssTemplate(OssProperties ossProperties) {
         this.ossProperties = ossProperties;
@@ -51,11 +51,19 @@ public class OssTemplate {
         this.putOperations = new PutOperations(ossProperties, client, transferManager);
         this.queryOperations = new QueryOperations(ossProperties, client, transferManager);
         this.deleteOperations = new DeleteOperations(ossProperties, client, transferManager);
+        this.streamUnzipOperations = new StreamUnzipOperations(ossProperties, client, transferManager);
+        this.presignOperations = new PresignOperations(ossProperties, client, transferManager);
+        this.taggingOperations = new TaggingOperations(ossProperties, client, transferManager);
+        this.bucketOperations = new BucketOperations(ossProperties, client, transferManager);
         log.info("OSS initialized - endpoint={}, bucket={}, type={}",
                 ossProperties.getEndpoint(), ossProperties.getBucketName(), ossProperties.getType());
     }
 
     public synchronized void stop() {
+        if (this.presignOperations != null) {
+            this.presignOperations.close();
+            this.presignOperations = null;
+        }
         if (this.transferManager != null) {
             this.transferManager.close();
             this.transferManager = null;
@@ -81,6 +89,22 @@ public class OssTemplate {
 
     public DeleteOperations delete() {
         return deleteOperations;
+    }
+
+    public StreamUnzipOperations unzip() {
+        return streamUnzipOperations;
+    }
+
+    public PresignOperations presign() {
+        return presignOperations;
+    }
+
+    public TaggingOperations tagging() {
+        return taggingOperations;
+    }
+
+    public BucketOperations bucket() {
+        return bucketOperations;
     }
 
     // ----------------------------------------------------------------

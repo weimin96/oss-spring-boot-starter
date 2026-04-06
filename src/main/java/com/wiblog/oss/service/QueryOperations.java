@@ -26,25 +26,13 @@ import java.util.stream.Collectors;
 /**
  * 查询操作类
  *
- * <b>改进点：</b>
- * 1. previewObject() 字符编码统一使用 StandardCharsets 常量，消除 "UTF-8" 魔法字符串。
- * 2. previewObject() 中 HTTP 响应写 404 页面的逻辑提取为私有方法 writeNotFound()，
- * 消除重复代码（原代码出现两次相同的 404 处理）。
- * 3. previewObject() 中 Range 解析逻辑提取为私有方法 parseRange()，提高可读性。
- * 4. getFolder() 中路径拼接原使用 File.pathSeparator（路径分隔符";"）而非
- * File.separator（路径分隔符"/"或"\"），属潜在 Bug，已修正。
- * 5. listObject() 使用流过滤关键字，原逻辑不变但使用 Java 11+ String.contains 优化。
- * 6. buildFolderTree / buildTree / addNode 树构建算法不变，清理冗余 null 检查。
- * 7. 消除 "Disposition" 变量名大写开头的命名规范问题（原代码 String Disposition = ...）。
- * 8. URLEncoder/URLDecoder 统一使用 StandardCharsets 重载，去掉已废弃的字符串形式。
- *
  * @author panwm
  */
 @Slf4j
 public class QueryOperations extends Operations {
 
     /**
-     * 预览/下载时的 IO 缓冲区大小（4KB，原代码为 2KB）
+     * 预览/下载时的 IO 缓冲区大小 4KB
      */
     private static final int BUFFER_SIZE = 4 * 1024;
 
@@ -55,6 +43,13 @@ public class QueryOperations extends Operations {
 
     public QueryOperations(OssProperties ossProperties, S3AsyncClient client, S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
+    }
+
+    /**
+     * 暴露 OssProperties 供 Controller 等上层组件访问 bucketName 等配置。
+     */
+    public OssProperties getOssProperties() {
+        return ossProperties;
     }
 
     // ----------------------------------------------------------------
