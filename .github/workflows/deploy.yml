@@ -37,7 +37,7 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           path: |
-            target/*.jar
+            oss-spring-boot3-starter/target/*.jar
 
   deploy:
     needs: build

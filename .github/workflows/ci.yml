@@ -13,7 +13,6 @@ permissions:
 
 jobs:
   build:
-    #	配置权限
     permissions: write-all
     runs-on: ubuntu-latest
     services:
@@ -32,23 +31,30 @@ jobs:
       OSS_TEST_MINIO_SECRET_KEY: minioadmin
       OSS_TEST_MINIO_BUCKET: oss-starter-integration
     steps:
-      # 下载代码
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
+
       - name: Set up JDK 21
-        # 安装 JDK
         uses: actions/setup-java@v3
         with:
           java-version: '21'
           distribution: 'temurin'
           cache: maven
-      # 配置 settings.xml 一般用于 Mavne 私库验证等
+
+#      - name: Set up Node.js
+#        uses: actions/setup-node@v4
+#        with:
+#          node-version: '20'
+#          cache: npm
+#          cache-dependency-path: samples/sample-frontend-web/package-lock.json
+
       - name: maven-settings-xml-action
         uses: whelk-io/maven-settings-xml-action@v21
         with:
           repositories: ''
           servers: ''
+
       - name: Wait for MinIO ready
         run: |
           for i in $(seq 1 30); do
@@ -59,14 +65,21 @@ jobs:
           done
           echo "MinIO 未在预期时间内启动完成" >&2
           exit 1
+
       - name: Report Coverage to Coveralls for Pull Requests
         if: github.event_name == 'pull_request'
         run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -DpullRequest=$PR_NUMBER -B package --file pom.xml
         env:
           GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
           PR_NUMBER: ${{ github.event.number }}
+
       - name: Report Coverage to Coveralls for General Push
         if: github.event_name == 'push'
         run: mvn clean test jacoco:report coveralls:report -Dlicense.skip=true -DrepoToken=$GITHUB_TOKEN -DserviceName=github -B package --file pom.xml
         env:
           GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+
+#      - name: Build front-end sample
+#        run: |
+#          npm ci --prefix samples/sample-frontend-web
+#          npm run build --prefix samples/sample-frontend-web

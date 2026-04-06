@@ -51,12 +51,12 @@ class OssControllerIntegrationTest extends AbstractControllerDynamicPropertyTest
                     .andExpect(jsonPath("$.data.uri").value(directory + "/hello.txt"));
 
             mockMvc.perform(get("/oss/object/list")
-                            .param("objectName", directory))
+                            .param("path", directory))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.length()").value(1));
 
             mockMvc.perform(get("/oss/object/tree")
-                            .param("objectName", directory))
+                            .param("path", directory))
                     .andExpect(status().isOk())
                     .andExpect(jsonPath("$.data.type").value("folder"));
         }

@@ -13,7 +13,7 @@ README: [English](README.md) | [中文](README-zh-CN.md)
 
 Wiki: [Wiki](https://github.com/weimin96/oss-spring-boot-starter/wiki)
 
-Front-end companion: [oss-spring-boot-starter-ui-demo](https://github.com/weimin96/oss-spring-boot-starter-ui-demo)
+Samples: [samples/README.md](samples/README.md)
 
 ---
 
