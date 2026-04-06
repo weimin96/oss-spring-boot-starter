@@ -5,7 +5,7 @@
 
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-starter</artifactId>
-    <version>2.1.8</version>
+    <version>2.1.9</version>
     <packaging>jar</packaging>
     <name>oss-spring-boot3-starter</name>
     <description>oss-spring-boot3-starter is a toolkit based on Spring Boot 3.X and Amazon S3. With this toolkit, you can easily perform operations related to OSS (Object Storage Service) storage.</description>
@@ -40,23 +40,26 @@
         </developer>
     </developers>
 
+    <!-- 统一版本管理 -->
     <properties>
         <java.version>21</java.version>
-        <spring-boot.version>3.4.0</spring-boot.version>
-        <aws.lambda.java.version>1.2.3</aws.lambda.java.version>
-        <aws.java.sdk.version>2.29.27</aws.java.sdk.version>
-        <aws-crt>0.33.5</aws-crt>
-        <swagger.version>1.6.14</swagger.version>
-        <swagger.v3.version>2.2.26</swagger.v3.version>
-        <tika-core.version>3.0.0</tika-core.version>
-        <lombok.version>1.18.36</lombok.version>
-        <logback.version>1.5.12</logback.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <spring-boot.version>3.5.13</spring-boot.version>
+        <aws.lambda.java.version>1.4.0</aws.lambda.java.version>
+        <aws.java.sdk.version>2.42.28</aws.java.sdk.version>
+        <aws-crt>0.44.0</aws-crt>
+        <swagger.v3.version>2.2.46</swagger.v3.version>
+        <tika-core.version>3.3.0</tika-core.version>
+        <lombok.version>1.18.44</lombok.version>
+        <logback.version>1.5.32</logback.version>
+        <testcontainers.version>2.0.4</testcontainers.version>
+        <jackson-annotations.version>2.21</jackson-annotations.version>
     </properties>
 
     <dependencies>
+        <!-- Spring Web（提供 REST 控制器支持） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
@@ -64,11 +67,13 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- AWS S3 SDK（核心 OSS 操作） -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3</artifactId>
             <version>${aws.java.sdk.version}</version>
             <exclusions>
+                <!-- 排除默认客户端，使用 CRT 客户端替代 -->
                 <exclusion>
                     <groupId>software.amazon.awssdk</groupId>
                     <artifactId>netty-nio-client</artifactId>
@@ -85,36 +90,41 @@
                     <groupId>software.amazon.awssdk</groupId>
                     <artifactId>url-connection-client</artifactId>
                 </exclusion>
+                <!-- 排除默认 SLF4J，使用 Logback 替代 -->
                 <exclusion>
                     <artifactId>slf4j-api</artifactId>
                     <groupId>org.slf4j</groupId>
                 </exclusion>
             </exclusions>
         </dependency>
+        <!-- S3 Transfer Manager（大文件分片上传/下载） -->
         <dependency>
             <groupId>software.amazon.awssdk</groupId>
             <artifactId>s3-transfer-manager</artifactId>
             <version>${aws.java.sdk.version}</version>
         </dependency>
+        <!-- AWS CRT 客户端（高性能异步 IO） -->
         <dependency>
             <groupId>software.amazon.awssdk.crt</groupId>
             <artifactId>aws-crt</artifactId>
             <version>${aws-crt}</version>
         </dependency>
 
+        <!-- AWS Lambda 核心（CRT 客户端依赖） -->
         <dependency>
             <groupId>com.amazonaws</groupId>
             <artifactId>aws-lambda-java-core</artifactId>
             <version>${aws.lambda.java.version}</version>
         </dependency>
 
+        <!-- Apache Tika（文件类型检测与内容提取） -->
         <dependency>
             <groupId>org.apache.tika</groupId>
             <artifactId>tika-core</artifactId>
             <version>${tika-core.version}</version>
         </dependency>
 
-        <!--lombok 插件-->
+        <!-- Lombok（注解处理器，生成 getter/setter 等） -->
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
@@ -122,6 +132,7 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- Spring Validation（参数校验） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-validation</artifactId>
@@ -129,13 +140,7 @@
             <scope>provided</scope>
         </dependency>
 
-        <!-- swagger -->
-        <dependency>
-            <groupId>io.swagger</groupId>
-            <artifactId>swagger-annotations</artifactId>
-            <version>${swagger.version}</version>
-            <scope>provided</scope>
-        </dependency>
+        <!-- Swagger V3（API 文档注解） -->
         <dependency>
             <groupId>io.swagger.core.v3</groupId>
             <artifactId>swagger-annotations</artifactId>
@@ -143,6 +148,14 @@
             <scope>provided</scope>
         </dependency>
 
+        <!-- 显式对齐 Jackson 注解版本，避免测试类路径被旧版本传递依赖污染 -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-annotations</artifactId>
+            <version>${jackson-annotations.version}</version>
+        </dependency>
+
+        <!-- Spring Boot Test（单元测试框架） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
@@ -150,6 +163,15 @@
             <scope>test</scope>
         </dependency>
 
+        <!-- Testcontainers（Docker 容器化测试，支持 MinIO） -->
+        <dependency>
+            <groupId>org.testcontainers</groupId>
+            <artifactId>testcontainers</artifactId>
+            <version>${testcontainers.version}</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Logback（日志实现） -->
         <dependency>
             <groupId>ch.qos.logback</groupId>
             <artifactId>logback-classic</artifactId>
@@ -172,17 +194,6 @@
 
     </dependencies>
 
-    <distributionManagement>
-        <snapshotRepository>
-            <id>ossrh</id>
-            <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
-        </snapshotRepository>
-        <repository>
-            <id>ossrh</id>
-            <url>https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/</url>
-        </repository>
-    </distributionManagement>
-
     <profiles>
         <profile>
             <id>release</id>
@@ -192,7 +203,7 @@
                     <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>
-                        <version>0.5.0</version>
+                        <version>0.10.0</version>
                         <extensions>true</extensions>
                         <configuration>
                             <publishingServerId>central</publishingServerId>
@@ -204,7 +215,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
-                        <version>1.6</version>
+                        <version>3.2.8</version>
                         <configuration>
                             <gpgArguments>
                                 <arg>--pinentry-mode</arg>
@@ -225,7 +236,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-javadoc-plugin</artifactId>
-                        <version>3.4.1</version>
+                        <version>3.12.0</version>
                         <configuration>
                             <quiet>true</quiet>
                             <notimestamp>true</notimestamp>
@@ -233,6 +244,7 @@
                             <encoding>UTF-8</encoding>
                             <docencoding>UTF-8</docencoding>
                             <linksource>true</linksource>
+                            <doclint>all,-missing</doclint>
                         </configuration>
                         <executions>
                             <execution>
@@ -247,7 +259,7 @@
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-source-plugin</artifactId>
-                        <version>3.2.1</version>
+                        <version>3.4.0</version>
                         <executions>
                             <execution>
                                 <id>attach-sources</id>
@@ -264,25 +276,34 @@
 
     <build>
         <plugins>
+            <!-- Maven Compiler Plugin（编译配置） -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.13.0</version>
+                <version>3.15.0</version>
                 <configuration>
                     <source>${java.version}</source>
-                    <target>${java.version}</target>
+                    <release>${java.version}</release>
                     <encoding>UTF-8</encoding>
+                    <!-- 生成方法参数表，便于反射获取参数名 -->
+                    <compilerArgs>
+                        <arg>-parameters</arg>
+                    </compilerArgs>
                 </configuration>
             </plugin>
+
+            <!-- Coveralls（代码覆盖率上报） -->
             <plugin>
                 <groupId>org.eluder.coveralls</groupId>
                 <artifactId>coveralls-maven-plugin</artifactId>
                 <version>4.3.0</version>
             </plugin>
+
+            <!-- JaCoCo（代码覆盖率检查，要求覆盖率 >= 90%） -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
-                <version>0.7.6.201602180812</version>
+                <version>0.8.14</version>
                 <executions>
                     <execution>
                         <id>prepare-agent</id>
@@ -290,7 +311,43 @@
                             <goal>prepare-agent</goal>
                         </goals>
                     </execution>
+                    <execution>
+                        <id>check</id>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>0.90</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
                 </executions>
+            </plugin>
+
+            <!-- Spring Boot Maven Plugin（打包可执行 JAR） -->
+            <plugin>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-maven-plugin</artifactId>
+                <version>${spring-boot.version}</version>
+                <configuration>
+                    <!-- 排除 Lombok，避免打包时包含源码 -->
+                    <excludes>
+                        <exclude>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                        </exclude>
+                    </excludes>
+                </configuration>
             </plugin>
         </plugins>
     </build>

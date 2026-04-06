@@ -1,9 +1,9 @@
 package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.Assert;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
@@ -12,113 +12,145 @@ import software.amazon.awssdk.services.s3.model.CreateBucketRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketRequest;
 import software.amazon.awssdk.services.s3.model.HeadBucketResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
+import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 import java.net.URI;
 import java.util.concurrent.CompletableFuture;
 
 /**
+ * OSS 操作入口。
+ *
  * @author panwm
- * @since 2023/8/20 1:33
  */
 @Slf4j
 public class OssTemplate {
 
     private final OssProperties ossProperties;
 
-    /**
-     * Amazon S3 异步客户端
-     */
-    private S3AsyncClient client;
-
-    /**
-     * 用于管理 S3 数据传输的高级工具
-     */
-    private S3TransferManager transferManager;
-
-    private PutOperations putOperations;
-
-    private QueryOperations queryOperations;
-
-    private DeleteOperations deleteOperations;
+    // volatile 保证 stop/restart 场景下多线程可见性。
+    private volatile S3AsyncClient client;
+    private volatile S3TransferManager transferManager;
+    private volatile PutOperations putOperations;
+    private volatile QueryOperations queryOperations;
+    private volatile DeleteOperations deleteOperations;
 
     public OssTemplate(OssProperties ossProperties) {
-        Assert.notNull(ossProperties.getEndpoint(), "illegal argument oss.endpoint");
-        Assert.notNull(ossProperties.getAccessKey(), "illegal argument oss.access-key");
-        Assert.notNull(ossProperties.getSecretKey(), "illegal argument oss.secret-key");
         this.ossProperties = ossProperties;
         this.start();
     }
 
-    public void start() {
-        // 凭证
-        StaticCredentialsProvider credentialsProvider = StaticCredentialsProvider.create(
+    // ----------------------------------------------------------------
+    // 生命周期
+    // ----------------------------------------------------------------
+
+    public synchronized void start() {
+        this.client = buildClient();
+        this.transferManager = S3TransferManager.builder().s3Client(this.client).build();
+        ensureBucketExists();
+        this.putOperations = new PutOperations(ossProperties, client, transferManager);
+        this.queryOperations = new QueryOperations(ossProperties, client, transferManager);
+        this.deleteOperations = new DeleteOperations(ossProperties, client, transferManager);
+        log.info("OSS initialized - endpoint={}, bucket={}, type={}",
+                ossProperties.getEndpoint(), ossProperties.getBucketName(), ossProperties.getType());
+    }
+
+    public synchronized void stop() {
+        if (this.transferManager != null) {
+            this.transferManager.close();
+            this.transferManager = null;
+        }
+        if (this.client != null) {
+            this.client.close();
+            this.client = null;
+        }
+        log.info("OSS client closed");
+    }
+
+    // ----------------------------------------------------------------
+    // 门面方法
+    // ----------------------------------------------------------------
+
+    public PutOperations put() {
+        return putOperations;
+    }
+
+    public QueryOperations query() {
+        return queryOperations;
+    }
+
+    public DeleteOperations delete() {
+        return deleteOperations;
+    }
+
+    // ----------------------------------------------------------------
+    // 私有：构建客户端
+    // ----------------------------------------------------------------
+
+    private S3AsyncClient buildClient() {
+        StaticCredentialsProvider credentials = StaticCredentialsProvider.create(
                 AwsBasicCredentials.create(ossProperties.getAccessKey(), ossProperties.getSecretKey()));
 
-        this.client = S3AsyncClient.crtBuilder()
-                .credentialsProvider(credentialsProvider)
+        return S3AsyncClient.crtBuilder()
+                .credentialsProvider(credentials)
                 .endpointOverride(URI.create(ossProperties.getEndpoint()))
                 .region(Region.US_EAST_1)
-                .targetThroughputInGbps(20.0)
-                .minimumPartSizeInBytes(10 * 1024 * 1024L)
+                // MinIO 需要显式使用 Path-Style，避免被解析为 bucket.localhost 一类的地址。
+                .forcePathStyle(shouldForcePathStyle())
+                .targetThroughputInGbps(ossProperties.getThroughputInGbps())
+                .minimumPartSizeInBytes((long) ossProperties.getPartSizeInMb() * 1024 * 1024)
                 .checksumValidationEnabled(false)
                 .build();
-
-        //AWS基于 CRT 的 S3 AsyncClient 实例用作 S3 传输管理器的底层客户端
-        this.transferManager = S3TransferManager.builder().s3Client(this.client).build();
-
-        // 创建存储桶
-        createBucket();
-        // 初始化
-        initOperations();
     }
 
-    public void stop() {
-        this.client.close();
-        this.transferManager.close();
-    }
+    private void ensureBucketExists() {
+        String bucketName = ossProperties.getBucketName();
+        if (Util.isBlank(bucketName)) {
+            return;
+        }
 
-    private void createBucket() {
-        if (!Util.isBlank(ossProperties.getBucketName())) {
-            HeadBucketRequest headBucketRequest = HeadBucketRequest.builder().bucket(ossProperties.getBucketName()).build();
-            try {
-                CompletableFuture<HeadBucketResponse> headBucketResponseCompletableFuture = this.client.headBucket(headBucketRequest);
-                headBucketResponseCompletableFuture.join();
-            } catch (Exception e) {
-                if (e.getCause() instanceof NoSuchBucketException) {
-                    // 自动创建
-                    if (ossProperties.isAutoCreateBucket()) {
-                        CreateBucketRequest bucketRequest = CreateBucketRequest.builder()
-                                .bucket(ossProperties.getBucketName())
-                                .build();
-                        this.client.createBucket(bucketRequest);
-                    } else {
-                        throw new IllegalArgumentException("bucket not found");
-                    }
+        HeadBucketRequest headRequest = HeadBucketRequest.builder().bucket(bucketName).build();
+        try {
+            CompletableFuture<HeadBucketResponse> future = this.client.headBucket(headRequest);
+            future.join();
+        } catch (Exception exception) {
+            Throwable cause = exception.getCause() != null ? exception.getCause() : exception;
+            if (isBucketMissing(cause)) {
+                if (ossProperties.isAutoCreateBucket()) {
+                    log.info("Bucket [{}] not found, creating automatically...", bucketName);
+                    this.client.createBucket(CreateBucketRequest.builder().bucket(bucketName).build()).join();
                 } else {
-                    log.error(e.getMessage(), e);
+                    throw OssException.bucketNotFound(bucketName);
                 }
-
+            } else {
+                throw new OssException("BUCKET_CHECK_FAILED",
+                        "Failed to check bucket: " + bucketName, cause);
             }
         }
     }
 
-    private void initOperations() {
-        this.putOperations = new PutOperations(this.ossProperties, this.client, this.transferManager);
-        this.queryOperations = new QueryOperations(this.ossProperties, this.client, this.transferManager);
-        this.deleteOperations = new DeleteOperations(this.ossProperties, this.client, this.transferManager);
+    /**
+     * MinIO 与本地 S3 兼容服务通常要求 Path-Style，否则 SDK 会把 bucket 拼到主机名里。
+     */
+    private boolean shouldForcePathStyle() {
+        return "minio".equalsIgnoreCase(ossProperties.getType());
     }
 
-    public PutOperations put() {
-        return this.putOperations;
+    /**
+     * MinIO 在 headBucket 场景下不一定返回 NoSuchBucketException，可能只给通用 404。
+     */
+    private boolean isBucketMissing(Throwable cause) {
+        if (cause instanceof NoSuchBucketException) {
+            return true;
+        }
+        if (cause instanceof S3Exception s3Exception) {
+            String errorCode = s3Exception.awsErrorDetails() == null
+                    ? null
+                    : s3Exception.awsErrorDetails().errorCode();
+            return s3Exception.statusCode() == 404
+                    || "NoSuchBucket".equalsIgnoreCase(errorCode)
+                    || "NotFound".equalsIgnoreCase(errorCode);
+        }
+        return false;
     }
-
-    public QueryOperations query() {
-        return this.queryOperations;
-    }
-
-    public DeleteOperations delete() {
-        return this.deleteOperations;
-    }
-
 }

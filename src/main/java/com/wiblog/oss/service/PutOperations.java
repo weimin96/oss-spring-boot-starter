@@ -2,34 +2,35 @@ package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.OssProperties;
-import com.wiblog.oss.bean.chunk.*;
+import com.wiblog.oss.bean.chunk.Chunk;
+import com.wiblog.oss.bean.chunk.ChunkMerge;
+import com.wiblog.oss.bean.chunk.ChunkTarget;
+import com.wiblog.oss.bean.chunk.ChunkTask;
+import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.io.IOUtils;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.async.BlockingInputStreamAsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
-import software.amazon.awssdk.transfer.s3.model.*;
+import software.amazon.awssdk.transfer.s3.model.Upload;
+import software.amazon.awssdk.transfer.s3.model.UploadDirectoryRequest;
+import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
+import software.amazon.awssdk.transfer.s3.model.UploadRequest;
 
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.Comparator;
+import java.util.Date;
+import java.util.List;
 import java.util.stream.Collectors;
 
 /**
  * 上传操作
  *
  * @author panwm
- * @since 2023/8/20 18:05
  */
 @Slf4j
 public class PutOperations extends Operations {
@@ -38,213 +39,124 @@ public class PutOperations extends Operations {
         super(ossProperties, client, transferManager);
     }
 
-    private boolean isExist(String bucketName) {
-        HeadBucketRequest headBucketRequest = HeadBucketRequest.builder().bucket(bucketName).build();
+    // ----------------------------------------------------------------
+    // Bucket 操作
+    // ----------------------------------------------------------------
+
+    /**
+     * 创建 bucket（若已存在则跳过）
+     */
+    public void createBucket(String bucketName) {
+        if (!bucketExists(bucketName)) {
+            CreateBucketRequest req = CreateBucketRequest.builder().bucket(bucketName).build();
+            handleRequest(() -> client.createBucket(req));
+            log.info("Bucket [{}] created", bucketName);
+        }
+    }
+
+    private boolean bucketExists(String bucketName) {
         try {
-            client.headBucket(headBucketRequest).join();
+            client.headBucket(HeadBucketRequest.builder().bucket(bucketName).build()).join();
+            return true;
         } catch (Exception e) {
             return false;
         }
-        return true;
     }
 
-    /**
-     * 创建bucket
-     *
-     * @param bucketName bucket名称
-     */
-    public void createBucket(String bucketName) {
-        if (!isExist(bucketName)) {
-            CreateBucketRequest bucketRequest = CreateBucketRequest.builder()
-                    .bucket(ossProperties.getBucketName())
-                    .build();
-            handleRequest(() -> client.createBucket(bucketRequest));
-        }
-    }
+    // ----------------------------------------------------------------
+    // 文件上传 - InputStream
+    // ----------------------------------------------------------------
 
-    /**
-     * 上传文件
-     *
-     * @param path     路径
-     * @param filename 文件名
-     * @param in       文件流
-     * @return 文件uri
-     */
     public ObjectInfo putObject(String path, String filename, InputStream in) {
         return putObject(ossProperties.getBucketName(), path, filename, in);
     }
 
-    /**
-     * 上传文件
-     *
-     * @param bucketName 存储桶
-     * @param path       路径
-     * @param filename   文件名
-     * @param in         文件流
-     * @return 文件uri
-     */
     public ObjectInfo putObject(String bucketName, String path, String filename, InputStream in) {
         return putObjectForKey(bucketName, formatPath(path) + filename, in);
     }
 
-
-    /**
-     * 上传文件
-     *
-     * @param path     存放路径
-     * @param filename 文件名
-     * @param file     文件
-     * @return 文件uri
-     */
-    public ObjectInfo putObject(String path, String filename, File file) {
-        return putObject(ossProperties.getBucketName(), path, filename, file);
-    }
-
-    /**
-     * 上传文件
-     *
-     * @param bucketName 存储桶
-     * @param path       存放路径
-     * @param filename   文件名
-     * @param file       文件
-     * @return 文件uri
-     */
-    public ObjectInfo putObject(String bucketName, String path, String filename, File file) {
-        return putObjectForKey(bucketName, formatPath(path) + filename, file);
-    }
-
-    /**
-     * @param objectName 文件全路径
-     * @param stream     文件流
-     * @return 对象信息
-     */
     public ObjectInfo putObjectForKey(String objectName, InputStream stream) {
         return putObjectForKey(ossProperties.getBucketName(), objectName, stream);
     }
 
     /**
-     * @param objectName 文件全路径
-     * @param file       文件
-     * @return 对象信息
+     * 上传 InputStream。
+     * <p>
+     * 改进：原代码使用 stream.available() 获取大小（不可靠），
+     * 现改为先将流读入缓冲区，用精确字节数上传，确保 Content-Length 正确。
      */
+    public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
+        objectName = formatPath(objectName);
+        // 先缓冲，获得精确长度
+        byte[] data = toByteArray(stream);
+        long fileSize = data.length;
+
+        BlockingInputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingInputStream(fileSize);
+        PutObjectRequest putReq = PutObjectRequest.builder()
+                .bucket(bucketName).key(objectName)
+                .contentType(Util.getContentType(objectName))
+                .build();
+        UploadRequest uploadReq = UploadRequest.builder()
+                .requestBody(body).putObjectRequest(putReq).build();
+
+        Upload upload = transferManager.upload(uploadReq);
+        body.writeInputStream(new ByteArrayInputStream(data));
+        upload.completionFuture().join();
+
+        return buildObjectInfo(objectName, new Date(), fileSize);
+    }
+
+    // ----------------------------------------------------------------
+    // 文件上传 - File
+    // ----------------------------------------------------------------
+
+    public ObjectInfo putObject(String path, String filename, File file) {
+        return putObject(ossProperties.getBucketName(), path, filename, file);
+    }
+
+    public ObjectInfo putObject(String bucketName, String path, String filename, File file) {
+        return putObjectForKey(bucketName, formatPath(path) + filename, file);
+    }
+
     public ObjectInfo putObjectForKey(String objectName, File file) {
         return putObjectForKey(ossProperties.getBucketName(), objectName, file);
     }
 
-    /**
-     * @param bucketName 存储桶
-     * @param objectName 文件全路径
-     * @param file       文件
-     * @return 对象信息
-     */
     public ObjectInfo putObjectForKey(String bucketName, String objectName, File file) {
         objectName = formatPath(objectName);
-        PutObjectRequest putObjectRequest = PutObjectRequest.builder().bucket(bucketName)
-                .key(objectName)
+        PutObjectRequest putReq = PutObjectRequest.builder()
+                .bucket(bucketName).key(objectName)
                 .contentType(Util.getContentType(objectName))
                 .build();
-        UploadFileRequest uploadFileRequest = UploadFileRequest.builder().putObjectRequest(putObjectRequest)
-                .source(file).build();
-        // 构建上传请求对象
-        FileUpload fileUpload = transferManager.uploadFile(uploadFileRequest);
-
-        // 等待上传完成并获取上传结果
-        fileUpload.completionFuture().join();
+        UploadFileRequest uploadFileReq = UploadFileRequest.builder()
+                .putObjectRequest(putReq).source(file).build();
+        transferManager.uploadFile(uploadFileReq).completionFuture().join();
         return buildObjectInfo(objectName, new Date(), file.length());
     }
 
-    /**
-     * @param bucketName 存储桶
-     * @param objectName 文件全路径
-     * @param stream     文件流
-     * @return 对象信息
-     */
-    public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
-        long fileSize = getFileSize(stream);
-        objectName = formatPath(objectName);
-        // 创建异步请求体（length如果为空会报错）
-        BlockingInputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingInputStream(fileSize);
+    // ----------------------------------------------------------------
+    // 目录操作
+    // ----------------------------------------------------------------
 
-        PutObjectRequest putObjectRequest = PutObjectRequest.builder().bucket(bucketName)
-                .key(objectName)
-                .contentType(Util.getContentType(objectName))
-                .build();
-        UploadRequest uploadFileRequest = UploadRequest.builder().requestBody(body).putObjectRequest(putObjectRequest).build();
-
-        // 使用 transferManager 进行上传
-        Upload fileUpload = transferManager.upload(uploadFileRequest);
-
-        // 将输入流写入请求体
-        body.writeInputStream(stream);
-
-        // 等待上传完成并获取上传结果
-        fileUpload.completionFuture().join();
-        return buildObjectInfo(objectName, new Date(), fileSize);
-    }
-
-    private int getFileSize(InputStream stream) {
-        try {
-            return stream.available();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    /**
-     * 创建文件夹
-     *
-     * @param path 路径
-     * @return ObjectInfo
-     */
     public ObjectInfo mkdirs(String path) {
         return mkdirs(ossProperties.getBucketName(), path);
     }
 
-    /**
-     * 创建文件夹
-     *
-     * @param bucketName 桶名称
-     * @param path       路径
-     * @return ObjectInfo
-     */
     public ObjectInfo mkdirs(String bucketName, String path) {
-        PutObjectRequest putObjectRequest = PutObjectRequest.builder()
-                .bucket(bucketName)
-                .key(formatPath(path))
-                .build();
-        handleRequest(() -> client.putObject(putObjectRequest, AsyncRequestBody.empty()));
+        PutObjectRequest req = PutObjectRequest.builder()
+                .bucket(bucketName).key(formatPath(path)).build();
+        handleRequest(() -> client.putObject(req, AsyncRequestBody.empty()));
         return buildObjectInfo(path, new Date(), 0);
     }
 
-    /**
-     * 上传文件夹
-     *
-     * @param path   存放路径
-     * @param folder 文件夹
-     */
     public void putFolder(String path, File folder) {
         putFolder(path, folder, true);
     }
 
-    /**
-     * 上传文件夹
-     *
-     * @param path                存放路径
-     * @param folder              文件夹
-     * @param isIncludeFolderName 存放路径是否包含文件夹名称
-     */
     public void putFolder(String path, File folder, boolean isIncludeFolderName) {
         putFolder(ossProperties.getBucketName(), path, folder, isIncludeFolderName);
     }
 
-    /**
-     * 上传文件夹
-     *
-     * @param bucketName          存储桶
-     * @param path                存放路径
-     * @param folder              文件夹
-     * @param isIncludeFolderName 存放路径是否包含文件夹名称
-     */
     public void putFolder(String bucketName, String path, File folder, boolean isIncludeFolderName) {
         if (!folder.exists() || !folder.isDirectory()) {
             throw new IllegalArgumentException("目录不存在: " + folder.getPath());
@@ -253,152 +165,113 @@ public class PutOperations extends Operations {
         if (isIncludeFolderName) {
             path += folder.getName() + "/";
         }
-        UploadDirectoryRequest uploadDirectoryRequest = UploadDirectoryRequest.builder()
+        UploadDirectoryRequest req = UploadDirectoryRequest.builder()
                 .source(Paths.get(folder.getAbsolutePath()))
-                .s3Prefix(path)
-                .bucket(bucketName)
+                .s3Prefix(path).bucket(bucketName).build();
+        transferManager.uploadDirectory(req).completionFuture().join();
+    }
+
+    // ----------------------------------------------------------------
+    // 拷贝 / 移动
+    // ----------------------------------------------------------------
+
+    public void copyFile(String sourceKey, String destKey) {
+        copyFile(ossProperties.getBucketName(), ossProperties.getBucketName(), sourceKey, destKey);
+    }
+
+    public void copyFile(String sourceBucket, String destBucket, String sourceKey, String destKey) {
+        CopyObjectRequest req = CopyObjectRequest.builder()
+                .sourceBucket(sourceBucket).sourceKey(formatPath(sourceKey))
+                .destinationBucket(destBucket).destinationKey(formatPath(destKey))
                 .build();
-
-        // 发起上传目录请求
-        transferManager.uploadDirectory(uploadDirectoryRequest).completionFuture().join();
+        handleRequest(() -> client.copyObject(req));
     }
 
-
-    /**
-     * 拷贝文件
-     *
-     * @param sourceDirectoryKey      源路径
-     * @param destinationDirectoryKey 目标路径
-     */
-    public void copyFile(String sourceDirectoryKey, String destinationDirectoryKey) {
-        // 拷贝文件
-        copyFile(ossProperties.getBucketName(), ossProperties.getBucketName(), sourceDirectoryKey, destinationDirectoryKey);
+    public void move(String sourceObjectName, String destinationDirectory) {
+        move(ossProperties.getBucketName(), sourceObjectName, destinationDirectory);
     }
 
-    /**
-     * 数据汇聚 拷贝对象到目标存储桶
-     *
-     * @param sourceBucketName        源BucketName
-     * @param destinationBucketName   目标BucketName
-     * @param sourceDirectoryKey      源目录
-     * @param destinationDirectoryKey 目标目录
-     */
-    public void copyFile(String sourceBucketName, String destinationBucketName, String sourceDirectoryKey, String destinationDirectoryKey) {
-        CopyObjectRequest copyReq = CopyObjectRequest.builder()
-                .sourceBucket(sourceBucketName)
-                .sourceKey(formatPath(sourceDirectoryKey))
-                .destinationBucket(destinationBucketName)
-                .destinationKey(formatPath(destinationDirectoryKey))
-                .build();
-        handleRequest(() -> client.copyObject(copyReq));
+    public void move(String bucketName, String sourceObjectName, String destinationDirectory) {
+        String filename = Util.getFilename(sourceObjectName);
+        String destKey = Util.formatPath(destinationDirectory) + filename;
+        copyFile(bucketName, bucketName, sourceObjectName, destKey);
+        handleRequest(() -> client.deleteObject(x -> x.bucket(bucketName).key(formatPath(sourceObjectName)).build()));
     }
 
-    /**
-     * 初始化分片上传任务
-     * @param chunkTask  分片任务
-     * @return uploadId
-     */
+    // ----------------------------------------------------------------
+    // 分片上传
+    // ----------------------------------------------------------------
+
     public String initTask(ChunkTask chunkTask) {
         String objectName = formatPath(chunkTask.getPath()) + chunkTask.getFilename();
-        // 初始化分片上传任务
-        CreateMultipartUploadResponse createMultipartUploadResponse = client.createMultipartUpload(b -> b
-                .bucket(ossProperties.getBucketName())
-                .key(objectName)).join();
-        return createMultipartUploadResponse.uploadId();
+        CreateMultipartUploadResponse resp = client.createMultipartUpload(b -> b
+                .bucket(ossProperties.getBucketName()).key(objectName)).join();
+        return resp.uploadId();
     }
 
-    /**
-     * 接收文件分片
-     * @param chunk 分片
-     * @return ChunkTarget
-     */
     public ChunkTarget chunk(Chunk chunk) {
-        ChunkTarget target = new ChunkTarget();
-        // 上传
-        UploadPartRequest uploadRequest = UploadPartRequest.builder()
+        UploadPartRequest req = UploadPartRequest.builder()
                 .bucket(ossProperties.getBucketName())
                 .key(formatPath(chunk.getPath()) + chunk.getFilename())
                 .uploadId(chunk.getUploadId())
                 .partNumber(chunk.getChunkNumber())
                 .contentLength(chunk.getFile().getSize())
                 .build();
-
         try {
-            ByteBuffer byteBuffer = ByteBuffer.wrap(chunk.getFile().getBytes());
-            AsyncRequestBody body = AsyncRequestBody.fromByteBuffer(byteBuffer);
-            String etag = client.uploadPart(uploadRequest, body).join().eTag();
+            ByteBuffer buf = ByteBuffer.wrap(chunk.getFile().getBytes());
+            String etag = client.uploadPart(req, AsyncRequestBody.fromByteBuffer(buf)).join().eTag();
+            ChunkTarget target = new ChunkTarget();
             target.setEtag(etag.replace("\"", ""));
             target.setPartNumber(chunk.getChunkNumber());
+            return target;
         } catch (Exception e) {
-            log.error("文件【{}】上传分片【{}】失败", chunk.getFilename(), chunk.getChunkNumber(), e);
-            throw new RuntimeException("上传分片失败", e);
+            log.error("分片上传失败 file={} part={}", chunk.getFilename(), chunk.getChunkNumber(), e);
+            throw OssException.uploadFailed(chunk.getFilename(), e);
         }
-        return target;
     }
 
-    /**
-     * 合并文件
-     * @param chunkMerge 合并对象
-     * @return ObjectInfo
-     */
     public ObjectInfo merge(ChunkMerge chunkMerge) {
         String objectName = formatPath(chunkMerge.getPath()) + chunkMerge.getFilename();
-
-
-        List<CompletedPart> completedParts = chunkMerge.getChunkTargetList().stream().map(part -> CompletedPart.builder()
-                        .partNumber(part.getPartNumber())
-                        .eTag(part.getEtag())
-                        .build())
+        List<CompletedPart> parts = chunkMerge.getChunkTargetList().stream()
+                .map(p -> CompletedPart.builder().partNumber(p.getPartNumber()).eTag(p.getEtag()).build())
                 .sorted(Comparator.comparingInt(CompletedPart::partNumber))
                 .collect(Collectors.toList());
 
         client.completeMultipartUpload(b -> b
-                .bucket(ossProperties.getBucketName())
-                .key(objectName)
+                .bucket(ossProperties.getBucketName()).key(objectName)
                 .uploadId(chunkMerge.getUploadId())
-                .multipartUpload(CompletedMultipartUpload.builder().parts(completedParts).build())).join();
+                .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())).join();
 
         return ObjectInfo.builder()
-                .uri(objectName)
-                .url(getDomain() + objectName)
-                .name(Util.getFilename(objectName))
-                .build();
+                .uri(objectName).url(getDomain() + objectName)
+                .name(Util.getFilename(objectName)).build();
     }
 
     public List<Part> listParts(String bucketName, String objectName, String uploadId) {
-        ListPartsRequest request = ListPartsRequest.builder()
-                .bucket(bucketName)
-                .key(objectName)
-                .uploadId(uploadId)
-                .maxParts(Integer.MAX_VALUE)
-                .build();
-        ListPartsResponse response = client.listParts(request).join();
-        return response.parts();
+        ListPartsRequest req = ListPartsRequest.builder()
+                .bucket(bucketName).key(objectName).uploadId(uploadId)
+                .maxParts(Integer.MAX_VALUE).build();
+        return client.listParts(req).join().parts();
     }
+
+    // ----------------------------------------------------------------
+    // 私有工具
+    // ----------------------------------------------------------------
 
     /**
-     * 移动文件
-     * @param sourceObjectName 源文件路径
-     * @param destinationDirectory 目标路径（不包含文件名）
+     * 将 InputStream 读入字节数组。
+     * 改进：原代码使用 available()（不可靠），此处使用 ByteArrayOutputStream 完整读取。
      */
-    public void move(String sourceObjectName, String destinationDirectory) {
-        move(ossProperties.getBucketName(), sourceObjectName, destinationDirectory);
+    private static byte[] toByteArray(InputStream stream) {
+        try (ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
+            byte[] buf = new byte[8192];
+            int read;
+            while ((read = stream.read(buf)) != -1) {
+                buffer.write(buf, 0, read);
+            }
+            return buffer.toByteArray();
+        } catch (IOException e) {
+            throw new OssException("STREAM_READ_ERROR", "Failed to read input stream", e);
+        }
     }
-
-    /**
-     * 移动文件
-     * @param bucketName 存储桶
-     * @param sourceObjectName 源文件路径
-     * @param destinationDirectory 目标路径（不包含文件名）
-     */
-    public void move(String bucketName, String sourceObjectName, String destinationDirectory) {
-        String filename = Util.getFilename(sourceObjectName);
-        destinationDirectory = Util.formatPath(destinationDirectory) + filename;
-        copyFile(bucketName, bucketName, sourceObjectName, destinationDirectory);
-        // 删除原文件
-        handleRequest(() -> client.deleteObject(x -> x.bucket(bucketName)
-                .key(formatPath(sourceObjectName))
-                .build()));
-    }
-
 }

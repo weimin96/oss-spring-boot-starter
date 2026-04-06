@@ -1,23 +1,21 @@
 package com.wiblog.oss.bean.chunk;
 
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 /**
- * describe:
+ * 单个分片上传结果。
  *
  * @author panwm
  * @since 2024/8/14 15:48
  */
 @Data
+@Schema(description = "单个分片上传结果")
 public class ChunkTarget {
 
-    @ApiModelProperty(value = "分片序号")
+    @Schema(description = "分片序号", requiredMode = Schema.RequiredMode.REQUIRED)
     private Integer partNumber;
 
-    /**
-     * 唯一id
-     */
-    @ApiModelProperty(value = "etag")
+    @Schema(description = "分片 ETag", requiredMode = Schema.RequiredMode.REQUIRED)
     private String etag;
 }
