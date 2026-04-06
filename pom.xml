@@ -56,6 +56,7 @@
         <logback.version>1.5.32</logback.version>
         <testcontainers.version>2.0.4</testcontainers.version>
         <jackson-annotations.version>2.21</jackson-annotations.version>
+        <jaxb.version>2.3.1</jaxb.version>
     </properties>
 
     <dependencies>
@@ -297,6 +298,19 @@
                 <groupId>org.eluder.coveralls</groupId>
                 <artifactId>coveralls-maven-plugin</artifactId>
                 <version>4.3.0</version>
+                <dependencies>
+                    <!-- JDK 9 之后 JAXB 不再由 JDK 默认提供，这里显式补齐旧版 Coveralls 插件运行所需能力 -->
+                    <dependency>
+                        <groupId>javax.xml.bind</groupId>
+                        <artifactId>jaxb-api</artifactId>
+                        <version>${jaxb.version}</version>
+                    </dependency>
+                    <dependency>
+                        <groupId>org.glassfish.jaxb</groupId>
+                        <artifactId>jaxb-runtime</artifactId>
+                        <version>${jaxb.version}</version>
+                    </dependency>
+                </dependencies>
             </plugin>
 
             <!-- JaCoCo（代码覆盖率检查，要求覆盖率 >= 90%） -->
