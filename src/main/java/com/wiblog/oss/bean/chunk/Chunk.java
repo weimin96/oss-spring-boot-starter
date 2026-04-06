@@ -1,63 +1,45 @@
 package com.wiblog.oss.bean.chunk;
 
-import io.swagger.annotations.ApiModel;
-import io.swagger.annotations.ApiModelProperty;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import org.springframework.web.multipart.MultipartFile;
 
-
 /**
- * 文件块
+ * 文件分片上传参数。
  *
  * @author panwm
  * @since 2023/8/20 23:10
  */
 @Data
-@ApiModel(value = "文件分片上传")
+@Schema(description = "文件分片上传参数")
 public class Chunk {
 
-    /**
-     * 当前文件块，从1开始
-     */
-    @ApiModelProperty(value = "当前文件块，从1开始", required = true)
+    @Schema(description = "当前文件块序号，从 1 开始", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotNull
     private Integer chunkNumber;
 
-    /**
-     * 文件名
-     */
-    @ApiModelProperty(value = "文件名", required = true)
+    @Schema(description = "文件名", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     private String filename;
 
-    /**
-     * 存放路径
-     */
-    @ApiModelProperty(value = "存放路径（通过文件MD5生成）", required = true)
+    @Schema(description = "存放路径，通过文件 MD5 生成", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     private String path;
 
-    /**
-     * 唯一id
-     */
-    @ApiModelProperty(value = "唯一id", required = true)
+    @Schema(description = "文件唯一标识", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     private String guid;
 
     /**
-     * 分块文件内容
+     * 使用二进制格式声明文件字段，是为了让 OpenAPI 文档能正确渲染上传控件。
      */
-    @ApiModelProperty(value = "分块文件内容", required = true)
+    @Schema(description = "分块文件内容", requiredMode = Schema.RequiredMode.REQUIRED, type = "string", format = "binary")
     @NotNull
     private MultipartFile file;
 
-    /**
-     * oss 分片上传uploadId
-     */
-    @ApiModelProperty(value = "上传任务id", required = true)
+    @Schema(description = "上传任务 ID", requiredMode = Schema.RequiredMode.REQUIRED)
     @NotBlank
     private String uploadId;
-
 }

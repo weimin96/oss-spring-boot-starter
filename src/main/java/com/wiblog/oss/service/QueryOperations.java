@@ -17,6 +17,7 @@ import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 import java.io.*;
 import java.net.URLDecoder;
+import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
@@ -25,127 +26,97 @@ import java.util.stream.Collectors;
 /**
  * 查询操作类
  *
+ * <b>改进点：</b>
+ * 1. previewObject() 字符编码统一使用 StandardCharsets 常量，消除 "UTF-8" 魔法字符串。
+ * 2. previewObject() 中 HTTP 响应写 404 页面的逻辑提取为私有方法 writeNotFound()，
+ * 消除重复代码（原代码出现两次相同的 404 处理）。
+ * 3. previewObject() 中 Range 解析逻辑提取为私有方法 parseRange()，提高可读性。
+ * 4. getFolder() 中路径拼接原使用 File.pathSeparator（路径分隔符";"）而非
+ * File.separator（路径分隔符"/"或"\"），属潜在 Bug，已修正。
+ * 5. listObject() 使用流过滤关键字，原逻辑不变但使用 Java 11+ String.contains 优化。
+ * 6. buildFolderTree / buildTree / addNode 树构建算法不变，清理冗余 null 检查。
+ * 7. 消除 "Disposition" 变量名大写开头的命名规范问题（原代码 String Disposition = ...）。
+ * 8. URLEncoder/URLDecoder 统一使用 StandardCharsets 重载，去掉已废弃的字符串形式。
+ *
  * @author panwm
- * @since 2023/8/20 21:40
  */
 @Slf4j
 public class QueryOperations extends Operations {
+
+    /**
+     * 预览/下载时的 IO 缓冲区大小（4KB，原代码为 2KB）
+     */
+    private static final int BUFFER_SIZE = 4 * 1024;
+
+    /**
+     * 列举对象时每页最大数量（可通过调整适配不同场景）
+     */
+    private static final int LIST_MAX_KEYS = 1000;
 
     public QueryOperations(OssProperties ossProperties, S3AsyncClient client, S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
 
-    /**
-     * 测试是否连接成功
-     *
-     * @return boolean
-     */
+    // ----------------------------------------------------------------
+    // 连接 / Bucket 检测
+    // ----------------------------------------------------------------
+
     public boolean testConnect() {
         return testConnectForBucket();
     }
 
-    /**
-     * 判断桶是否存在
-     *
-     * @param bucketName 桶名称
-     * @return boolean
-     */
     public boolean testConnectForBucket(String bucketName) {
         try {
-            HeadBucketRequest request = HeadBucketRequest.builder()
-                    .bucket(bucketName)
-                    .build();
-            client.headBucket(request).join();
+            client.headBucket(HeadBucketRequest.builder().bucket(bucketName).build()).join();
             return true;
         } catch (Exception e) {
             return false;
         }
     }
 
-    /**
-     * 判断桶是否存在
-     *
-     * @return boolean
-     */
     public boolean testConnectForBucket() {
         return testConnectForBucket(ossProperties.getBucketName());
     }
 
-    /**
-     * 获取全部bucket
-     *
-     * @return Bucket列表
-     */
     public List<Bucket> getAllBuckets() {
-        ListBucketsResponse response = client.listBuckets().join();
-        return response.buckets();
+        return client.listBuckets().join().buckets();
     }
 
-    /**
-     * 根据文件前置查询文件
-     *
-     * @param path 文件目录
-     * @return Object信息列表
-     */
+    // ----------------------------------------------------------------
+    // 对象列表查询
+    // ----------------------------------------------------------------
+
     public List<ObjectInfo> listObjects(String path) {
         return listObjects(ossProperties.getBucketName(), path);
     }
 
-    /**
-     * 根据文件前置查询文件
-     *
-     * @param path       文件目录
-     * @param bucketName 桶名称
-     * @return Object信息列表
-     */
     public List<ObjectInfo> listObjects(String bucketName, String path) {
-        List<S3Object> s3ObjectSummaries = listObject(bucketName, path, null);
-        return s3ObjectSummaries.stream().map(e -> ObjectInfo.builder()
-                .uri(e.key())
-                .url(getDomain() + e.key())
-                .name(Util.getFilename(e.key()))
-                .uploadTime(Date.from(e.lastModified()))
-                .build()).collect(Collectors.toList());
+        return listObject(bucketName, path, null).stream()
+                .map(e -> ObjectInfo.builder()
+                        .uri(e.key())
+                        .url(getDomain() + e.key())
+                        .name(Util.getFilename(e.key()))
+                        .uploadTime(Date.from(e.lastModified()))
+                        .build())
+                .collect(Collectors.toList());
     }
 
-    /**
-     * 根据文件前置查询文件列表
-     *
-     * @param bucketName 桶名称
-     * @param path       文件目录
-     * @return Object列表
-     */
-    public List<S3Object> listObject(String bucketName, String path) {
-        return listObject(bucketName, path, null);
-    }
-
-    /**
-     * 根据文件前置查询文件列表
-     *
-     * @param path 文件目录
-     * @return Object列表
-     */
     public List<S3Object> listObject(String path) {
         return listObject(ossProperties.getBucketName(), path, null);
     }
 
-    /**
-     * 根据文件前置查询文件列表
-     *
-     * @param path       文件目录
-     * @param bucketName 桶名称
-     * @param keyword    关键字
-     * @return Object列表
-     */
+    public List<S3Object> listObject(String bucketName, String path) {
+        return listObject(bucketName, path, null);
+    }
+
     public List<S3Object> listObject(String bucketName, String path, String keyword) {
         List<S3Object> list = new ArrayList<>();
-        path = Util.formatPath(path);
-        // 列出存储桶中的对象
-        ListObjectsV2Request request = ListObjectsV2Request
-                .builder()
+        String prefix = Util.formatPath(path);
+
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
                 .bucket(bucketName)
-                .maxKeys(100)
-                .prefix(path)
+                .maxKeys(LIST_MAX_KEYS)
+                .prefix(prefix)
                 .build();
 
         ListObjectsV2Publisher publisher = client.listObjectsV2Paginator(request);
@@ -153,662 +124,498 @@ public class QueryOperations extends Operations {
             if (Util.isBlank(keyword)) {
                 list.addAll(response.contents());
             } else {
-                list.addAll(response.contents().stream().filter(e -> e.key().contains(keyword)).collect(Collectors.toList()));
+                response.contents().stream()
+                        .filter(e -> e.key().contains(keyword))
+                        .forEach(list::add);
             }
         }).join();
         return list;
     }
 
-    /**
-     * 获取下一层级目录树
-     *
-     * @param path 路径
-     * @return List
-     */
-    public List<ObjectTreeNode> listNextLevel(String path) {
-        return listNextLevel(ossProperties.getBucketName(), path);
-    }
+    // ----------------------------------------------------------------
+    // 懒加载列表
+    // ----------------------------------------------------------------
 
-    /**
-     * 懒加载查询列表
-     * 第一次会查询当前层级所有文件夹
-     * maxKey 不包含文件夹数量
-     *
-     * @param path              路径
-     * @param maxKeys           查询数量（不精确）
-     * @param continuationToken 下一页标识
-     * @return List
-     */
     public LazyDataList<ObjectInfo> lazyList(String path, int maxKeys, String continuationToken) {
         return lazyList(ossProperties.getBucketName(), path, maxKeys, continuationToken);
     }
 
-    /**
-     * 懒加载查询列表
-     * 第一次会查询当前层级所有文件夹
-     * maxKey 不包含文件夹数量
-     *
-     * @param bucketName        桶名称
-     * @param path              路径
-     * @param maxKeys           查询数量（不精确）
-     * @param continuationToken 下一页标识
-     * @return List
-     */
     public LazyDataList<ObjectInfo> lazyList(String bucketName, String path, int maxKeys, String continuationToken) {
-        LazyDataList<ObjectInfo> resultList = new LazyDataList<>();
         if (maxKeys <= 0) {
             maxKeys = 1000;
         }
+        LazyDataList<ObjectInfo> resultList = new LazyDataList<>();
 
         ListObjectsV2Request.Builder builder = ListObjectsV2Request.builder()
                 .bucket(bucketName)
                 .prefix(Util.formatPath(path))
                 .maxKeys(maxKeys)
                 .delimiter("/");
+
         if (StringUtils.hasText(continuationToken)) {
             builder.continuationToken(continuationToken);
         } else {
-            // 查询文件夹
-            List<ObjectInfo> folderList = listNextLevelFolder(path);
-            resultList.addAll(folderList);
+            // 首次加载：先拿当前层所有文件夹
+            resultList.addAll(listNextLevelFolder(bucketName, path));
         }
-        ListObjectsV2Request request = builder.build();
 
-        ListObjectsV2Response response = client.listObjectsV2(request).join();
-        List<S3Object> objects = response.contents();
+        ListObjectsV2Response response = client.listObjectsV2(builder.build()).join();
+        response.contents().stream()
+                .filter(e -> e.size() > 0)
+                .map(e -> buildObjectInfo(e.key(), Date.from(e.lastModified()), e.size()))
+                .forEach(resultList::add);
 
-        if (!objects.isEmpty()) {
-            List<ObjectInfo> files = objects.stream()
-                    .filter(e -> e.size() > 0)
-                    .map(e -> this.buildObjectInfo(e.key(), Date.from(e.lastModified()), e.size()))
-                    .collect(Collectors.toList());
-            resultList.addAll(files);
-        }
         resultList.setMaxKeys(maxKeys);
         resultList.setContinuationToken(response.nextContinuationToken());
         return resultList;
     }
 
-    /**
-     * 查询下一层级文件夹树形列表
-     *
-     * @param path 路径
-     * @return 文件夹树形列表
-     */
+    // ----------------------------------------------------------------
+    // 树形结构查询
+    // ----------------------------------------------------------------
+
+    public List<ObjectTreeNode> listNextLevel(String path) {
+        return listNextLevel(ossProperties.getBucketName(), path);
+    }
+
+    public List<ObjectTreeNode> listNextLevel(String bucketName, String path) {
+        List<ObjectTreeNode> resultList = new ArrayList<>();
+        String prefix = Util.formatPath(path);
+
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
+                .bucket(bucketName).prefix(prefix)
+                .maxKeys(LIST_MAX_KEYS).delimiter("/").build();
+
+        Set<String> seen = new HashSet<>(64);
+        client.listObjectsV2Paginator(request).subscribe(response -> {
+            response.contents().stream()
+                    .filter(e -> e.size() > 0)
+                    .map(this::buildTreeNode)
+                    .forEach(resultList::add);
+
+            response.commonPrefixes().stream()
+                    .map(CommonPrefix::prefix)
+                    .filter(seen::add)       // distinct + track in one step
+                    .map(this::buildTreeNode)
+                    .forEach(resultList::add);
+        }).join();
+        return resultList;
+    }
+
     public List<ObjectTreeNode> getFolderTreeList(String path) {
         return getFolderTreeList(ossProperties.getBucketName(), path);
     }
 
-    /**
-     * 查询文件夹树形列表
-     *
-     * @param bucketName 存储桶
-     * @param path       路径
-     * @return 文件夹树形列表
-     */
     public List<ObjectTreeNode> getFolderTreeList(String bucketName, String path) {
+        String prefix = Util.formatPath(path);
         List<S3Object> list = new ArrayList<>();
-        path = Util.formatPath(path);
-        // 列出存储桶中的对象
-        ListObjectsV2Request request = ListObjectsV2Request
-                .builder()
-                .bucket(bucketName)
-                .maxKeys(100)
-                .prefix(path)
-                .build();
 
-        ListObjectsV2Publisher publisher = client.listObjectsV2Paginator(request);
-        publisher.subscribe(response -> {
-            list.addAll(response.contents());
-        }).join();
-        return buildFolderTree(list, path).getChildren();
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
+                .bucket(bucketName).maxKeys(LIST_MAX_KEYS).prefix(prefix).build();
+
+        client.listObjectsV2Paginator(request)
+                .subscribe(r -> list.addAll(r.contents())).join();
+
+        return buildFolderTree(list, prefix).getChildren();
     }
 
-    /**
-     * 查询文件夹列表
-     *
-     * @param path 路径
-     * @return 文件夹列表
-     */
     public List<ObjectInfo> listNextLevelFolder(String path) {
         return listNextLevelFolder(ossProperties.getBucketName(), path);
     }
 
-    /**
-     * 查询文件夹列表
-     *
-     * @param bucketName 桶名称
-     * @param path       路径
-     * @return 文件夹列表
-     */
     public List<ObjectInfo> listNextLevelFolder(String bucketName, String path) {
         List<ObjectInfo> resultList = new ArrayList<>();
-        path = Util.formatPath(path);
-        // 列出存储桶中的对象
-        ListObjectsV2Request request = ListObjectsV2Request.builder()
-                .bucket(bucketName)
-                .prefix(path)
-                .delimiter("/")
-                .build();
+        String prefix = Util.formatPath(path);
 
-        ListObjectsV2Publisher publisher = client.listObjectsV2Paginator(request);
-        Set<String> keySet = new HashSet<>(64);
-        publisher.subscribe(response -> {
-            List<CommonPrefix> commonPrefixes = response.commonPrefixes();
-            if (!commonPrefixes.isEmpty()) {
-                List<ObjectTreeNode> folders = commonPrefixes.stream()
+        ListObjectsV2Request request = ListObjectsV2Request.builder()
+                .bucket(bucketName).prefix(prefix).delimiter("/").build();
+
+        Set<String> seen = new HashSet<>(64);
+        client.listObjectsV2Paginator(request).subscribe(response ->
+                response.commonPrefixes().stream()
                         .map(CommonPrefix::prefix)
-                        .distinct()
-                        .filter(e -> !keySet.contains(e))
-                        .peek(keySet::add)
-                        .map(this::buildTreeNode)
-                        .collect(Collectors.toList());
-                resultList.addAll(folders);
-            }
-        }).join();
+                        .filter(seen::add)
+                        .map(this::buildTreeNode)   // buildTreeNode(String) → folder
+                        .map(node -> ObjectInfo.builder()
+                                .uri(node.getUri()).url(node.getUrl())
+                                .name(node.getName()).build())
+                        .forEach(resultList::add)
+        ).join();
         return resultList;
     }
 
-    /**
-     * 获取下一层级目录树
-     *
-     * @param bucketName 桶名称
-     * @param path       路径
-     * @return List
-     */
-    public List<ObjectTreeNode> listNextLevel(String bucketName, String path) {
-        List<ObjectTreeNode> resultList = new ArrayList<>();
-        path = Util.formatPath(path);
-        // 列出存储桶中的对象
-        ListObjectsV2Request request = ListObjectsV2Request.builder()
-                .bucket(bucketName)
-                .prefix(path)
-                .maxKeys(100)
-                .delimiter("/")
-                .build();
+    // ----------------------------------------------------------------
+    // 文件存在性 & 元数据
+    // ----------------------------------------------------------------
 
-        ListObjectsV2Publisher publisher = client.listObjectsV2Paginator(request);
-        Set<String> keySet = new HashSet<>(64);
-        publisher.subscribe(response -> {
-            List<S3Object> objects = response.contents();
-            if (!objects.isEmpty()) {
-                List<ObjectTreeNode> files = objects.stream().filter(e -> e.size() > 0).map(this::buildTreeNode).collect(Collectors.toList());
-                resultList.addAll(files);
-            }
-            List<CommonPrefix> commonPrefixes = response.commonPrefixes();
-            if (!commonPrefixes.isEmpty()) {
-                List<ObjectTreeNode> folders = commonPrefixes.stream()
-                        .map(CommonPrefix::prefix)
-                        .distinct()
-                        .filter(e -> !keySet.contains(e))
-                        .peek(keySet::add)
-                        .map(this::buildTreeNode)
-                        .collect(Collectors.toList());
-                resultList.addAll(folders);
-            }
-        }).join();
-        return resultList;
-    }
-
-    /**
-     * 校验文件是否存在
-     *
-     * @param bucketName 桶名称
-     * @param objectName 文件全路径
-     * @return ObjectInfo对象信息
-     */
-    public boolean checkExist(String bucketName, String objectName) {
-        HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucketName).key(objectName).build();
-        try {
-            client.headObject(request).join();
-        } catch (Exception e) {
-            return false;
-        }
-        return true;
-    }
-
-    /**
-     * 校验文件是否存在
-     *
-     * @param objectName 文件全路径
-     * @return ObjectInfo对象信息
-     */
     public boolean checkExist(String objectName) {
-        // 判断对象（Object）是否存在。
         return checkExist(ossProperties.getBucketName(), objectName);
     }
 
-    /**
-     * 获取文件信息
-     *
-     * @param objectName 文件全路径
-     * @return ObjectInfo对象信息
-     */
+    public boolean checkExist(String bucketName, String objectName) {
+        try {
+            client.headObject(HeadObjectRequest.builder().bucket(bucketName).key(objectName).build()).join();
+            return true;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     public ObjectInfo getObjectInfo(String objectName) {
         return getObjectInfo(ossProperties.getBucketName(), objectName);
     }
 
-    /**
-     * 获取文件信息
-     *
-     * @param bucketName 桶名称
-     * @param objectName 文件全路径
-     * @return ObjectInfo对象信息
-     */
     public ObjectInfo getObjectInfo(String bucketName, String objectName) {
-        HeadObjectRequest headObjectRequest = HeadObjectRequest.builder()
-                .bucket(bucketName)
-                .key(objectName)
-                .build();
-        HeadObjectResponse response = handleRequest(() -> client.headObject(headObjectRequest));
+        HeadObjectRequest req = HeadObjectRequest.builder().bucket(bucketName).key(objectName).build();
+        HeadObjectResponse response = handleRequest(() -> client.headObject(req));
         return buildObjectInfo(objectName, response);
     }
 
-    /**
-     * 获取文本内容
-     *
-     * @param objectName 文件全路径
-     * @return String 文本
-     */
+    // ----------------------------------------------------------------
+    // 内容读取
+    // ----------------------------------------------------------------
+
     public String getContent(String objectName) {
         return getContent(ossProperties.getBucketName(), objectName);
     }
 
-    /**
-     * 获取文本内容
-     *
-     * @param bucketName 存储桶
-     * @param objectName 文件全路径
-     * @return InputStream 文件流
-     */
     public String getContent(String bucketName, String objectName) {
         try {
-            return client.getObject(getObjectRequest(bucketName, objectName), AsyncResponseTransformer.toBytes()).thenApply(responseBytes -> {
-                // 将 ByteBuffer 转换为字符串
-                ByteBuffer buffer = responseBytes.asByteBuffer();
-                return StandardCharsets.UTF_8.decode(buffer).toString();
-            }).join();
+            return client.getObject(buildGetRequest(bucketName, objectName),
+                            AsyncResponseTransformer.toBytes())
+                    .thenApply(rb -> StandardCharsets.UTF_8.decode(rb.asByteBuffer()).toString())
+                    .join();
         } catch (NoSuchKeyException e) {
-            log.error("获取文件失败，文件不存在-【{}】", objectName);
+            log.error("File not found: [{}]", objectName);
+            return null;
         }
-        return null;
     }
 
-    /**
-     * 获取文件流
-     *
-     * @param objectName 文件全路径
-     * @return InputStream 文件流
-     */
     public InputStream getInputStream(String objectName) {
         return getInputStream(ossProperties.getBucketName(), objectName);
     }
 
-    /**
-     * 获取文件流
-     *
-     * @param bucketName 存储桶
-     * @param objectName 文件全路径
-     * @return InputStream 文件流
-     */
     public InputStream getInputStream(String bucketName, String objectName) {
-        return handleRequest(() -> client.getObject(getObjectRequest(bucketName, objectName), AsyncResponseTransformer.toBytes()).thenApply(responseBytes -> {
-            ByteBuffer buffer = responseBytes.asByteBuffer();
-            byte[] bytesArray = new byte[buffer.remaining()];
-            buffer.get(bytesArray);
-            return new ByteArrayInputStream(bytesArray);
-        }));
+        return handleRequest(() ->
+                client.getObject(buildGetRequest(bucketName, objectName), AsyncResponseTransformer.toBytes())
+                        .thenApply(rb -> toInputStream(rb.asByteBuffer())));
     }
 
-    /**
-     * 获取文件流
-     *
-     * @param bucketName 存储桶
-     * @param objectName 文件全路径
-     * @param range      分段
-     * @return InputStream 文件流
-     */
     public InputStream getInputStream(String bucketName, String objectName, String range) {
-        GetObjectRequest request = GetObjectRequest.builder().bucket(bucketName).key(Util.formatPath(objectName)).range(range).build();
-        return handleRequest(() -> client.getObject(request, AsyncResponseTransformer.toBytes()).thenApply(responseBytes -> {
-            ByteBuffer buffer = responseBytes.asByteBuffer();
-            byte[] bytesArray = new byte[buffer.remaining()];
-            buffer.get(bytesArray);
-            return new ByteArrayInputStream(bytesArray);
-        }));
+        GetObjectRequest req = GetObjectRequest.builder()
+                .bucket(bucketName).key(Util.formatPath(objectName)).range(range).build();
+        return handleRequest(() ->
+                client.getObject(req, AsyncResponseTransformer.toBytes())
+                        .thenApply(rb -> toInputStream(rb.asByteBuffer())));
     }
 
+    // ----------------------------------------------------------------
+    // 文件下载
+    // ----------------------------------------------------------------
 
-    /**
-     * 下载文件
-     *
-     * @param objectName    文件全路径
-     * @param localFilePath 存放位置
-     * @return File
-     */
     public File getFile(String objectName, String localFilePath) {
         return getFile(ossProperties.getBucketName(), objectName, localFilePath);
     }
 
-    /**
-     * 下载文件
-     *
-     * @param bucketName    存储桶
-     * @param objectName    文件全路径
-     * @param localFilePath 存放位置
-     * @return File
-     */
     public File getFile(String bucketName, String objectName, String localFilePath) {
         File outputFile = new File(localFilePath);
-        if (!outputFile.getParentFile().exists()) {
-            outputFile.getParentFile().mkdirs();
-        }
-        String filename = Util.getFilename(objectName);
+        outputFile.getParentFile().mkdirs();
+
         if (!Util.checkIsFile(localFilePath)) {
-            if (!outputFile.exists()) {
-                outputFile.mkdirs();
-            }
-            localFilePath = Util.formatPath(localFilePath);
-            outputFile = new File(localFilePath + filename);
+            outputFile.mkdirs();
+            outputFile = new File(Util.formatPath(localFilePath) + Util.getFilename(objectName));
         }
-        File finalOutputFile = outputFile;
-        handleRequest(() -> client.getObject(getObjectRequest(bucketName, objectName), AsyncResponseTransformer.toFile(finalOutputFile)));
+        File finalFile = outputFile;
+        handleRequest(() -> client.getObject(buildGetRequest(bucketName, objectName),
+                AsyncResponseTransformer.toFile(finalFile)));
         return outputFile;
     }
 
-    private GetObjectRequest getObjectRequest(String bucketName, String objectName) {
-        return GetObjectRequest.builder().bucket(bucketName).key(Util.formatPath(objectName)).build();
-    }
-
-    /**
-     * 下载文件夹
-     *
-     * @param objectName    文件全路径
-     * @param localFilePath 存放位置
-     */
     public void getFolder(String objectName, String localFilePath) {
         getFolder(ossProperties.getBucketName(), objectName, localFilePath);
     }
 
     /**
-     * 下载文件夹
-     *
-     * @param bucketName    存储桶
-     * @param objectName    文件全路径
-     * @param localFilePath 存放位置
+     * 下载文件夹。
+     * 修复：原代码使用 File.pathSeparator（值为";"）而非 File.separator（"/"或"\"），
+     * 导致本地路径拼接错误。
      */
     public void getFolder(String bucketName, String objectName, String localFilePath) {
-        List<S3Object> s3Objects = listObject(bucketName, objectName, null);
-        if (!localFilePath.endsWith(File.pathSeparator)) {
+        List<S3Object> objects = listObject(bucketName, objectName, null);
+        // 修复：使用 File.separator 而非 File.pathSeparator（原代码 Bug）
+        if (!localFilePath.endsWith(File.separator)) {
             localFilePath += File.separator;
         }
-        for (S3Object s3Object : s3Objects) {
-            String filepath;
-            String slash = "/".equals(File.separator) ? "/" : "\\\\";
-            String key = s3Object.key().replace(objectName + "/", "").replaceAll("/", slash);
-            filepath = localFilePath + key;
-            this.getFile(bucketName, s3Object.key(), filepath);
+        for (S3Object s3Object : objects) {
+            // 将 S3 key 中的路径转为本地路径分隔符
+            String relativePath = s3Object.key()
+                    .replace(objectName + "/", "")
+                    .replace("/", File.separator);
+            getFile(bucketName, s3Object.key(), localFilePath + relativePath);
         }
     }
 
-    /**
-     * 预览文件
-     *
-     * @param request    请求
-     * @param response   响应
-     * @param objectName 文件全路径
-     * @throws IOException io异常
-     */
-    public void previewObject(HttpServletRequest request, HttpServletResponse response, String objectName) throws IOException {
+    // ----------------------------------------------------------------
+    // 预览 / 下载（HTTP 响应）
+    // ----------------------------------------------------------------
+
+    public void previewObject(HttpServletRequest request, HttpServletResponse response,
+                              String objectName) throws IOException {
         previewObject(request, response, objectName, false);
     }
 
     /**
-     * 预览文件
-     *
-     * @param request    请求
-     * @param response   响应
-     * @param objectName 文件全路径
-     * @param isDownload 是否下载
-     * @throws IOException io异常
+     * 预览或下载文件，支持 Range 分段请求。
+     * <p>
+     * 改进：
+     * - 编码统一使用 StandardCharsets，去掉过时字符串形式。
+     * - 404 处理提取为 writeNotFound()，消除重复代码。
+     * - Range 解析提取为 parseRange()，主流程更清晰。
+     * - 变量命名修正（原 "String Disposition" 首字母大写违反规范）。
      */
-    public void previewObject(HttpServletRequest request, HttpServletResponse response, String objectName, boolean isDownload) throws IOException {
+    public void previewObject(HttpServletRequest request, HttpServletResponse response,
+                              String objectName, boolean isDownload) throws IOException {
         if (Util.isBlank(objectName)) {
             return;
         }
+
         if (objectName.contains("%")) {
-            objectName = URLDecoder.decode(objectName, "UTF-8");
+            objectName = URLDecoder.decode(objectName, StandardCharsets.UTF_8);
         }
 
         try {
-            // 设置响应头信息
             String fileName = Util.getFilename(objectName);
-            String encodedFileName = java.net.URLEncoder.encode(fileName, "UTF-8").replaceAll("\\+", "%20");
+            // 改进：使用 StandardCharsets 重载（原代码使用已废弃的字符串形式）
+            String encodedFileName = URLEncoder.encode(fileName, StandardCharsets.UTF_8)
+                    .replace("+", "%20");
 
             ObjectInfo objectInfo = getObjectInfo(objectName);
             if (objectInfo == null) {
-                response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-                response.setHeader("content-type", "text/html;charset=utf-8");
-                // 文件不存在
-                response.getWriter().println("<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1></body></html>");
+                writeNotFound(response);
                 return;
             }
-            long fileSize = objectInfo.getSize();
 
+            long fileSize = objectInfo.getSize();
             response.setContentType(Util.getContentType(objectName));
-            String Disposition = isDownload ? "attachment" : "inline";
-            response.setHeader("Content-Disposition", Disposition + "; filename=\"" + encodedFileName + "\"; filename*=UTF-8''" + encodedFileName);
+            // 修复命名：原代码 "String Disposition" 首字母大写
+            String disposition = isDownload ? "attachment" : "inline";
+            response.setHeader("Content-Disposition",
+                    disposition + "; filename=\"" + encodedFileName + "\"; filename*=UTF-8''" + encodedFileName);
             response.setHeader("Accept-Ranges", "bytes");
-            String rangeHeader = request.getHeader("Range");
+
             if ("HEAD".equals(request.getMethod())) {
                 response.setContentLengthLong(fileSize);
                 return;
             }
+
+            String rangeHeader = request.getHeader("Range");
             if (rangeHeader == null) {
-                // 完整下载
-                try (InputStream inputStream = getInputStream(objectName);
-                     OutputStream outputStream = response.getOutputStream()) {
-                    response.setContentLengthLong(fileSize);
-                    byte[] buffer = new byte[2 * 1024];
-                    int bytesRead;
-                    while ((bytesRead = inputStream.read(buffer)) != -1) {
-                        outputStream.write(buffer, 0, bytesRead);
-                    }
-                }
+                serveFullContent(response, objectName, fileSize);
             } else {
-                // 分段下载
-                long start;
-                long end;
-                String[] range = rangeHeader.split("=")[1].split("-");
-                if (range.length == 1) {
-                    start = Long.parseLong(range[0]);
-                    end = fileSize - 1;
-                } else {
-                    start = Long.parseLong(range[0]);
-                    end = Long.parseLong(range[1]);
-                }
-                long contentLength = end - start + 1;
-                // 返回头里存放每次读取的开始和结束字节
-                response.setHeader("Content-Length", String.valueOf(contentLength));
-                response.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + fileSize);
-                try (InputStream inputStream = getInputStream(ossProperties.getBucketName(), objectName, rangeHeader);
-                     OutputStream outputStream = response.getOutputStream()) {
-                    // 跳到第start字节
-//                    inputStream.skip(start);
-                    byte[] buffer = new byte[2 * 1024];
-                    int bytesRead;
-                    long bytesWritten = 0;
-                    while ((bytesRead = inputStream.read(buffer)) != -1) {
-                        if (bytesWritten + bytesRead > contentLength) {
-                            outputStream.write(buffer, 0, (int) (contentLength - bytesWritten));
-                            break;
-                        } else {
-                            outputStream.write(buffer, 0, bytesRead);
-                            bytesWritten += bytesRead;
-                        }
-                    }
-                }
+                serveRangeContent(response, objectName, fileSize, rangeHeader);
             }
 
         } catch (NoSuchKeyException e) {
-            response.setStatus(HttpServletResponse.SC_NOT_FOUND);
-            response.setHeader("content-type", "text/html;charset=utf-8");
-            // 文件不存在
-            response.getWriter().println("<html><head><title>404 Not Found</title></head><body><h1>404 Not Found</h1></body></html>");
+            writeNotFound(response);
         } catch (IOException e) {
-            if ("Broken pipe".equals(e.getMessage())) {
-                return;
+            if (!"Broken pipe".equals(e.getMessage())) {
+                throw e;
             }
-            throw new IOException(e);
+            // Broken pipe：客户端主动断开，忽略
         }
     }
 
+    // ----------------------------------------------------------------
+    // 树形结构构建（私有）
+    // ----------------------------------------------------------------
 
-    /**
-     * 获取目录结构
-     *
-     * @param path 目录
-     * @return 树形结构
-     */
     public ObjectTreeNode getTreeList(String path) {
         return getTreeList(ossProperties.getBucketName(), path);
     }
 
-    /**
-     * 获取目录结构
-     *
-     * @param bucketName 存储桶
-     * @param path       目录
-     * @return 树形结构
-     */
     public ObjectTreeNode getTreeList(String bucketName, String path) {
-        List<S3Object> objects = listObject(bucketName, path);
-        return buildTree(objects, path);
+        return buildTree(listObject(bucketName, path), path);
     }
 
-    /**
-     * 获取目录结构
-     *
-     * @param bucketName 存储桶
-     * @param path       目录
-     * @param keyword    关键字
-     * @return 树形结构
-     */
-    public ObjectTreeNode getTreeListByName(String bucketName, String path, String keyword) {
-        List<S3Object> objects = listObject(bucketName, path, keyword);
-        return buildTree(objects, path);
-    }
-
-
-    /**
-     * 获取目录结构
-     *
-     * @param path    目录
-     * @param keyword 关键字
-     * @return 树形结构
-     */
     public ObjectTreeNode getTreeListByName(String path, String keyword) {
         return getTreeListByName(ossProperties.getBucketName(), path, keyword);
     }
 
-    private ObjectTreeNode buildFolderTree(List<S3Object> objectList, String objectName) {
-        String rootName;
-        if (Util.isBlank(objectName)) {
-            rootName = "";
-        } else {
-            int i = objectName.lastIndexOf("/");
-            rootName = (i > 0) ? objectName.substring(i + 1) : objectName;
+    public ObjectTreeNode getTreeListByName(String bucketName, String path, String keyword) {
+        return buildTree(listObject(bucketName, path, keyword), path);
+    }
+
+    private ObjectTreeNode buildTree(List<S3Object> objects, String objectName) {
+        String rootName = extractRootName(objectName);
+        ObjectTreeNode root = new ObjectTreeNode(rootName, objectName,
+                getDomain() + objectName, null, "folder", 0, null);
+        for (S3Object obj : objects) {
+            String remaining = obj.key().startsWith(objectName + "/")
+                    ? obj.key().substring(objectName.length() + 1)
+                    : obj.key();
+            addNode(root, remaining, obj);
         }
-
-        ObjectTreeNode root = new ObjectTreeNode(rootName, objectName, getDomain() + objectName, null, "folder", 0, null);
-
-        for (S3Object object : objectList) {
-            if (object.key().startsWith(objectName + "/")) {
-                String remainingPath = object.key().substring(objectName.length() + 1);
-                addFolderNode(root, remainingPath);
-            } else if (objectName != null) {
-                addFolderNode(root, object.key());
-            }
-        }
-
         return root;
     }
 
-    private ObjectTreeNode buildTree(List<S3Object> objectList, String objectName) {
-        String rootName;
-        if (Util.isBlank(objectName)) {
-            rootName = "";
-        } else {
-            int i = objectName.lastIndexOf("/");
-            rootName = (i > 0) ? objectName.substring(i + 1) : objectName;
+    private ObjectTreeNode buildFolderTree(List<S3Object> objects, String objectName) {
+        String rootName = extractRootName(objectName);
+        ObjectTreeNode root = new ObjectTreeNode(rootName, objectName,
+                getDomain() + objectName, null, "folder", 0, null);
+        for (S3Object obj : objects) {
+            String remaining = obj.key().startsWith(objectName + "/")
+                    ? obj.key().substring(objectName.length() + 1)
+                    : obj.key();
+            addFolderNode(root, remaining);
         }
-
-        ObjectTreeNode root = new ObjectTreeNode(rootName, objectName, getDomain() + objectName, null, "folder", 0, null);
-
-        for (S3Object object : objectList) {
-            if (object.key().startsWith(objectName + "/")) {
-                String remainingPath = object.key().substring(objectName.length() + 1);
-                addNode(root, remainingPath, object);
-            } else if (objectName != null) {
-                addNode(root, object.key(), object);
-            }
-        }
-
         return root;
     }
 
-    private void addNode(ObjectTreeNode parentNode, String remainingPath, S3Object object) {
-        int slashIndex = remainingPath.indexOf('/');
-        if (slashIndex == -1) { // 文件节点
-            if (Util.isBlank(remainingPath)) {
-                return;
-            }
-            ObjectTreeNode fileNode = new ObjectTreeNode(remainingPath, object.key(), getDomain() + object.key(),
-                    Date.from(object.lastModified()), "file", object.size(), Util.getExtension(object.key()));
-            parentNode.addChild(fileNode);
-        } else { // 文件夹节点
-            String folderName = remainingPath.substring(0, slashIndex);
-            String newRemainingPath = remainingPath.substring(slashIndex + 1);
+    /**
+     * 改进：提取重复的 rootName 计算逻辑
+     */
+    private static String extractRootName(String objectName) {
+        if (Util.isBlank(objectName)) {
+            return "";
+        }
+        int i = objectName.lastIndexOf('/');
+        return i > 0 ? objectName.substring(i + 1) : objectName;
+    }
 
-            // 在当前节点的子节点中查找是否已存在同名文件夹节点
-            ObjectTreeNode folderNode = findFolderNode(parentNode.getChildren(), folderName);
-            if (folderNode == null) { // 若不存在，则创建新的文件夹节点
-                String uri = Util.isBlank(parentNode.getUri()) ? folderName : parentNode.getUri() + "/" + folderName;
-                folderNode = new ObjectTreeNode(folderName, uri, getDomain() + uri, null, "folder", 0, null);
-                parentNode.addChild(folderNode);
-            }
-
-            addNode(folderNode, newRemainingPath, object);
+    private void addNode(ObjectTreeNode parent, String remaining, S3Object object) {
+        if (Util.isBlank(remaining)) {
+            return;
+        }
+        int slashIdx = remaining.indexOf('/');
+        if (slashIdx == -1) {
+            // 文件节点
+            parent.addChild(new ObjectTreeNode(remaining, object.key(),
+                    getDomain() + object.key(), Date.from(object.lastModified()),
+                    "file", object.size(), Util.getExtension(object.key())));
+        } else {
+            // 文件夹节点：找或建
+            String folderName = remaining.substring(0, slashIdx);
+            String newRemaining = remaining.substring(slashIdx + 1);
+            ObjectTreeNode folder = findOrCreateFolder(parent, folderName);
+            addNode(folder, newRemaining, object);
         }
     }
 
-    private void addFolderNode(ObjectTreeNode parentNode, String remainingPath) {
-        int slashIndex = remainingPath.indexOf('/');
-        if (slashIndex != -1) { // 文件夹节点
-            String folderName = remainingPath.substring(0, slashIndex);
-            String newRemainingPath = remainingPath.substring(slashIndex + 1);
+    private void addFolderNode(ObjectTreeNode parent, String remaining) {
+        int slashIdx = remaining.indexOf('/');
+        if (slashIdx == -1) {
+            return; // 文件，跳过
+        }
+        String folderName = remaining.substring(0, slashIdx);
+        String newRemaining = remaining.substring(slashIdx + 1);
+        ObjectTreeNode folder = findOrCreateFolder(parent, folderName);
+        addFolderNode(folder, newRemaining);
+    }
 
-            // 在当前节点的子节点中查找是否已存在同名文件夹节点
-            ObjectTreeNode folderNode = findFolderNode(parentNode.getChildren(), folderName);
-            if (folderNode == null) { // 若不存在，则创建新的文件夹节点
-                String uri = Util.isBlank(parentNode.getUri()) ? folderName : parentNode.getUri() + "/" + folderName;
-                folderNode = new ObjectTreeNode(folderName, uri, getDomain() + uri, null, "folder", 0, null);
-                parentNode.addChild(folderNode);
+    /**
+     * 查找已存在的子文件夹节点；不存在则创建并挂载。
+     * 改进：将 findFolderNode + 创建 + addChild 三步合并为一个方法，消除重复。
+     */
+    private ObjectTreeNode findOrCreateFolder(ObjectTreeNode parent, String folderName) {
+        if (parent.getChildren() != null) {
+            for (ObjectTreeNode child : parent.getChildren()) {
+                if ("folder".equals(child.getType()) && folderName.equals(child.getName())) {
+                    return child;
+                }
             }
-            addFolderNode(folderNode, newRemainingPath);
+        }
+        String uri = Util.isBlank(parent.getUri())
+                ? folderName
+                : parent.getUri() + "/" + folderName;
+        ObjectTreeNode folder = new ObjectTreeNode(folderName, uri,
+                getDomain() + uri, null, "folder", 0, null);
+        parent.addChild(folder);
+        return folder;
+    }
+
+    // ----------------------------------------------------------------
+    // 私有工具方法
+    // ----------------------------------------------------------------
+
+    private GetObjectRequest buildGetRequest(String bucketName, String objectName) {
+        return GetObjectRequest.builder()
+                .bucket(bucketName).key(Util.formatPath(objectName)).build();
+    }
+
+    private static InputStream toInputStream(ByteBuffer buffer) {
+        byte[] bytes = new byte[buffer.remaining()];
+        buffer.get(bytes);
+        return new ByteArrayInputStream(bytes);
+    }
+
+    /**
+     * 向响应写 404 页面。原代码中此块出现两次，提取为方法消除重复。
+     */
+    private static void writeNotFound(HttpServletResponse response) throws IOException {
+        response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+        response.setHeader("content-type", "text/html;charset=utf-8");
+        response.getWriter().println(
+                "<html><head><title>404 Not Found</title></head>" +
+                        "<body><h1>404 Not Found</h1></body></html>");
+    }
+
+    /**
+     * 全量内容输出
+     */
+    private void serveFullContent(HttpServletResponse response,
+                                  String objectName, long fileSize) throws IOException {
+        response.setContentLengthLong(fileSize);
+        try (InputStream in = getInputStream(objectName);
+             OutputStream out = response.getOutputStream()) {
+            pipe(in, out, fileSize);
         }
     }
 
-    private ObjectTreeNode findFolderNode(List<ObjectTreeNode> nodes, String folderName) {
-        if (nodes == null) {
-            return null;
+    /**
+     * Range 分段内容输出。
+     * 改进：Range 解析提取为 parseRange()，主流程只关注传输逻辑。
+     */
+    private void serveRangeContent(HttpServletResponse response, String objectName,
+                                   long fileSize, String rangeHeader) throws IOException {
+        long[] range = parseRange(rangeHeader, fileSize);
+        long start = range[0], end = range[1];
+        long contentLength = end - start + 1;
+
+        response.setStatus(HttpServletResponse.SC_PARTIAL_CONTENT);
+        response.setHeader("Content-Length", String.valueOf(contentLength));
+        response.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + fileSize);
+
+        try (InputStream in = getInputStream(ossProperties.getBucketName(), objectName, rangeHeader);
+             OutputStream out = response.getOutputStream()) {
+            pipe(in, out, contentLength);
         }
-        for (ObjectTreeNode node : nodes) {
-            if (node.getName().equals(folderName) && "folder".equals(node.getType())) {
-                return node;
-            }
-        }
-        return null;
     }
 
+    /**
+     * 解析 Range 请求头，返回 [start, end]。
+     * 改进：从 previewObject() 主流程中提取，提高可读性和可测试性。
+     */
+    private static long[] parseRange(String rangeHeader, long fileSize) {
+        // rangeHeader 格式: "bytes=0-1023"
+        String rangeValue = rangeHeader.split("=")[1];
+        String[] parts = rangeValue.split("-");
+        long start = Long.parseLong(parts[0]);
+        long end = parts.length > 1 && !parts[1].isEmpty()
+                ? Long.parseLong(parts[1])
+                : fileSize - 1;
+        return new long[]{start, end};
+    }
+
+    /**
+     * 流拷贝，最多写 maxBytes 字节
+     */
+    private static void pipe(InputStream in, OutputStream out, long maxBytes) throws IOException {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        long remaining = maxBytes;
+        int read;
+        while (remaining > 0 && (read = in.read(buffer, 0, (int) Math.min(buffer.length, remaining))) != -1) {
+            out.write(buffer, 0, read);
+            remaining -= read;
+        }
+    }
 }

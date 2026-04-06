@@ -1,9 +1,0 @@
-oss:
-  endpoint: http://127.0.0.1:9000
-  access-key: minioadmin
-  secret-key: minioadmin
-  bucket-name: 123
-  enable: true
-  auto-create-bucket: true
-  http:
-    enable: false

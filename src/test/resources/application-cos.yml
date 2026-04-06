@@ -1,9 +1,0 @@
-oss:
-  endpoint: https://cos.ap-guangzhou.myqcloud.com
-  access-key: access
-  secret-key: secret
-  bucket-name: wiblog
-  enable: true
-  auto-create-bucket: false
-  http:
-    enable: false
