@@ -8,10 +8,8 @@ import { ossApi } from '@/api/oss'
 // ── 对象标签 ──────────────────────────────────────────────────────────
 const objName = ref('demo/example.txt')
 
-// 查询
 const { status: getObjTagStatus, result: getObjTagResult, error: getObjTagError, execute: execGetObjTag } = useResult()
 
-// 标签编辑器
 const tagRows = reactive<{ key: string; value: string }[]>([
   { key: 'env', value: 'prod' },
   { key: 'owner', value: 'team-a' },
@@ -44,32 +42,31 @@ const { status: delBucketTagStatus, result: delBucketTagResult, error: delBucket
 <template>
   <div>
     <h2 class="text-base font-semibold mb-1">标签管理</h2>
-    <p class="text-sm text-[var(--color-muted)] mb-5">对象标签（CRUD）及 Bucket 标签管理</p>
+    <p class="text-sm text-[var(--color-muted)] mb-2">对象标签（CRUD）及 Bucket 标签管理</p>
+    <p class="text-xs text-[var(--color-muted)] mb-5">
+      ℹ️ PUT / PATCH / DELETE 标签接口后端返回 void（data 为 null），ResultPanel 已做处理显示「操作成功」。
+    </p>
 
-    <!-- ── 对象标签区 ── -->
+    <!-- 对象标签区 -->
     <p class="section-label text-base mb-3 text-[var(--color-text)]">对象标签（Object Tags）</p>
 
-    <!-- objectName 公共输入 -->
     <div class="card mb-4">
       <p class="section-label">objectName（以下对象标签操作共用）</p>
       <input v-model="objName" class="oss-input" placeholder="demo/example.txt" />
     </div>
 
-    <!-- 查询 -->
+    <!-- GET 标签 -->
     <ApiCard method="GET" path="/oss/object/tags" summary="获取对象标签">
-      <button
-        class="btn btn-ghost"
-        :disabled="getObjTagStatus === 'loading'"
-        @click="execGetObjTag(() => ossApi.objectTags.get(objName))"
-      >
+      <button class="btn btn-ghost" :disabled="getObjTagStatus === 'loading'"
+        @click="execGetObjTag(() => ossApi.objectTags.get(objName))">
         <span v-if="getObjTagStatus === 'loading'" class="spinner" />查询标签
       </button>
       <ResultPanel :status="getObjTagStatus" :result="getObjTagResult" :error="getObjTagError" label="标签 Map" />
     </ApiCard>
 
-    <!-- 标签编辑器（SET / MERGE 共用） -->
+    <!-- 标签编辑器（PUT / PATCH 共用） -->
     <div class="card mb-4">
-      <p class="section-label mb-3">标签编辑（SET 覆盖 / MERGE 合并 共用）</p>
+      <p class="section-label mb-3">标签编辑（PUT 覆盖 / PATCH 合并 共用）</p>
       <div class="space-y-2 mb-3">
         <div v-for="(row, i) in tagRows" :key="i" class="flex gap-2 items-center">
           <input v-model="row.key" class="oss-input" placeholder="key" />
@@ -79,54 +76,39 @@ const { status: delBucketTagStatus, result: delBucketTagResult, error: delBucket
         </div>
       </div>
       <button class="btn btn-ghost text-xs mb-4" @click="addRow">+ 添加标签</button>
-
       <div class="flex gap-2 flex-wrap">
-        <!-- SET -->
         <div>
-          <button
-            class="btn btn-primary"
-            :disabled="setObjTagStatus === 'loading'"
-            @click="execSetObjTag(() => ossApi.objectTags.set(objName, buildTagMap()))"
-          >
+          <button class="btn btn-primary" :disabled="setObjTagStatus === 'loading'"
+            @click="execSetObjTag(() => ossApi.objectTags.set(objName, buildTagMap()))">
             <span v-if="setObjTagStatus === 'loading'" class="spinner" />PUT 覆盖设置
           </button>
-          <ResultPanel :status="setObjTagStatus" :result="setObjTagResult" :error="setObjTagError" />
+          <ResultPanel :status="setObjTagStatus" :result="setObjTagResult" :error="setObjTagError" label="PUT 结果（void）" />
         </div>
-        <!-- MERGE -->
         <div>
-          <button
-            class="btn btn-ghost"
-            :disabled="mergeObjTagStatus === 'loading'"
-            @click="execMergeObjTag(() => ossApi.objectTags.merge(objName, buildTagMap()))"
-          >
+          <button class="btn btn-ghost" :disabled="mergeObjTagStatus === 'loading'"
+            @click="execMergeObjTag(() => ossApi.objectTags.merge(objName, buildTagMap()))">
             <span v-if="mergeObjTagStatus === 'loading'" class="spinner" />PATCH 合并更新
           </button>
-          <ResultPanel :status="mergeObjTagStatus" :result="mergeObjTagResult" :error="mergeObjTagError" />
+          <ResultPanel :status="mergeObjTagStatus" :result="mergeObjTagResult" :error="mergeObjTagError" label="PATCH 结果（void）" />
         </div>
       </div>
     </div>
 
-    <!-- 删除标签 -->
+    <!-- DELETE 标签 -->
     <ApiCard method="DELETE" path="/oss/object/tags" summary="删除对象的所有标签">
-      <button
-        class="btn btn-danger"
-        :disabled="delObjTagStatus === 'loading'"
-        @click="execDelObjTag(() => ossApi.objectTags.delete(objName))"
-      >
+      <button class="btn btn-danger" :disabled="delObjTagStatus === 'loading'"
+        @click="execDelObjTag(() => ossApi.objectTags.delete(objName))">
         <span v-if="delObjTagStatus === 'loading'" class="spinner" />删除所有标签
       </button>
-      <ResultPanel :status="delObjTagStatus" :result="delObjTagResult" :error="delObjTagError" />
+      <ResultPanel :status="delObjTagStatus" :result="delObjTagResult" :error="delObjTagError" label="DELETE 结果（void）" />
     </ApiCard>
 
-    <!-- ── Bucket 标签区 ── -->
+    <!-- Bucket 标签区 -->
     <p class="section-label text-base mb-3 mt-6 text-[var(--color-text)]">Bucket 标签（Bucket Tags）</p>
 
     <ApiCard method="GET" path="/oss/bucket/tags" summary="获取 Bucket 标签">
-      <button
-        class="btn btn-ghost"
-        :disabled="getBucketTagStatus === 'loading'"
-        @click="execGetBucketTag(() => ossApi.bucket.getTags())"
-      >
+      <button class="btn btn-ghost" :disabled="getBucketTagStatus === 'loading'"
+        @click="execGetBucketTag(() => ossApi.bucket.getTags())">
         <span v-if="getBucketTagStatus === 'loading'" class="spinner" />查询 Bucket 标签
       </button>
       <ResultPanel :status="getBucketTagStatus" :result="getBucketTagResult" :error="getBucketTagError" label="Bucket 标签 Map" />
@@ -143,25 +125,19 @@ const { status: delBucketTagStatus, result: delBucketTagResult, error: delBucket
         </div>
       </div>
       <button class="btn btn-ghost text-xs mb-4" @click="addBucketRow">+ 添加标签</button>
-      <button
-        class="btn btn-primary"
-        :disabled="setBucketTagStatus === 'loading'"
-        @click="execSetBucketTag(() => ossApi.bucket.setTags(buildBucketTagMap()))"
-      >
+      <button class="btn btn-primary" :disabled="setBucketTagStatus === 'loading'"
+        @click="execSetBucketTag(() => ossApi.bucket.setTags(buildBucketTagMap()))">
         <span v-if="setBucketTagStatus === 'loading'" class="spinner" />PUT 覆盖设置 Bucket 标签
       </button>
-      <ResultPanel :status="setBucketTagStatus" :result="setBucketTagResult" :error="setBucketTagError" />
+      <ResultPanel :status="setBucketTagStatus" :result="setBucketTagResult" :error="setBucketTagError" label="PUT 结果（void）" />
     </div>
 
     <ApiCard method="DELETE" path="/oss/bucket/tags" summary="删除 Bucket 所有标签">
-      <button
-        class="btn btn-danger"
-        :disabled="delBucketTagStatus === 'loading'"
-        @click="execDelBucketTag(() => ossApi.bucket.deleteTags())"
-      >
+      <button class="btn btn-danger" :disabled="delBucketTagStatus === 'loading'"
+        @click="execDelBucketTag(() => ossApi.bucket.deleteTags())">
         <span v-if="delBucketTagStatus === 'loading'" class="spinner" />删除 Bucket 所有标签
       </button>
-      <ResultPanel :status="delBucketTagStatus" :result="delBucketTagResult" :error="delBucketTagError" />
+      <ResultPanel :status="delBucketTagStatus" :result="delBucketTagResult" :error="delBucketTagError" label="DELETE 结果（void）" />
     </ApiCard>
   </div>
 </template>

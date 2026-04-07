@@ -1,6 +1,10 @@
 spring:
   application:
     name: oss-spring-boot3-starter-sample-backend
+  servlet:
+    multipart:
+      max-file-size: 2GB
+      max-request-size: 2GB
 
 server:
   port: 8080

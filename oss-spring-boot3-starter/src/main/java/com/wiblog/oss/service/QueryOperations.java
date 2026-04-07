@@ -211,7 +211,8 @@ public class QueryOperations extends Operations {
         client.listObjectsV2Paginator(request)
                 .subscribe(r -> list.addAll(r.contents())).join();
 
-        return buildFolderTree(list, prefix).getChildren();
+        ObjectTreeNode root = buildFolderTree(list, prefix);
+        return root.getChildren() == null ? Collections.emptyList() : root.getChildren();
     }
 
     public List<ObjectInfo> listNextLevelFolder(String path) {
@@ -441,6 +442,10 @@ public class QueryOperations extends Operations {
     }
 
     private ObjectTreeNode buildTree(List<S3Object> objects, String objectName) {
+        if (objects == null || objects.isEmpty()) {
+            // 无命中时返回空，避免把查询路径误表达成真实存在的目录节点。
+            return null;
+        }
         String rootName = extractRootName(objectName);
         ObjectTreeNode root = new ObjectTreeNode(rootName, objectName,
                 getDomain() + objectName, null, "folder", 0, null);

@@ -62,6 +62,20 @@ class QueryOperationsTest extends AbstractServiceDynamicPropertyTest {
     }
 
     @Test
+    @DisplayName("树查询无命中时不应返回占位目录节点")
+    void emptyTreeShouldReturnNull() {
+        String directory = newTestDirectory();
+
+        ObjectTreeNode tree = ossTemplate.query().getTreeList(directory);
+        ObjectTreeNode searchedTree = ossTemplate.query().getTreeListByName(directory, "missing");
+        List<ObjectTreeNode> folderTree = ossTemplate.query().getFolderTreeList(directory);
+
+        assertThat(tree).isNull();
+        assertThat(searchedTree).isNull();
+        assertThat(folderTree).isEmpty();
+    }
+
+    @Test
     @DisplayName("懒加载列表应支持第一页与续页查询")
     void lazyListSupportsPagination() {
         String directory = newTestDirectory();
