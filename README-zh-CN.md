@@ -80,6 +80,13 @@ oss:
   http:
     enable: true       # 开启内置 REST 端点
     prefix: /api       # 可选 URL 前缀，开启后访问路径为 /api/oss/...
+
+# 配置文件上传限制大小
+spring:
+  servlet:
+    multipart:
+      max-file-size: 2GB # 根据需求自行配置
+      max-request-size: 2GB # 根据需求自行配置
 ```
 
 ### 3. 注入并使用

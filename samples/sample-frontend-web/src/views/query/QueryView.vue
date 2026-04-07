@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import ApiCard from '@/components/ApiCard.vue'
 import ResultPanel from '@/components/ResultPanel.vue'
 import { useResult } from '@/composables/useResult'
 import { ossApi } from '@/api/oss'
+import type { ObjectTreeNode } from '@/types'
 
 // ── 连接测试 ──────────────────────────────────────────────────────────
 const { status: connStatus, result: connResult, error: connError, execute: execConn } = useResult()
@@ -30,14 +31,25 @@ const lazyMaxKeys = ref(10)
 const lazyToken = ref('')
 const { status: lazyStatus, result: lazyResult, error: lazyError, execute: execLazy } = useResult()
 
-// ── 目录树 ───────────────────────────────────────────────────────────
+// ── 目录树（带空结果处理） ────────────────────────────────────────────
 const treePath = ref('demo/')
-const { status: treeStatus, result: treeResult, error: treeError, execute: execTree } = useResult()
+const { status: treeStatus, result: treeResult, error: treeError, execute: execTree } = useResult<ObjectTreeNode | null>()
+// 判断是否为空节点（路径不存在时后端返回无 children 的占位节点）
+const treeIsEmpty = computed(() => {
+  if (treeStatus.value !== 'success') return false
+  const node = treeResult.value as ObjectTreeNode | null
+  return !node
+})
 
-// ── 关键字搜索树 ──────────────────────────────────────────────────────
+// ── 关键字搜索树（带空结果处理） ─────────────────────────────────────
 const searchPath = ref('demo/')
-const searchKeyword = ref('image')
-const { status: searchStatus, result: searchResult, error: searchError, execute: execSearch } = useResult()
+const searchKeyword = ref('')
+const { status: searchStatus, result: searchResult, error: searchError, execute: execSearch } = useResult<ObjectTreeNode | null>()
+const searchIsEmpty = computed(() => {
+  if (searchStatus.value !== 'success') return false
+  const node = searchResult.value as ObjectTreeNode | null
+  return !node
+})
 
 // ── 文件夹树 ──────────────────────────────────────────────────────────
 const folderTreePath = ref('demo/')
@@ -52,31 +64,61 @@ const downloadKey = ref('demo/example.txt')
 
 async function previewFile() {
   const res = await ossApi.query.preview(previewKey.value)
-  const url = URL.createObjectURL(res.data)
+  const url = URL.createObjectURL(res.data as Blob)
   window.open(url, '_blank')
 }
 async function downloadFile() {
   const res = await ossApi.query.download(downloadKey.value)
-  const url = URL.createObjectURL(res.data)
+  triggerDownload(res.data as Blob, downloadKey.value.split('/').pop() ?? 'file')
+}
+function triggerDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url
-  a.download = downloadKey.value.split('/').pop() ?? 'file'
+  a.download = filename
   a.click()
+  setTimeout(() => URL.revokeObjectURL(url), 5000)
+}
+
+// ── 分片下载（Range 请求） ────────────────────────────────────────────
+const rangeKey = ref('demo/example.bin')
+const rangeStart = ref(0)
+const rangeEnd = ref(1048575) // 默认下载前 1 MB
+const rangeStatus = ref<'idle' | 'loading' | 'success' | 'error'>('idle')
+const rangeMsg = ref('')
+
+async function downloadRange() {
+  rangeStatus.value = 'loading'
+  rangeMsg.value = ''
+  try {
+    const res = await ossApi.query.downloadRange(rangeKey.value, rangeStart.value, rangeEnd.value)
+    const blob = res.data as Blob
+    const contentRange = res.headers['content-range'] ?? ''
+    // 以分片序号命名下载文件
+    const fname = `${rangeKey.value.split('/').pop()}.part`
+    triggerDownload(blob, fname)
+    rangeStatus.value = 'success'
+    rangeMsg.value = `下载成功：${blob.size} 字节${contentRange ? '  Content-Range: ' + contentRange : ''}`
+  } catch (e: unknown) {
+    rangeStatus.value = 'error'
+    rangeMsg.value = e instanceof Error ? e.message : String(e)
+  }
 }
 </script>
 
 <template>
   <div>
     <h2 class="text-base font-semibold mb-1">文件查询</h2>
-    <p class="text-sm text-[var(--color-muted)] mb-5">连接测试、文件详情、列举、目录树、懒加载、预览下载</p>
+    <p class="text-sm text-[var(--color-muted)] mb-5">
+      连接测试、文件详情、列举、目录树、懒加载、预览/下载、分片下载
+    </p>
 
     <!-- 连接测试 -->
     <ApiCard method="GET" path="/oss/connect" summary="测试 OSS 连接与 Bucket 可访问性">
       <button class="btn btn-ghost" :disabled="connStatus === 'loading'" @click="execConn(() => ossApi.connect.test())">
-        <span v-if="connStatus === 'loading'" class="spinner" />
-        <span>测试连接</span>
+        <span v-if="connStatus === 'loading'" class="spinner" />测试连接
       </button>
-      <ResultPanel :status="connStatus" :result="connResult" :error="connError" label="连接结果（true = 正常）" />
+      <ResultPanel :status="connStatus" :result="connResult" :error="connError" label="true = 连接正常" />
     </ApiCard>
 
     <!-- 文件详情 -->
@@ -100,7 +142,7 @@ async function downloadFile() {
       <button class="btn btn-ghost" :disabled="existsStatus === 'loading'" @click="execExists(() => ossApi.query.exists(objectNameExists))">
         <span v-if="existsStatus === 'loading'" class="spinner" />检查
       </button>
-      <ResultPanel :status="existsStatus" :result="existsResult" :error="existsError" label="是否存在（boolean）" />
+      <ResultPanel :status="existsStatus" :result="existsResult" :error="existsError" label="boolean" />
     </ApiCard>
 
     <!-- 列举对象 -->
@@ -139,19 +181,21 @@ async function downloadFile() {
           <input v-model.number="lazyMaxKeys" type="number" class="oss-input" min="1" />
         </div>
         <div>
-          <p class="section-label">continuationToken（翻页）</p>
+          <p class="section-label">continuationToken（翻页用）</p>
           <input v-model="lazyToken" class="oss-input" placeholder="（首次留空）" />
         </div>
       </div>
-      <button class="btn btn-ghost" :disabled="lazyStatus === 'loading'" @click="execLazy(() => ossApi.query.lazyList(lazyPath, lazyMaxKeys, lazyToken || undefined))">
+      <button class="btn btn-ghost" :disabled="lazyStatus === 'loading'"
+        @click="execLazy(() => ossApi.query.lazyList(lazyPath, lazyMaxKeys, lazyToken || undefined))">
         <span v-if="lazyStatus === 'loading'" class="spinner" />加载
       </button>
+      <!-- 下一页 token 快捷填入 -->
       <p v-if="(lazyResult as any)?.nextContinuationToken" class="mt-2 text-xs text-[var(--color-muted)]">
         下一页 token：
-        <code class="text-[var(--color-accent)] cursor-pointer" @click="lazyToken = (lazyResult as any).nextContinuationToken">
-          {{ (lazyResult as any).nextContinuationToken }}
-        </code>
-        <span class="text-[var(--color-accent)] ml-2 cursor-pointer" @click="lazyToken = (lazyResult as any).nextContinuationToken">← 点击填入</span>
+        <code
+          class="text-[var(--color-accent)] cursor-pointer underline"
+          @click="lazyToken = (lazyResult as any).nextContinuationToken"
+        >点击填入</code>
       </p>
       <ResultPanel :status="lazyStatus" :result="lazyResult" :error="lazyError" label="LazyListResult" />
     </ApiCard>
@@ -165,11 +209,18 @@ async function downloadFile() {
       <button class="btn btn-ghost" :disabled="treeStatus === 'loading'" @click="execTree(() => ossApi.query.getTree(treePath))">
         <span v-if="treeStatus === 'loading'" class="spinner" />获取目录树
       </button>
-      <ResultPanel :status="treeStatus" :result="treeResult" :error="treeError" label="ObjectTreeNode（树形）" />
+      <!-- 空结果提示：路径不存在时后端返回占位节点 -->
+      <div v-if="treeIsEmpty" class="mt-3 p-2 rounded border border-[var(--color-warning)] bg-[rgba(210,153,34,0.08)] text-[var(--color-warning)] text-xs">
+        ⚠️ 路径下无对象，或路径不存在（后端返回空节点，非报错）
+      </div>
+      <ResultPanel v-else :status="treeStatus" :result="treeResult" :error="treeError" label="ObjectTreeNode（树形结构）" />
     </ApiCard>
 
     <!-- 关键字搜索树 -->
     <ApiCard method="GET" path="/oss/object/tree/search" summary="按关键字搜索目录树">
+      <div class="text-xs text-[var(--color-muted)] mb-3 p-2 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">
+        ⚠️ 注意：若无匹配结果，后端可能返回包含不存在路径的空节点（非报错），前端已做判断处理。
+      </div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div>
           <p class="section-label">path</p>
@@ -177,13 +228,17 @@ async function downloadFile() {
         </div>
         <div>
           <p class="section-label">keyword</p>
-          <input v-model="searchKeyword" class="oss-input" placeholder="image" />
+          <input v-model="searchKeyword" class="oss-input" placeholder="输入搜索关键字" />
         </div>
       </div>
       <button class="btn btn-ghost" :disabled="searchStatus === 'loading'" @click="execSearch(() => ossApi.query.searchTree(searchPath, searchKeyword))">
         <span v-if="searchStatus === 'loading'" class="spinner" />搜索
       </button>
-      <ResultPanel :status="searchStatus" :result="searchResult" :error="searchError" label="ObjectTreeNode（过滤后）" />
+      <!-- 无匹配提示 -->
+      <div v-if="searchIsEmpty" class="mt-3 p-2 rounded border border-[var(--color-warning)] bg-[rgba(210,153,34,0.08)] text-[var(--color-warning)] text-xs">
+        ⚠️ 无匹配结果（后端返回空节点，非报错）
+      </div>
+      <ResultPanel v-else :status="searchStatus" :result="searchResult" :error="searchError" label="ObjectTreeNode（已过滤）" />
     </ApiCard>
 
     <!-- 文件夹树 -->
@@ -200,32 +255,77 @@ async function downloadFile() {
 
     <!-- 列举 Bucket -->
     <ApiCard method="GET" path="/oss/buckets" summary="列举所有 Bucket">
+      <div class="text-xs text-[var(--color-muted)] mb-3 p-2 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">
+        ⚠️ 部分 S3 SDK 版本可能抛出 <code>HttpMessageConversionException</code>（Bucket 对象序列化问题）。
+        后端 workaround：在 <code>application.yml</code> 中配置
+        <code>spring.jackson.deserialization.fail-on-unknown-properties: false</code>
+        或升级 SDK 版本。
+      </div>
       <button class="btn btn-ghost" :disabled="bucketsStatus === 'loading'" @click="execBuckets(() => ossApi.query.listBuckets())">
         <span v-if="bucketsStatus === 'loading'" class="spinner" />列举 Buckets
       </button>
       <ResultPanel :status="bucketsStatus" :result="bucketsResult" :error="bucketsError" label="Bucket[]" />
     </ApiCard>
 
-    <!-- 预览 / 下载 -->
+    <!-- 预览 / 完整下载 -->
     <div class="card mb-4">
       <div class="flex items-center gap-3 mb-4">
         <span class="method method-GET">GET</span>
         <code class="text-xs text-[var(--color-muted)]">/oss/object/{preview|download}/**</code>
-        <p class="text-sm font-medium">预览 / 下载文件</p>
+        <p class="text-sm font-medium">预览 / 完整下载</p>
       </div>
-
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <p class="section-label">预览 objectName</p>
+          <p class="section-label">预览 objectName（inline）</p>
           <input v-model="previewKey" class="oss-input mb-2" placeholder="demo/example.jpg" />
           <button class="btn btn-ghost" @click="previewFile">在新标签页预览</button>
         </div>
         <div>
-          <p class="section-label">下载 objectName</p>
+          <p class="section-label">下载 objectName（attachment）</p>
           <input v-model="downloadKey" class="oss-input mb-2" placeholder="demo/example.txt" />
-          <button class="btn btn-ghost" @click="downloadFile">触发下载</button>
+          <button class="btn btn-ghost" @click="downloadFile">触发浏览器下载</button>
         </div>
       </div>
     </div>
+
+    <!-- 分片下载（Range 请求） -->
+    <ApiCard method="GET" path="/oss/object/download/**" summary="分片下载（HTTP Range 请求）">
+      <div class="text-xs text-[var(--color-muted)] mb-3 p-2 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">
+        发送 <code>Range: bytes=start-end</code> 请求头，适用于大文件断点续传、视频分段加载等场景。
+        后端 previewObject 已支持 Range 分段响应。
+      </div>
+      <div class="grid grid-cols-3 gap-3 mb-4">
+        <div>
+          <p class="section-label">objectName</p>
+          <input v-model="rangeKey" class="oss-input" placeholder="demo/example.bin" />
+        </div>
+        <div>
+          <p class="section-label">start（字节，含）</p>
+          <input v-model.number="rangeStart" type="number" class="oss-input" min="0" />
+        </div>
+        <div>
+          <p class="section-label">end（字节，含）</p>
+          <input v-model.number="rangeEnd" type="number" class="oss-input" min="0" />
+        </div>
+      </div>
+      <p class="text-xs text-[var(--color-muted)] mb-3">
+        当前 Range 头：<code class="text-[var(--color-accent)]">bytes={{ rangeStart }}-{{ rangeEnd }}</code>
+        （{{ ((rangeEnd - rangeStart + 1) / 1024 / 1024).toFixed(2) }} MB）
+      </p>
+      <button
+        class="btn btn-ghost"
+        :disabled="rangeStatus === 'loading'"
+        @click="downloadRange"
+      >
+        <span v-if="rangeStatus === 'loading'" class="spinner" />下载指定字节范围
+      </button>
+      <p
+        v-if="rangeMsg"
+        class="mt-3 text-sm"
+        :class="rangeStatus === 'success' ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'"
+      >
+        {{ rangeMsg }}
+      </p>
+    </ApiCard>
   </div>
 </template>

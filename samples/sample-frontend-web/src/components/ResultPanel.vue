@@ -7,6 +7,13 @@ defineProps<{
   error?: string | null
   label?: string
 }>()
+
+function displayResult(result: unknown): string {
+  if (result === null || result === undefined) return '✓ 操作成功'
+  if (typeof result === 'boolean') return String(result)
+  if (typeof result === 'string') return result
+  return JSON.stringify(result, null, 2)
+}
 </script>
 
 <template>
@@ -18,15 +25,15 @@ defineProps<{
     </div>
 
     <!-- Error -->
-    <div v-else-if="status === 'error'" class="card border-[var(--color-danger)]">
-      <p class="section-label text-[var(--color-danger)]">错误</p>
-      <p class="text-sm text-[var(--color-danger)]">{{ error }}</p>
+    <div v-else-if="status === 'error'" class="card" style="border-color: var(--color-danger)">
+      <p class="section-label" style="color: var(--color-danger)">错误</p>
+      <p class="text-sm" style="color: var(--color-danger)">{{ error }}</p>
     </div>
 
     <!-- Success -->
     <div v-else-if="status === 'success'">
       <p class="section-label">{{ label ?? '响应结果' }}</p>
-      <pre class="code-block">{{ result === null || result === undefined ? '(void)' : JSON.stringify(result, null, 2) }}</pre>
+      <pre class="code-block">{{ displayResult(result) }}</pre>
     </div>
   </div>
 </template>
