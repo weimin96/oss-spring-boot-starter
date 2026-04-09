@@ -13,6 +13,8 @@ import java.util.List;
 
 /**
  * 自定义业务控制器示例，展示如何直接注入并使用 {@link OssTemplate}。
+ *
+ * @author pwm
  */
 @RestController
 @RequiredArgsConstructor
