@@ -65,7 +65,8 @@ public abstract class Operations {
             if (cause instanceof NoSuchKeyException) {
                 log.debug("OSS: object does not exist");
                 return null;
-            } else if (cause instanceof S3Exception s3Ex) {
+            } else if (cause instanceof S3Exception) {
+                S3Exception s3Ex = (S3Exception) cause;
                 String errorCode = s3Ex.awsErrorDetails() == null ? "UNKNOWN" : s3Ex.awsErrorDetails().errorCode();
                 String errorMessage = s3Ex.awsErrorDetails() == null
                         ? s3Ex.getMessage()

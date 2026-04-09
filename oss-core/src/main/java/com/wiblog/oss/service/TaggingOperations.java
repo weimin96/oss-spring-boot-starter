@@ -7,6 +7,7 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -48,7 +49,7 @@ public class TaggingOperations extends Operations {
                 .build();
         GetObjectTaggingResponse resp = handleRequest(() -> client.getObjectTagging(req));
         if (resp == null) {
-            return Map.of();
+            return Collections.emptyMap();
         }
         return resp.tagSet().stream()
                 .collect(Collectors.toMap(Tag::key, Tag::value));
@@ -131,7 +132,7 @@ public class TaggingOperations extends Operations {
                 .build();
         GetBucketTaggingResponse resp = handleRequest(() -> client.getBucketTagging(req));
         if (resp == null) {
-            return Map.of();
+            return Collections.emptyMap();
         }
         return resp.tagSet().stream()
                 .collect(Collectors.toMap(Tag::key, Tag::value));

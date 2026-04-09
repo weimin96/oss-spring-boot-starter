@@ -6,6 +6,7 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -111,7 +112,7 @@ public class BucketOperations extends Operations {
                 client.getBucketLifecycleConfiguration(
                         GetBucketLifecycleConfigurationRequest.builder().bucket(bucketName).build()));
         if (resp == null) {
-            return List.of();
+            return Collections.emptyList();
         }
         return resp.rules();
     }
@@ -194,7 +195,7 @@ public class BucketOperations extends Operations {
         GetBucketCorsResponse resp = handleRequest(() ->
                 client.getBucketCors(GetBucketCorsRequest.builder().bucket(bucketName).build()));
         if (resp == null) {
-            return List.of();
+            return Collections.emptyList();
         }
         return resp.corsRules();
     }
@@ -214,7 +215,7 @@ public class BucketOperations extends Operations {
                 .exposeHeaders("ETag", "x-amz-request-id")
                 .maxAgeSeconds(3600)
                 .build();
-        putCorsRules(bucketName, List.of(rule));
+        putCorsRules(bucketName, Collections.singletonList(rule));
     }
 
     /**

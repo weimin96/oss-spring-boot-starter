@@ -1,5 +1,7 @@
 package com.wiblog.oss.service.strategy;
 
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -15,10 +17,10 @@ public class DomainStrategyFactory {
     /**
      * 有序策略列表：优先级高的放前面，PathStyle 作为默认兜底放最后
      */
-    private static final List<DomainStrategy> STRATEGIES = List.of(
+    private static final List<DomainStrategy> STRATEGIES = Collections.unmodifiableList(Arrays.asList(
             new VirtualHostedDomainStrategy(),
             new PathStyleDomainStrategy()   // 兜底
-    );
+    ));
 
     private DomainStrategyFactory() {
     }

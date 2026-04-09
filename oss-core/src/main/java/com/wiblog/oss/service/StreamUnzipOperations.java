@@ -224,7 +224,7 @@ public class StreamUnzipOperations extends Operations {
             String relName = prefix.isEmpty() ? entry.getName()
                     : entry.getName().substring(prefix.length());
             String destKey = Util.formatPath(targetPath) + relName;
-            byte[] data = stream.readAllBytes();
+            byte[] data = readAllBytes(stream);
             uploadBytes(data, targetBucket, destKey);
         });
     }

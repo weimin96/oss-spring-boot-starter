@@ -167,7 +167,8 @@ public class OssTemplate {
         if (cause instanceof NoSuchBucketException) {
             return true;
         }
-        if (cause instanceof S3Exception s3Exception) {
+        if (cause instanceof S3Exception) {
+            S3Exception s3Exception = (S3Exception) cause;
             String errorCode = s3Exception.awsErrorDetails() == null
                     ? null
                     : s3Exception.awsErrorDetails().errorCode();

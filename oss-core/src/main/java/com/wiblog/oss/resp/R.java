@@ -5,7 +5,6 @@ import lombok.Getter;
 import lombok.Setter;
 import org.springframework.lang.Nullable;
 
-import java.io.Serial;
 import java.io.Serializable;
 import java.util.Optional;
 
