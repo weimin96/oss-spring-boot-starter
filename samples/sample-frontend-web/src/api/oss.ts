@@ -20,6 +20,46 @@ import type {
   LazyListResult,
 } from '@/types'
 
+interface MultipartInitRequest {
+  filename: string
+  path: string
+  signal?: AbortSignal
+}
+
+interface MultipartChunkUploadRequest {
+  file: File
+  chunkNumber: number
+  filename: string
+  path: string
+  guid: string
+  uploadId: string
+  signal?: AbortSignal
+}
+
+interface MultipartMergeRequest {
+  filename: string
+  path: string
+  uploadId: string
+  guid: string
+  chunkTargetList: ChunkTarget[]
+  signal?: AbortSignal
+}
+
+function buildMultipartChunkForm(payload: MultipartChunkUploadRequest): FormData {
+  if (payload.file.size <= 0) {
+    throw new Error(`分片 ${payload.chunkNumber} 内容为空，已阻止无效上传请求`)
+  }
+
+  const form = new FormData()
+  form.append('file', payload.file, payload.file.name)
+  form.append('chunkNumber', String(payload.chunkNumber))
+  form.append('filename', payload.filename)
+  form.append('path', payload.path)
+  form.append('guid', payload.guid)
+  form.append('uploadId', payload.uploadId)
+  return form
+}
+
 export const ossApi = {
 
   connect: {
@@ -56,57 +96,35 @@ export const ossApi = {
   multipart: {
     /**
      * POST /multipart/init
-     * ChunkTask: { filename, path } — 以 query params 传递（@Validated 绑定）
+     * 初始化分片任务，参数通过 query 传递，便于与后端 `ChunkTask` 绑定保持一致。
      */
-    init: (filename: string, path: string) =>
-      request<string>({ method: 'POST', url: '/multipart/init', params: { filename, path } }),
+    init: ({ filename, path, signal }: MultipartInitRequest) =>
+      request<string>({ method: 'POST', url: '/multipart/init', params: { filename, path }, signal }),
 
     /**
      * POST /multipart/chunk
-     * Chunk 所有字段通过 FormData 传递（后端用 @Validated 绑定 multipart 表单）:
-     *   file(binary), chunkNumber, filename, path, guid, uploadId
-     *
-     * 注意：blob 作为文件字段时必须指定 filename，否则部分浏览器不携带 Content-Disposition
+     * 分片字段全部通过 FormData 传递。
+     * 这里显式要求 `File` 而不是裸 `Blob`，是为了让浏览器稳定携带文件名与边界信息，
+     * 同时在发送前拦截空分片，避免后端拿到空 `MultipartFile` 后进入错误合并流程。
      */
-    uploadChunk: (
-      blob: Blob,
-      chunkNumber: number,
-      filename: string,
-      path: string,
-      guid: string,
-      uploadId: string,
-    ) => {
-      const form = new FormData()
-      // file 字段必须附带 filename，与后端 MultipartFile 字段匹配
-      form.append('file', blob, filename)
-      form.append('chunkNumber', String(chunkNumber))
-      form.append('filename', filename)
-      form.append('path', path)
-      form.append('guid', guid)
-      form.append('uploadId', uploadId)
+    uploadChunk: (payload: MultipartChunkUploadRequest) => {
       return request<ChunkTarget>({
         method: 'POST',
         url: '/multipart/chunk',
-        data: form,
-        // 不设置 Content-Type，让浏览器自动生成 multipart/form-data; boundary=...
-        headers: { 'Content-Type': undefined },
+        data: buildMultipartChunkForm(payload),
+        signal: payload.signal,
       })
     },
 
     /**
      * POST /multipart/merge
-     * ChunkMerge 通过 JSON body 传递（@RequestBody）
+     * 分片合并通过 JSON body 传递，与后端 `ChunkMerge` 对象结构保持一致。
      */
-    merge: (
-      filename: string,
-      path: string,
-      uploadId: string,
-      guid: string,
-      chunkTargetList: ChunkTarget[],
-    ) =>
+    merge: ({ filename, path, uploadId, guid, chunkTargetList, signal }: MultipartMergeRequest) =>
       request<ObjectInfo>({
         method: 'POST',
         url: '/multipart/merge',
+        signal,
         data: { filename, path, uploadId, guid, chunkTargetList },
       }),
 
