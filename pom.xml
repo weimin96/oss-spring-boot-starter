@@ -46,6 +46,7 @@
         <!-- 示例工程 -->
         <module>samples/sample-springboot2</module>
         <module>samples/sample-springboot3</module>
+        <module>samples/sample-springboot4</module>
     </modules>
 
     <properties>
