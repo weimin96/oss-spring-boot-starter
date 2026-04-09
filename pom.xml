@@ -6,11 +6,11 @@
 
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot-starter-parent</artifactId>
-    <version>2.1.9</version>
+    <version>3.0.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>oss-spring-boot-starter-parent</name>
-    <description>OSS Spring Boot Starter 聚合工程，统一管理 starter 与示例工程。</description>
+    <description>OSS Spring Boot Starter 多版本聚合工程，支持 Spring Boot 2.x / 3.x / 4.x</description>
     <url>https://github.com/weimin96/oss-spring-boot-starter</url>
 
     <licenses>
@@ -24,7 +24,7 @@
     <scm>
         <url>https://github.com/weimin96/oss-spring-boot-starter</url>
         <connection>scm:git@github.com:weimin96/oss-spring-boot-starter.git</connection>
-        <developerConnection>scm:git@github.com:weimin96/oss-spring-boot-starter.git/issues</developerConnection>
+        <developerConnection>scm:git@github.com:weimin96/oss-spring-boot-starter.git</developerConnection>
     </scm>
 
     <developers>
@@ -37,29 +37,158 @@
     </developers>
 
     <modules>
+        <!-- 公共核心模块 -->
+        <module>oss-core</module>
+        <!-- 各版本 Spring Boot 适配模块 -->
+        <module>oss-spring-boot2-starter</module>
         <module>oss-spring-boot3-starter</module>
-        <module>samples/sample-backend-springboot</module>
+        <module>oss-spring-boot4-starter</module>
+        <!-- 示例工程 -->
+        <module>samples/sample-springboot2</module>
+        <module>samples/sample-springboot3</module>
     </modules>
 
     <properties>
-        <java.version>21</java.version>
-        <maven.compiler.source>${java.version}</maven.compiler.source>
-        <maven.compiler.target>${java.version}</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <spring-boot.version>3.5.13</spring-boot.version>
-        <aws.lambda.java.version>1.4.0</aws.lambda.java.version>
+
+        <!-- AWS SDK -->
         <aws.java.sdk.version>2.42.28</aws.java.sdk.version>
-        <aws-crt>0.44.0</aws-crt>
-        <swagger.v3.version>2.2.46</swagger.v3.version>
+        <aws-crt.version>0.44.0</aws-crt.version>
+        <aws.lambda.java.version>1.4.0</aws.lambda.java.version>
+
+        <!-- 通用依赖版本 -->
         <tika-core.version>3.3.0</tika-core.version>
         <lombok.version>1.18.44</lombok.version>
-        <logback.version>1.5.32</logback.version>
-        <testcontainers.version>2.0.4</testcontainers.version>
+        <swagger.v3.version>2.2.46</swagger.v3.version>
         <jackson-annotations.version>2.21</jackson-annotations.version>
         <jaxb.version>2.3.1</jaxb.version>
+
+        <!-- 各模块对应的 Spring Boot 版本 -->
+        <spring-boot2.version>2.7.18</spring-boot2.version>
+        <spring-boot3.version>3.5.3</spring-boot3.version>
+        <spring-boot4.version>4.0.4</spring-boot4.version>
+
+        <!-- 插件版本 -->
+        <maven-compiler-plugin.version>3.15.0</maven-compiler-plugin.version>
+        <maven-gpg-plugin.version>3.2.8</maven-gpg-plugin.version>
+        <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
+        <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
+        <jacoco-plugin.version>2.21</jacoco-plugin.version>
+        <testcontainers.version>2.0.4</testcontainers.version>
     </properties>
 
+    <!-- 公共依赖管理（所有子模块可直接使用，不会自动引入） -->
+    <dependencyManagement>
+        <dependencies>
+            <!-- oss-core 核心模块 -->
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- AWS SDK v2 -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>s3</artifactId>
+                <version>${aws.java.sdk.version}</version>
+                <exclusions>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>netty-nio-client</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>aws-crt-client</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>apache-client</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>software.amazon.awssdk</groupId>
+                        <artifactId>url-connection-client</artifactId>
+                    </exclusion>
+                    <exclusion>
+                        <groupId>org.slf4j</groupId>
+                        <artifactId>slf4j-api</artifactId>
+                    </exclusion>
+                </exclusions>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>s3-transfer-manager</artifactId>
+                <version>${aws.java.sdk.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk.crt</groupId>
+                <artifactId>aws-crt</artifactId>
+                <version>${aws-crt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.amazonaws</groupId>
+                <artifactId>aws-lambda-java-core</artifactId>
+                <version>${aws.lambda.java.version}</version>
+            </dependency>
+
+            <!-- 工具库 -->
+            <dependency>
+                <groupId>org.apache.tika</groupId>
+                <artifactId>tika-core</artifactId>
+                <version>${tika-core.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.swagger.core.v3</groupId>
+                <artifactId>swagger-annotations</artifactId>
+                <version>${swagger.v3.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.fasterxml.jackson.core</groupId>
+                <artifactId>jackson-annotations</artifactId>
+                <version>${jackson-annotations.version}</version>
+            </dependency>
+
+            <!-- 测试 -->
+            <dependency>
+                <groupId>org.testcontainers</groupId>
+                <artifactId>testcontainers</artifactId>
+                <version>${testcontainers.version}</version>
+                <scope>test</scope>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <!-- 所有子模块都会继承的公共构建配置 -->
+    <build>
+        <pluginManagement>
+            <plugins>
+                <plugin>
+                    <groupId>org.apache.maven.plugins</groupId>
+                    <artifactId>maven-compiler-plugin</artifactId>
+                    <version>${maven-compiler-plugin.version}</version>
+                    <configuration>
+                        <encoding>UTF-8</encoding>
+                        <compilerArgs>
+                            <arg>-parameters</arg>
+                        </compilerArgs>
+                    </configuration>
+                </plugin>
+                <plugin>
+                    <groupId>org.jacoco</groupId>
+                    <artifactId>jacoco-maven-plugin</artifactId>
+                    <version>${jacoco-plugin.version}</version>
+                </plugin>
+            </plugins>
+        </pluginManagement>
+    </build>
+
     <profiles>
+        <!-- Release 发布时附加 GPG 签名、JavaDoc、Sources -->
         <profile>
             <id>release</id>
             <build>
@@ -73,6 +202,54 @@
                             <publishingServerId>central</publishingServerId>
                             <autoPublish>true</autoPublish>
                         </configuration>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-gpg-plugin</artifactId>
+                        <version>${maven-gpg-plugin.version}</version>
+                        <configuration>
+                            <gpgArguments>
+                                <arg>--pinentry-mode</arg>
+                                <arg>loopback</arg>
+                            </gpgArguments>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>sign-artifacts</id>
+                                <phase>verify</phase>
+                                <goals><goal>sign</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>${maven-javadoc-plugin.version}</version>
+                        <configuration>
+                            <quiet>true</quiet>
+                            <notimestamp>true</notimestamp>
+                            <charset>UTF-8</charset>
+                            <encoding>UTF-8</encoding>
+                            <docencoding>UTF-8</docencoding>
+                            <doclint>all,-missing</doclint>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals><goal>jar</goal></goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>${maven-source-plugin.version}</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals><goal>jar-no-fork</goal></goals>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>

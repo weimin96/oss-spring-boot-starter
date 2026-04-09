@@ -1,0 +1,42 @@
+{
+  "groups": [
+    {
+      "name": "oss",
+      "type": "com.wiblog.oss.bean.OssProperties",
+      "sourceType": "com.wiblog.oss.bean.OssProperties"
+    },
+    {
+      "name": "oss.http",
+      "type": "com.wiblog.oss.bean.OssProperties$Http",
+      "sourceType": "com.wiblog.oss.bean.OssProperties",
+      "sourceMethod": "getHttp()"
+    }
+  ],
+  "properties": [
+    { "name": "oss.enable", "type": "java.lang.Boolean", "defaultValue": false, "description": "是否启用 OSS 能力" },
+    { "name": "oss.endpoint", "type": "java.lang.String", "description": "对象存储服务端点，例如 http://localhost:9000" },
+    { "name": "oss.bucket-name", "type": "java.lang.String", "description": "默认 Bucket 名称" },
+    { "name": "oss.auto-create-bucket", "type": "java.lang.Boolean", "defaultValue": false, "description": "Bucket 不存在时是否自动创建" },
+    { "name": "oss.access-key", "type": "java.lang.String", "description": "访问密钥 ID (Access Key)" },
+    { "name": "oss.secret-key", "type": "java.lang.String", "description": "访问密钥 (Secret Key)" },
+    { "name": "oss.type", "type": "java.lang.String", "description": "存储类型，例如 minio / cos / obs" },
+    { "name": "oss.max-connections", "type": "java.lang.Integer", "defaultValue": 50, "description": "最大连接数" },
+    { "name": "oss.connection-timeout", "type": "java.lang.Long", "defaultValue": 10000, "description": "连接超时时间（毫秒）" },
+    { "name": "oss.throughput-in-gbps", "type": "java.lang.Double", "defaultValue": 20.0, "description": "目标吞吐量（Gbps），用于 S3 Transfer Manager" },
+    { "name": "oss.part-size-in-mb", "type": "java.lang.Integer", "defaultValue": 10, "description": "分片上传最小分片大小（MB），最小为 5" },
+    { "name": "oss.http.enable", "type": "java.lang.Boolean", "defaultValue": false, "description": "是否启用内置 OSS HTTP 端点（/oss/**）" },
+    { "name": "oss.http.prefix", "type": "java.lang.String", "defaultValue": "", "description": "HTTP 端点路径前缀，例如 /api" }
+  ],
+  "hints": [
+    {
+      "name": "oss.type",
+      "values": [
+        { "value": "minio", "description": "MinIO（路径风格，无需特殊域名策略）" },
+        { "value": "cos", "description": "腾讯云 COS（虚拟主机风格域名）" },
+        { "value": "obs", "description": "华为云 OBS（虚拟主机风格域名）" },
+        { "value": "oss", "description": "阿里云 OSS（虚拟主机风格域名）" },
+        { "value": "s3", "description": "Amazon S3（虚拟主机风格域名）" }
+      ]
+    }
+  ]
+}
