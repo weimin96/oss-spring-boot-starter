@@ -110,7 +110,7 @@ public class DeleteOperations extends Operations {
                 failedKeys.size(), path);
         deleteObjectsOneByOne(bucketName, objectIdentifiers.stream()
                 .filter(objectIdentifier -> failedKeys.contains(objectIdentifier.key()))
-                .toList());
+                .collect(Collectors.toList()));
     }
 
     private void deleteObjectsOneByOne(String bucketName, List<ObjectIdentifier> objectIdentifiers) {

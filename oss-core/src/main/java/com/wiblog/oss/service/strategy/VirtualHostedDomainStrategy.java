@@ -4,6 +4,8 @@ import com.wiblog.oss.exception.OssException;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.Set;
 
 /**
@@ -19,7 +21,8 @@ public class VirtualHostedDomainStrategy implements DomainStrategy {
     /**
      * 使用该策略的 OSS 类型集合
      */
-    private static final Set<String> SUPPORTED_TYPES = Set.of("obs", "cos");
+    private static final Set<String> SUPPORTED_TYPES = Collections.unmodifiableSet(
+            new java.util.HashSet<>(Arrays.asList("obs", "cos")));
 
     @Override
     public boolean supports(String type) {

@@ -129,7 +129,9 @@ public class QueryOperations extends Operations {
 
     public LazyDataList<ObjectInfo> lazyList(String bucketName, String path,
                                               int maxKeys, String continuationToken) {
-        if (maxKeys <= 0) maxKeys = 1000;
+        if (maxKeys <= 0) {
+            maxKeys = 1000;
+        }
         LazyDataList<ObjectInfo> resultList = new LazyDataList<>();
 
         ListObjectsV2Request.Builder builder = ListObjectsV2Request.builder()
@@ -346,7 +348,9 @@ public class QueryOperations extends Operations {
      */
     public void previewObject(OssPreviewContext context, String objectName,
                               boolean isDownload) throws IOException {
-        if (Util.isBlank(objectName)) return;
+        if (Util.isBlank(objectName)) {
+            return;
+        }
 
         if (objectName.contains("%")) {
             objectName = URLDecoder.decode(objectName, StandardCharsets.UTF_8.name());
@@ -385,7 +389,9 @@ public class QueryOperations extends Operations {
         } catch (NoSuchKeyException e) {
             context.sendNotFound();
         } catch (IOException e) {
-            if (!"Broken pipe".equals(e.getMessage())) throw e;
+            if (!"Broken pipe".equals(e.getMessage())) {
+                throw e;
+            }
         }
     }
 
@@ -438,13 +444,17 @@ public class QueryOperations extends Operations {
     }
 
     private static String extractRootName(String objectName) {
-        if (Util.isBlank(objectName)) return "";
+        if (Util.isBlank(objectName)) {
+            return "";
+        }
         int i = objectName.lastIndexOf('/');
         return i > 0 ? objectName.substring(i + 1) : objectName;
     }
 
     private void addNode(ObjectTreeNode parent, String remaining, S3Object object) {
-        if (Util.isBlank(remaining)) return;
+        if (Util.isBlank(remaining)) {
+            return;
+        }
         int slashIdx = remaining.indexOf('/');
         if (slashIdx == -1) {
             parent.addChild(new ObjectTreeNode(remaining, object.key(),
@@ -460,7 +470,9 @@ public class QueryOperations extends Operations {
 
     private void addFolderNode(ObjectTreeNode parent, String remaining) {
         int slashIdx = remaining.indexOf('/');
-        if (slashIdx == -1) return;
+        if (slashIdx == -1) {
+            return;
+        }
         String folderName = remaining.substring(0, slashIdx);
         String newRemaining = remaining.substring(slashIdx + 1);
         ObjectTreeNode folder = findOrCreateFolder(parent, folderName);
