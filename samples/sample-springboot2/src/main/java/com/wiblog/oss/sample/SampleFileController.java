@@ -1,7 +1,7 @@
 package com.wiblog.oss.sample;
 
 import com.wiblog.oss.bean.ObjectInfo;
-import com.wiblog.oss.resp.R;
+import com.wiblog.oss.resp.OssResponse;
 import com.wiblog.oss.service.OssTemplate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -25,34 +25,34 @@ public class SampleFileController {
      * 上传头像示例：将文件存入 avatars/ 目录，返回完整访问 URL
      */
     @PostMapping("/avatar")
-    public R<String> uploadAvatar(@RequestParam("file") MultipartFile file) throws IOException {
+    public OssResponse<String> uploadAvatar(@RequestParam("file") MultipartFile file) throws IOException {
         ObjectInfo info = ossTemplate.put().putObject(
                 "avatars/", file.getOriginalFilename(), file.getInputStream());
-        return R.data(info.getUrl());
+        return OssResponse.data(info.getUrl());
     }
 
     /**
      * 列举某目录下所有文件
      */
     @GetMapping("/list")
-    public R<List<ObjectInfo>> listFiles(@RequestParam(defaultValue = "avatars/") String path) {
-        return R.data(ossTemplate.query().listObjects(path));
+    public OssResponse<List<ObjectInfo>> listFiles(@RequestParam(defaultValue = "avatars/") String path) {
+        return OssResponse.data(ossTemplate.query().listObjects(path));
     }
 
     /**
      * 检查文件是否存在
      */
     @GetMapping("/exists")
-    public R<Boolean> exists(@RequestParam String objectName) {
-        return R.data(ossTemplate.query().checkExist(objectName));
+    public OssResponse<Boolean> exists(@RequestParam String objectName) {
+        return OssResponse.data(ossTemplate.query().checkExist(objectName));
     }
 
     /**
      * 删除文件
      */
     @DeleteMapping
-    public R<Void> delete(@RequestParam String objectName) {
+    public OssResponse<Void> delete(@RequestParam String objectName) {
         ossTemplate.delete().removeObject(objectName);
-        return R.success("删除成功");
+        return OssResponse.success("删除成功");
     }
 }

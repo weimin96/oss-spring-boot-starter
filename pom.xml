@@ -10,7 +10,7 @@
     <packaging>pom</packaging>
 
     <name>oss-spring-boot-starter-parent</name>
-    <description>OSS Spring Boot Starter 多版本聚合工程，支持 Spring Boot 2.x / 3.x / 4.x</description>
+    <description>基于 Spring Boot Starter 和 AWS S3协议的对象存储工具，支持 Spring Boot 2.x / 3.x / 4.x</description>
     <url>https://github.com/weimin96/oss-spring-boot-starter</url>
 
     <licenses>

@@ -1,7 +1,7 @@
 package com.wiblog.oss.sample;
 
 import com.wiblog.oss.bean.ObjectInfo;
-import com.wiblog.oss.resp.R;
+import com.wiblog.oss.resp.OssResponse;
 import com.wiblog.oss.service.OssTemplate;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
@@ -22,29 +22,29 @@ public class SampleFileController {
     private final OssTemplate ossTemplate;
 
     @PostMapping("/avatar")
-    public R<String> uploadAvatar(@RequestParam("file") MultipartFile file) throws IOException {
+    public OssResponse<String> uploadAvatar(@RequestParam("file") MultipartFile file) throws IOException {
         ObjectInfo info = ossTemplate.put().putObject(
                 "avatars/", file.getOriginalFilename(), file.getInputStream());
-        return R.data(info.getUrl());
+        return OssResponse.data(info.getUrl());
     }
 
     @GetMapping("/list")
-    public R<List<ObjectInfo>> listFiles(@RequestParam(defaultValue = "avatars/") String path) {
-        return R.data(ossTemplate.query().listObjects(path));
+    public OssResponse<List<ObjectInfo>> listFiles(@RequestParam(defaultValue = "avatars/") String path) {
+        return OssResponse.data(ossTemplate.query().listObjects(path));
     }
 
     @GetMapping("/presign")
-    public R<String> presign(
+    public OssResponse<String> presign(
             @RequestParam String objectName,
             @RequestParam(defaultValue = "3600") long seconds) {
         String url = ossTemplate.presign()
                 .generateGetPresignedUrl(objectName, Duration.ofSeconds(seconds));
-        return R.data(url);
+        return OssResponse.data(url);
     }
 
     @DeleteMapping
-    public R<Void> delete(@RequestParam String objectName) {
+    public OssResponse<Void> delete(@RequestParam String objectName) {
         ossTemplate.delete().removeObject(objectName);
-        return R.success("删除成功");
+        return OssResponse.success("删除成功");
     }
 }
