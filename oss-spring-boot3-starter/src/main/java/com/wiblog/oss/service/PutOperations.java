@@ -232,7 +232,12 @@ public class PutOperations extends Operations {
 
     public ObjectInfo merge(ChunkMerge chunkMerge) {
         String objectName = formatPath(chunkMerge.getPath()) + chunkMerge.getFilename();
-        List<CompletedPart> parts = chunkMerge.getChunkTargetList().stream()
+        // 处理 null 或空列表的情况
+        List<ChunkTarget> chunkList = chunkMerge.getChunkTargetList();
+        if (chunkList == null || chunkList.isEmpty()) {
+            throw new IllegalArgumentException("分片列表不能为空，请确保所有分片已上传完成");
+        }
+        List<CompletedPart> parts = chunkList.stream()
                 .map(p -> CompletedPart.builder().partNumber(p.getPartNumber()).eTag(p.getEtag()).build())
                 .sorted(Comparator.comparingInt(CompletedPart::partNumber))
                 .collect(Collectors.toList());
