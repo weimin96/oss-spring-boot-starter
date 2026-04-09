@@ -8,7 +8,7 @@ import java.io.Serializable;
  * @author panwm
  * @since 2023/8/24 16:06
  */
-public interface IResultCode extends Serializable {
+public interface IOssResultCode extends Serializable {
 
     String getMessage();
 

@@ -9,7 +9,7 @@ import lombok.Getter;
  * @since 2023/8/24 16:03
  */
 @Getter
-public enum ResultCode implements IResultCode {
+public enum OssOssResultCode implements IOssResultCode {
     SUCCESS(200, "操作成功"),
     FAILURE(400, "业务异常"),
     UN_AUTHORIZED(401, "请求未授权"),
@@ -28,7 +28,7 @@ public enum ResultCode implements IResultCode {
     final int code;
     final String message;
 
-    private ResultCode(final int code, final String message) {
+    private OssOssResultCode(final int code, final String message) {
         this.code = code;
         this.message = message;
     }
