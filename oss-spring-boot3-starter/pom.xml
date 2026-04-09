@@ -7,7 +7,7 @@
     <parent>
         <groupId>io.github.weimin96</groupId>
         <artifactId>oss-spring-boot-starter-parent</artifactId>
-        <version>3.0.0-SNAPSHOT</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
