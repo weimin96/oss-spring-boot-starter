@@ -6,7 +6,7 @@
 
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot-starter-parent</artifactId>
-    <version>3.0.0-SNAPSHOT</version>
+    <version>${revision}</version>
     <packaging>pom</packaging>
 
     <name>oss-spring-boot-starter-parent</name>
@@ -49,6 +49,7 @@
     </modules>
 
     <properties>
+        <revision>3.0.0</revision>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
         <!-- AWS SDK -->
