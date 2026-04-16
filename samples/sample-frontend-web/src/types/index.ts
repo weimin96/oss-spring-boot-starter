@@ -34,10 +34,11 @@ export interface ChunkPart {
 
 // ── Unzip ────────────────────────────────────────────────────────────
 export interface UnzipResult {
-  successCount: number
-  failCount: number
-  files: string[]
-  errors?: string[]
+  succeeded: ObjectInfo[]
+  failed: string[]
+  targetPath?: string | null
+  succeededCount: number
+  failedCount: number
 }
 
 // ── Lazy list ────────────────────────────────────────────────────────
@@ -50,4 +51,22 @@ export interface LazyListResult {
 export interface BucketInfo {
   name: string
   creationDate?: string | null
+}
+
+export interface LifecycleRuleInfo {
+  id?: string | null
+  status?: string | null
+  prefix?: string | null
+  expirationDays?: number | null
+  expirationDate?: string | null
+  expiredObjectDeleteMarker?: boolean | null
+}
+
+export interface CorsRuleInfo {
+  id?: string | null
+  allowedOrigins: string[]
+  allowedMethods: string[]
+  allowedHeaders: string[]
+  exposeHeaders: string[]
+  maxAgeSeconds?: number | null
 }

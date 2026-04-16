@@ -8,7 +8,7 @@ import { ossApi } from '@/api/oss'
 // 对象标签
 const objName = ref('demo/example.txt')
 
-const { status: getObjTagStatus, result: getObjTagResult, error: getObjTagError, execute: execGetObjTag } = useResult()
+const { status: getObjTagStatus, result: getObjTagResult, error: getObjTagError, execute: execGetObjTag } = useResult<Record<string, string>>()
 
 const tagRows = reactive<{ key: string; value: string }[]>([
   { key: 'env', value: 'prod' },

@@ -1,26 +1,55 @@
 package com.wiblog.oss.service;
 
+import com.wiblog.oss.bean.CorsRuleInfo;
+import com.wiblog.oss.bean.LifecycleRuleInfo;
 import com.wiblog.oss.bean.OssProperties;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.model.BucketLifecycleConfiguration;
+import software.amazon.awssdk.services.s3.model.BucketVersioningStatus;
+import software.amazon.awssdk.services.s3.model.CORSConfiguration;
+import software.amazon.awssdk.services.s3.model.CORSRule;
+import software.amazon.awssdk.services.s3.model.DeleteBucketCorsRequest;
+import software.amazon.awssdk.services.s3.model.DeleteBucketLifecycleRequest;
+import software.amazon.awssdk.services.s3.model.DeleteBucketPolicyRequest;
+import software.amazon.awssdk.services.s3.model.ExpirationStatus;
+import software.amazon.awssdk.services.s3.model.GetBucketCorsRequest;
+import software.amazon.awssdk.services.s3.model.GetBucketCorsResponse;
+import software.amazon.awssdk.services.s3.model.GetBucketEncryptionRequest;
+import software.amazon.awssdk.services.s3.model.GetBucketEncryptionResponse;
+import software.amazon.awssdk.services.s3.model.GetBucketLifecycleConfigurationRequest;
+import software.amazon.awssdk.services.s3.model.GetBucketLifecycleConfigurationResponse;
+import software.amazon.awssdk.services.s3.model.GetBucketPolicyRequest;
+import software.amazon.awssdk.services.s3.model.GetBucketPolicyResponse;
+import software.amazon.awssdk.services.s3.model.GetBucketVersioningRequest;
+import software.amazon.awssdk.services.s3.model.GetBucketVersioningResponse;
+import software.amazon.awssdk.services.s3.model.GetPublicAccessBlockRequest;
+import software.amazon.awssdk.services.s3.model.GetPublicAccessBlockResponse;
+import software.amazon.awssdk.services.s3.model.LifecycleExpiration;
+import software.amazon.awssdk.services.s3.model.LifecycleRule;
+import software.amazon.awssdk.services.s3.model.LifecycleRuleFilter;
+import software.amazon.awssdk.services.s3.model.PublicAccessBlockConfiguration;
+import software.amazon.awssdk.services.s3.model.PutBucketCorsRequest;
+import software.amazon.awssdk.services.s3.model.PutBucketEncryptionRequest;
+import software.amazon.awssdk.services.s3.model.PutBucketLifecycleConfigurationRequest;
+import software.amazon.awssdk.services.s3.model.PutBucketPolicyRequest;
+import software.amazon.awssdk.services.s3.model.PutBucketVersioningRequest;
+import software.amazon.awssdk.services.s3.model.PutPublicAccessBlockRequest;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryption;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryptionByDefault;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryptionConfiguration;
+import software.amazon.awssdk.services.s3.model.ServerSideEncryptionRule;
+import software.amazon.awssdk.services.s3.model.VersioningConfiguration;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Date;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * Bucket 级别操作。
- *
- * <p>覆盖 AWS S3 SDK v2 中常用的 Bucket 管理能力：</p>
- * <ul>
- *   <li>版本控制（Versioning）</li>
- *   <li>生命周期规则（Lifecycle）</li>
- *   <li>CORS 配置</li>
- *   <li>存储加密配置（SSE）</li>
- *   <li>访问控制策略（Bucket Policy）</li>
- *   <li>Public Access Block（阻止公共访问）</li>
- * </ul>
  *
  * @author panwm
  */
@@ -32,13 +61,6 @@ public class BucketOperations extends Operations {
         super(ossProperties, client, transferManager);
     }
 
-    // ----------------------------------------------------------------
-    // 版本控制
-    // ----------------------------------------------------------------
-
-    /**
-     * 启用当前 Bucket 的版本控制。
-     */
     public void enableVersioning() {
         enableVersioning(ossProperties.getBucketName());
     }
@@ -47,9 +69,6 @@ public class BucketOperations extends Operations {
         setVersioningStatus(bucketName, BucketVersioningStatus.ENABLED);
     }
 
-    /**
-     * 挂起（暂停）版本控制（已有版本保留，新上传不产生版本）。
-     */
     public void suspendVersioning() {
         suspendVersioning(ossProperties.getBucketName());
     }
@@ -58,11 +77,6 @@ public class BucketOperations extends Operations {
         setVersioningStatus(bucketName, BucketVersioningStatus.SUSPENDED);
     }
 
-    /**
-     * 获取 Bucket 版本控制状态。
-     *
-     * @return "Enabled" / "Suspended" / null（未开启）
-     */
     public String getVersioningStatus() {
         return getVersioningStatus(ossProperties.getBucketName());
     }
@@ -76,15 +90,6 @@ public class BucketOperations extends Operations {
         return resp.status().toString();
     }
 
-    // ----------------------------------------------------------------
-    // 生命周期规则
-    // ----------------------------------------------------------------
-
-    /**
-     * 设置 Bucket 生命周期规则（覆盖所有已有规则）。
-     *
-     * @param rules 生命周期规则列表
-     */
     public void putLifecycleRules(List<LifecycleRule> rules) {
         putLifecycleRules(ossProperties.getBucketName(), rules);
     }
@@ -94,49 +99,34 @@ public class BucketOperations extends Operations {
                 .bucket(bucketName)
                 .lifecycleConfiguration(BucketLifecycleConfiguration.builder().rules(rules).build())
                 .build();
-        handleRequest(() -> client.putBucketLifecycleConfiguration(req));
+        requireSuccessfulRequest(() -> client.putBucketLifecycleConfiguration(req),
+                "BUCKET_LIFECYCLE_UPDATE_FAILED",
+                "设置 Bucket 生命周期规则失败：" + bucketName);
         log.info("Set {} lifecycle rules on bucket [{}]", rules.size(), bucketName);
     }
 
-    /**
-     * 获取 Bucket 生命周期规则。
-     *
-     * @return 规则列表，若未配置则返回空列表
-     */
-    public List<LifecycleRule> getLifecycleRules() {
+    public List<LifecycleRuleInfo> getLifecycleRules() {
         return getLifecycleRules(ossProperties.getBucketName());
     }
 
-    public List<LifecycleRule> getLifecycleRules(String bucketName) {
-        GetBucketLifecycleConfigurationResponse resp = handleRequest(() ->
-                client.getBucketLifecycleConfiguration(
-                        GetBucketLifecycleConfigurationRequest.builder().bucket(bucketName).build()));
-        if (resp == null) {
-            return Collections.emptyList();
-        }
-        return resp.rules();
+    public List<LifecycleRuleInfo> getLifecycleRules(String bucketName) {
+        return listLifecycleRuleModels(bucketName).stream()
+                .map(this::toLifecycleRuleInfo)
+                .collect(Collectors.toList());
     }
 
-    /**
-     * 删除 Bucket 所有生命周期规则。
-     */
     public void deleteLifecycleRules() {
         deleteLifecycleRules(ossProperties.getBucketName());
     }
 
     public void deleteLifecycleRules(String bucketName) {
-        handleRequest(() -> client.deleteBucketLifecycle(
-                DeleteBucketLifecycleRequest.builder().bucket(bucketName).build()));
+        requireSuccessfulRequest(() -> client.deleteBucketLifecycle(
+                        DeleteBucketLifecycleRequest.builder().bucket(bucketName).build()),
+                "BUCKET_LIFECYCLE_DELETE_FAILED",
+                "删除 Bucket 生命周期规则失败：" + bucketName);
         log.info("Deleted lifecycle rules on bucket [{}]", bucketName);
     }
 
-    /**
-     * 便捷方法：添加一条"N天后删除过期文件"的生命周期规则。
-     *
-     * @param ruleId         规则 ID（全局唯一）
-     * @param prefix         作用路径前缀，传 "" 表示全 Bucket
-     * @param expirationDays 过期天数
-     */
     public void addExpirationRule(String ruleId, String prefix, int expirationDays) {
         addExpirationRule(ossProperties.getBucketName(), ruleId, prefix, expirationDays);
     }
@@ -145,32 +135,18 @@ public class BucketOperations extends Operations {
         LifecycleRule rule = LifecycleRule.builder()
                 .id(ruleId)
                 .status(ExpirationStatus.ENABLED)
-                .filter(LifecycleRuleFilter.builder()
-                        .prefix(prefix)
-                        .build())
-                .expiration(LifecycleExpiration.builder()
-                        .days(expirationDays)
-                        .build())
+                .filter(LifecycleRuleFilter.builder().prefix(prefix).build())
+                .expiration(LifecycleExpiration.builder().days(expirationDays).build())
                 .build();
 
-        // 合并已有规则
-        List<LifecycleRule> existing = new java.util.ArrayList<>(getLifecycleRules(bucketName));
-        existing.removeIf(r -> ruleId.equals(r.id())); // 替换同 ID 的规则
+        List<LifecycleRule> existing = new ArrayList<LifecycleRule>(listLifecycleRuleModels(bucketName));
+        existing.removeIf(r -> ruleId.equals(r.id()));
         existing.add(rule);
         putLifecycleRules(bucketName, existing);
         log.info("Added expiration rule [{}] on bucket [{}]: {} days, prefix='{}'",
                 ruleId, bucketName, expirationDays, prefix);
     }
 
-    // ----------------------------------------------------------------
-    // CORS 配置
-    // ----------------------------------------------------------------
-
-    /**
-     * 设置 Bucket CORS 规则。
-     *
-     * @param corsRules CORS 规则列表
-     */
     public void putCorsRules(List<CORSRule> corsRules) {
         putCorsRules(ossProperties.getBucketName(), corsRules);
     }
@@ -180,29 +156,22 @@ public class BucketOperations extends Operations {
                 .bucket(bucketName)
                 .corsConfiguration(CORSConfiguration.builder().corsRules(corsRules).build())
                 .build();
-        handleRequest(() -> client.putBucketCors(req));
+        requireSuccessfulRequest(() -> client.putBucketCors(req),
+                "BUCKET_CORS_UPDATE_FAILED",
+                "设置 Bucket CORS 规则失败：" + bucketName);
         log.info("Set CORS rules on bucket [{}]", bucketName);
     }
 
-    /**
-     * 获取 Bucket CORS 配置。
-     */
-    public List<CORSRule> getCorsRules() {
+    public List<CorsRuleInfo> getCorsRules() {
         return getCorsRules(ossProperties.getBucketName());
     }
 
-    public List<CORSRule> getCorsRules(String bucketName) {
-        GetBucketCorsResponse resp = handleRequest(() ->
-                client.getBucketCors(GetBucketCorsRequest.builder().bucket(bucketName).build()));
-        if (resp == null) {
-            return Collections.emptyList();
-        }
-        return resp.corsRules();
+    public List<CorsRuleInfo> getCorsRules(String bucketName) {
+        return listCorsRuleModels(bucketName).stream()
+                .map(this::toCorsRuleInfo)
+                .collect(Collectors.toList());
     }
 
-    /**
-     * 便捷方法：为前端直传场景配置宽松 CORS（允许所有来源）。
-     */
     public void allowAllOriginsCors() {
         allowAllOriginsCors(ossProperties.getBucketName());
     }
@@ -218,27 +187,17 @@ public class BucketOperations extends Operations {
         putCorsRules(bucketName, Collections.singletonList(rule));
     }
 
-    /**
-     * 删除 Bucket CORS 配置。
-     */
     public void deleteCorsRules() {
         deleteCorsRules(ossProperties.getBucketName());
     }
 
     public void deleteCorsRules(String bucketName) {
-        handleRequest(() -> client.deleteBucketCors(
-                DeleteBucketCorsRequest.builder().bucket(bucketName).build()));
+        requireSuccessfulRequest(() -> client.deleteBucketCors(
+                        DeleteBucketCorsRequest.builder().bucket(bucketName).build()),
+                "BUCKET_CORS_DELETE_FAILED",
+                "删除 Bucket CORS 规则失败：" + bucketName);
     }
 
-    // ----------------------------------------------------------------
-    // Bucket 策略（Policy）
-    // ----------------------------------------------------------------
-
-    /**
-     * 获取 Bucket 访问策略 JSON 字符串。
-     *
-     * @return JSON 策略字符串，若未配置返回 null
-     */
     public String getBucketPolicy() {
         return getBucketPolicy(ossProperties.getBucketName());
     }
@@ -249,11 +208,6 @@ public class BucketOperations extends Operations {
         return resp == null ? null : resp.policy();
     }
 
-    /**
-     * 设置 Bucket 访问策略。
-     *
-     * @param policyJson JSON 格式的 IAM 策略
-     */
     public void putBucketPolicy(String policyJson) {
         putBucketPolicy(ossProperties.getBucketName(), policyJson);
     }
@@ -264,9 +218,6 @@ public class BucketOperations extends Operations {
         log.info("Updated policy on bucket [{}]", bucketName);
     }
 
-    /**
-     * 删除 Bucket 访问策略。
-     */
     public void deleteBucketPolicy() {
         deleteBucketPolicy(ossProperties.getBucketName());
     }
@@ -277,13 +228,6 @@ public class BucketOperations extends Operations {
         log.info("Deleted policy on bucket [{}]", bucketName);
     }
 
-    // ----------------------------------------------------------------
-    // Public Access Block（公共访问屏蔽）
-    // ----------------------------------------------------------------
-
-    /**
-     * 启用所有公共访问屏蔽（最高安全级别）。
-     */
     public void blockAllPublicAccess() {
         blockAllPublicAccess(ossProperties.getBucketName());
     }
@@ -303,9 +247,6 @@ public class BucketOperations extends Operations {
         log.info("Blocked all public access on bucket [{}]", bucketName);
     }
 
-    /**
-     * 获取 Bucket 公共访问屏蔽配置。
-     */
     public PublicAccessBlockConfiguration getPublicAccessBlock() {
         return getPublicAccessBlock(ossProperties.getBucketName());
     }
@@ -317,13 +258,6 @@ public class BucketOperations extends Operations {
         return resp == null ? null : resp.publicAccessBlockConfiguration();
     }
 
-    // ----------------------------------------------------------------
-    // 服务端加密（SSE）
-    // ----------------------------------------------------------------
-
-    /**
-     * 为 Bucket 启用 AES-256 服务端加密（SSE-S3）。
-     */
     public void enableServerSideEncryption() {
         enableServerSideEncryption(ossProperties.getBucketName());
     }
@@ -334,7 +268,7 @@ public class BucketOperations extends Operations {
                         ServerSideEncryptionByDefault.builder()
                                 .sseAlgorithm(ServerSideEncryption.AES256)
                                 .build())
-                .bucketKeyEnabled(true)  // 减少 KMS 调用成本
+                .bucketKeyEnabled(true)
                 .build();
 
         handleRequest(() -> client.putBucketEncryption(
@@ -346,9 +280,6 @@ public class BucketOperations extends Operations {
         log.info("Enabled SSE-S3 encryption on bucket [{}]", bucketName);
     }
 
-    /**
-     * 获取 Bucket 加密配置。
-     */
     public ServerSideEncryptionConfiguration getEncryptionConfiguration() {
         return getEncryptionConfiguration(ossProperties.getBucketName());
     }
@@ -360,10 +291,6 @@ public class BucketOperations extends Operations {
         return resp == null ? null : resp.serverSideEncryptionConfiguration();
     }
 
-    // ----------------------------------------------------------------
-    // 私有工具
-    // ----------------------------------------------------------------
-
     private void setVersioningStatus(String bucketName, BucketVersioningStatus status) {
         PutBucketVersioningRequest req = PutBucketVersioningRequest.builder()
                 .bucket(bucketName)
@@ -371,5 +298,60 @@ public class BucketOperations extends Operations {
                 .build();
         handleRequest(() -> client.putBucketVersioning(req));
         log.info("Set versioning status [{}] on bucket [{}]", status, bucketName);
+    }
+
+    private List<LifecycleRule> listLifecycleRuleModels(String bucketName) {
+        GetBucketLifecycleConfigurationResponse resp = handleRequest(() ->
+                client.getBucketLifecycleConfiguration(
+                        GetBucketLifecycleConfigurationRequest.builder().bucket(bucketName).build()));
+        if (resp == null) {
+            return Collections.emptyList();
+        }
+        return resp.rules();
+    }
+
+    private List<CORSRule> listCorsRuleModels(String bucketName) {
+        GetBucketCorsResponse resp = handleRequest(() ->
+                client.getBucketCors(GetBucketCorsRequest.builder().bucket(bucketName).build()));
+        if (resp == null) {
+            return Collections.emptyList();
+        }
+        return resp.corsRules();
+    }
+
+    /**
+     * 生命周期查询对外只暴露稳定字段。
+     *
+     * 当前示例页面主要面向“按前缀在 N 天后过期”这类规则，
+     * 因此这里只保留前缀和过期信息，避免前端直接耦合 SDK 复杂结构。
+     */
+    private LifecycleRuleInfo toLifecycleRuleInfo(LifecycleRule rule) {
+        LifecycleExpiration expiration = rule.expiration();
+        return LifecycleRuleInfo.builder()
+                .id(rule.id())
+                .status(rule.statusAsString())
+                .prefix(resolveLifecyclePrefix(rule))
+                .expirationDays(expiration == null ? null : expiration.days())
+                .expirationDate(expiration == null || expiration.date() == null ? null : Date.from(expiration.date()))
+                .expiredObjectDeleteMarker(expiration == null ? null : expiration.expiredObjectDeleteMarker())
+                .build();
+    }
+
+    private String resolveLifecyclePrefix(LifecycleRule rule) {
+        if (rule.filter() != null && rule.filter().prefix() != null) {
+            return rule.filter().prefix();
+        }
+        return rule.prefix();
+    }
+
+    private CorsRuleInfo toCorsRuleInfo(CORSRule rule) {
+        return CorsRuleInfo.builder()
+                .id(rule.id())
+                .allowedOrigins(rule.hasAllowedOrigins() ? rule.allowedOrigins() : Collections.<String>emptyList())
+                .allowedMethods(rule.hasAllowedMethods() ? rule.allowedMethods() : Collections.<String>emptyList())
+                .allowedHeaders(rule.hasAllowedHeaders() ? rule.allowedHeaders() : Collections.<String>emptyList())
+                .exposeHeaders(rule.hasExposeHeaders() ? rule.exposeHeaders() : Collections.<String>emptyList())
+                .maxAgeSeconds(rule.maxAgeSeconds())
+                .build();
     }
 }

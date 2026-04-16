@@ -4,9 +4,10 @@ import ApiCard from '@/components/ApiCard.vue'
 import ResultPanel from '@/components/ResultPanel.vue'
 import { useResult } from '@/composables/useResult'
 import { ossApi } from '@/api/oss'
+import type { LifecycleRuleInfo } from '@/types'
 
 // 生命周期
-const { status: getLifeStatus, result: getLifeResult, error: getLifeError, execute: execGetLife } = useResult()
+const { status: getLifeStatus, result: getLifeResult, error: getLifeError, execute: execGetLife } = useResult<LifecycleRuleInfo[]>()
 const { status: delLifeStatus, result: delLifeResult, error: delLifeError, execute: execDelLife } = useResult()
 const lifecycleRuleId = ref('expire-rule-1')
 const lifecyclePrefix = ref('tmp/')

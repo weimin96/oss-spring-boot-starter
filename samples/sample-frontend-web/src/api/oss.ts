@@ -16,7 +16,9 @@ import type {
   ObjectInfo,
   ObjectTreeNode,
   BucketInfo,
+  CorsRuleInfo,
   ChunkTarget,
+  LifecycleRuleInfo,
   UnzipResult,
   LazyListResult,
 } from '@/types'
@@ -289,7 +291,7 @@ export const ossApi = {
     enableVersioning: () => request<void>({ method: 'PUT', url: '/bucket/versioning/enable' }),
     suspendVersioning: () => request<void>({ method: 'PUT', url: '/bucket/versioning/suspend' }),
 
-    getLifecycle: () => request<unknown[]>({ method: 'GET', url: '/bucket/lifecycle' }),
+    getLifecycle: () => request<LifecycleRuleInfo[]>({ method: 'GET', url: '/bucket/lifecycle' }),
     deleteLifecycle: () => request<void>({ method: 'DELETE', url: '/bucket/lifecycle' }),
     addExpiration: (ruleId: string, prefix: string, expirationDays: number) =>
       request<void>({
@@ -297,7 +299,7 @@ export const ossApi = {
         params: { ruleId, prefix, expirationDays },
       }),
 
-    getCors: () => request<unknown[]>({ method: 'GET', url: '/bucket/cors' }),
+    getCors: () => request<CorsRuleInfo[]>({ method: 'GET', url: '/bucket/cors' }),
     allowAllCors: () => request<void>({ method: 'PUT', url: '/bucket/cors/allow-all' }),
     deleteCors: () => request<void>({ method: 'DELETE', url: '/bucket/cors' }),
 

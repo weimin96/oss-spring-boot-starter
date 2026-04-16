@@ -4,9 +4,10 @@ import ApiCard from '@/components/ApiCard.vue'
 import ResultPanel from '@/components/ResultPanel.vue'
 import { useResult } from '@/composables/useResult'
 import { ossApi } from '@/api/oss'
+import type { CorsRuleInfo } from '@/types'
 
 // CORS
-const { status: getCorsStatus, result: getCorsResult, error: getCorsError, execute: execGetCors } = useResult()
+const { status: getCorsStatus, result: getCorsResult, error: getCorsError, execute: execGetCors } = useResult<CorsRuleInfo[]>()
 const { status: allowCorsStatus, result: allowCorsResult, error: allowCorsError, execute: execAllowCors } = useResult()
 const { status: delCorsStatus, result: delCorsResult, error: delCorsError, execute: execDelCors } = useResult()
 </script>

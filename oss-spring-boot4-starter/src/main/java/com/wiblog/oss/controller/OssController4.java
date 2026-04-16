@@ -1,6 +1,8 @@
 package com.wiblog.oss.controller;
 
 import com.wiblog.oss.bean.BucketInfo;
+import com.wiblog.oss.bean.CorsRuleInfo;
+import com.wiblog.oss.bean.LifecycleRuleInfo;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.UnzipResult;
@@ -359,7 +361,7 @@ public class OssController4 {
 
     @GetMapping("/bucket/lifecycle")
     @Operation(summary = "获取 Bucket 生命周期规则")
-    public OssResponse<List<?>> getLifecycleRules() {
+    public OssResponse<List<LifecycleRuleInfo>> getLifecycleRules() {
         return OssResponse.data(ossTemplate.bucket().getLifecycleRules());
     }
 
@@ -382,7 +384,7 @@ public class OssController4 {
 
     @GetMapping("/bucket/cors")
     @Operation(summary = "获取 Bucket CORS 配置")
-    public OssResponse<List<?>> getCorsRules() {
+    public OssResponse<List<CorsRuleInfo>> getCorsRules() {
         return OssResponse.data(ossTemplate.bucket().getCorsRules());
     }
 
