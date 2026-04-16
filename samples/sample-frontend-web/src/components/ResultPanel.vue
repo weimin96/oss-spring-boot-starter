@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { useSlots } from 'vue'
 import type { Status } from '@/composables/useResult'
 
 defineProps<{
@@ -7,6 +8,8 @@ defineProps<{
   error?: string | null
   label?: string
 }>()
+
+const slots = useSlots()
 
 function displayResult(result: unknown): string {
   if (result === null || result === undefined) return '✓ 操作成功'
@@ -32,8 +35,11 @@ function displayResult(result: unknown): string {
 
     <!-- Success -->
     <div v-else-if="status === 'success'">
-      <p class="section-label">{{ label ?? '响应结果' }}</p>
-      <pre class="code-block">{{ displayResult(result) }}</pre>
+      <slot v-if="slots.success" name="success" :result="result" />
+      <template v-else>
+        <p class="section-label">{{ label ?? '响应结果' }}</p>
+        <pre class="code-block">{{ displayResult(result) }}</pre>
+      </template>
     </div>
   </div>
 </template>

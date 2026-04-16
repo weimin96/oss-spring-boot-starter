@@ -135,8 +135,13 @@ export const ossApi = {
 
   // ── 文件查询 ──────────────────────────────────────────────────────
   query: {
+    /**
+     * GET /object
+     * 注意：对象不存在或后端识别为存储侧异常时，服务端会返回成功包裹下的 null，
+     * 前端必须把该结果当成“没有数据”，不能误判为 void 成功。
+     */
     getObject: (objectName: string) =>
-      request<ObjectInfo>({ method: 'GET', url: '/object', params: { objectName } }),
+      request<ObjectInfo | null>({ method: 'GET', url: '/object', params: { objectName } }),
 
     exists: (objectName: string) =>
       request<boolean>({ method: 'GET', url: '/object/exists', params: { objectName } }),

@@ -7,21 +7,17 @@ export interface R<T = unknown> {
 
 // ── Object / File info ───────────────────────────────────────────────
 export interface ObjectInfo {
-  objectName: string
+  name: string
+  uri: string
   url: string
   size: number
-  contentType: string
-  lastModified: string
-  etag?: string
+  ext?: string | null
+  uploadTime?: string | null
 }
 
-export interface ObjectTreeNode {
-  name: string
-  path: string
-  isDir: boolean
-  children?: ObjectTreeNode[]
-  size?: number
-  lastModified?: string
+export interface ObjectTreeNode extends ObjectInfo {
+  type?: string | null
+  children?: ObjectTreeNode[] | null
 }
 
 // ── Multipart upload ─────────────────────────────────────────────────
@@ -46,7 +42,7 @@ export interface UnzipResult {
 
 // ── Lazy list ────────────────────────────────────────────────────────
 export interface LazyListResult {
-  objects: ObjectInfo[]
-  nextContinuationToken?: string
-  isTruncated: boolean
+  maxKeys: number
+  continuationToken?: string | null
+  records: ObjectInfo[]
 }
