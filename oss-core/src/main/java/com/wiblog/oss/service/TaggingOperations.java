@@ -4,19 +4,26 @@ import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.model.DeleteBucketTaggingRequest;
+import software.amazon.awssdk.services.s3.model.DeleteObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.GetBucketTaggingRequest;
+import software.amazon.awssdk.services.s3.model.GetBucketTaggingResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
+import software.amazon.awssdk.services.s3.model.PutBucketTaggingRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.Tag;
+import software.amazon.awssdk.services.s3.model.Tagging;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
- * 标签操作类（对象级别 & Bucket 级别）。
- *
- * <p>S3 标签用于成本分配、生命周期规则过滤、跨账号权限策略等场景。
- * 每个对象最多支持 10 个标签（键值对），Bucket 最多 50 个。</p>
+ * 标签操作类。
  *
  * @author panwm
  */
@@ -28,100 +35,71 @@ public class TaggingOperations extends Operations {
         super(ossProperties, client, transferManager);
     }
 
-    // ----------------------------------------------------------------
-    // 对象标签
-    // ----------------------------------------------------------------
-
-    /**
-     * 获取对象的所有标签。
-     *
-     * @param objectName 对象 key
-     * @return 标签 Map，key 为标签键，value 为标签值
-     */
     public Map<String, String> getObjectTags(String objectName) {
         return getObjectTags(ossProperties.getBucketName(), objectName);
     }
 
     public Map<String, String> getObjectTags(String bucketName, String objectName) {
+        String normalizedObjectKey = normalizeObjectKey(objectName);
         GetObjectTaggingRequest req = GetObjectTaggingRequest.builder()
                 .bucket(bucketName)
-                .key(Util.formatPath(objectName))
+                .key(normalizedObjectKey)
                 .build();
-        GetObjectTaggingResponse resp = handleRequest(() -> client.getObjectTagging(req));
-        if (resp == null) {
-            return Collections.emptyMap();
-        }
+        GetObjectTaggingResponse resp = requireSuccessfulRequest(
+                () -> client.getObjectTagging(req),
+                "OBJECT_TAGS_QUERY_FAILED",
+                "获取对象标签失败：" + normalizedObjectKey);
         return resp.tagSet().stream()
                 .collect(Collectors.toMap(Tag::key, Tag::value));
     }
 
-    /**
-     * 设置对象标签（覆盖，不是追加）。
-     *
-     * @param objectName 对象 key
-     * @param tags       标签 Map
-     */
     public void setObjectTags(String objectName, Map<String, String> tags) {
         setObjectTags(ossProperties.getBucketName(), objectName, tags);
     }
 
     public void setObjectTags(String bucketName, String objectName, Map<String, String> tags) {
+        String normalizedObjectKey = normalizeObjectKey(objectName);
         List<Tag> tagList = tags.entrySet().stream()
-                .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+                .map(entry -> Tag.builder().key(entry.getKey()).value(entry.getValue()).build())
                 .collect(Collectors.toList());
 
         PutObjectTaggingRequest req = PutObjectTaggingRequest.builder()
                 .bucket(bucketName)
-                .key(Util.formatPath(objectName))
+                .key(normalizedObjectKey)
                 .tagging(Tagging.builder().tagSet(tagList).build())
                 .build();
-        handleRequest(() -> client.putObjectTagging(req));
-        log.debug("Set {} tags on object [{}]", tags.size(), objectName);
+        requireSuccessfulRequest(() -> client.putObjectTagging(req),
+                "OBJECT_TAGS_UPDATE_FAILED",
+                "设置对象标签失败：" + normalizedObjectKey);
+        log.debug("Set {} tags on object [{}]", tags.size(), normalizedObjectKey);
     }
 
-    /**
-     * 追加/更新对象标签（已有标签保留，冲突键覆盖）。
-     *
-     * @param objectName 对象 key
-     * @param tags       要追加/更新的标签
-     */
     public void mergeObjectTags(String objectName, Map<String, String> tags) {
         mergeObjectTags(ossProperties.getBucketName(), objectName, tags);
     }
 
     public void mergeObjectTags(String bucketName, String objectName, Map<String, String> tags) {
-        Map<String, String> existing = getObjectTags(bucketName, objectName);
-        // 现有标签 + 新标签合并，新标签覆盖同 key 的旧值
-        java.util.HashMap<String, String> merged = new java.util.HashMap<>(existing);
-        merged.putAll(tags);
-        setObjectTags(bucketName, objectName, merged);
+        Map<String, String> mergedTags = new HashMap<String, String>(getObjectTags(bucketName, objectName));
+        mergedTags.putAll(tags);
+        setObjectTags(bucketName, objectName, mergedTags);
     }
 
-    /**
-     * 删除对象上的所有标签。
-     *
-     * @param objectName 对象 key
-     */
     public void deleteObjectTags(String objectName) {
         deleteObjectTags(ossProperties.getBucketName(), objectName);
     }
 
     public void deleteObjectTags(String bucketName, String objectName) {
+        String normalizedObjectKey = normalizeObjectKey(objectName);
         DeleteObjectTaggingRequest req = DeleteObjectTaggingRequest.builder()
                 .bucket(bucketName)
-                .key(Util.formatPath(objectName))
+                .key(normalizedObjectKey)
                 .build();
-        handleRequest(() -> client.deleteObjectTagging(req));
-        log.debug("Deleted all tags on object [{}]", objectName);
+        requireSuccessfulRequest(() -> client.deleteObjectTagging(req),
+                "OBJECT_TAGS_DELETE_FAILED",
+                "删除对象标签失败：" + normalizedObjectKey);
+        log.debug("Deleted all tags on object [{}]", normalizedObjectKey);
     }
 
-    // ----------------------------------------------------------------
-    // Bucket 标签
-    // ----------------------------------------------------------------
-
-    /**
-     * 获取 Bucket 的所有标签。
-     */
     public Map<String, String> getBucketTags() {
         return getBucketTags(ossProperties.getBucketName());
     }
@@ -138,29 +116,25 @@ public class TaggingOperations extends Operations {
                 .collect(Collectors.toMap(Tag::key, Tag::value));
     }
 
-    /**
-     * 设置 Bucket 标签（覆盖）。
-     */
     public void setBucketTags(Map<String, String> tags) {
         setBucketTags(ossProperties.getBucketName(), tags);
     }
 
     public void setBucketTags(String bucketName, Map<String, String> tags) {
         List<Tag> tagList = tags.entrySet().stream()
-                .map(e -> Tag.builder().key(e.getKey()).value(e.getValue()).build())
+                .map(entry -> Tag.builder().key(entry.getKey()).value(entry.getValue()).build())
                 .collect(Collectors.toList());
 
         PutBucketTaggingRequest req = PutBucketTaggingRequest.builder()
                 .bucket(bucketName)
                 .tagging(Tagging.builder().tagSet(tagList).build())
                 .build();
-        handleRequest(() -> client.putBucketTagging(req));
+        requireSuccessfulRequest(() -> client.putBucketTagging(req),
+                "BUCKET_TAGS_UPDATE_FAILED",
+                "设置 Bucket 标签失败：" + bucketName);
         log.debug("Set {} tags on bucket [{}]", tags.size(), bucketName);
     }
 
-    /**
-     * 删除 Bucket 的所有标签。
-     */
     public void deleteBucketTags() {
         deleteBucketTags(ossProperties.getBucketName());
     }
@@ -169,7 +143,26 @@ public class TaggingOperations extends Operations {
         DeleteBucketTaggingRequest req = DeleteBucketTaggingRequest.builder()
                 .bucket(bucketName)
                 .build();
-        handleRequest(() -> client.deleteBucketTagging(req));
+        requireSuccessfulRequest(() -> client.deleteBucketTagging(req),
+                "BUCKET_TAGS_DELETE_FAILED",
+                "删除 Bucket 标签失败：" + bucketName);
         log.debug("Deleted all tags on bucket [{}]", bucketName);
+    }
+
+    /**
+     * 对象标签必须命中精确对象 key。
+     *
+     * 这里不能复用 formatPath 的“目录自动补斜杠”规则，
+     * 否则无扩展名对象或目录风格对象名会被错误改写，导致写入和查询对不上同一个 key。
+     */
+    private String normalizeObjectKey(String objectKey) {
+        if (Util.isBlank(objectKey)) {
+            return "";
+        }
+        String normalizedKey = objectKey.trim().replace('\\', '/');
+        while (normalizedKey.startsWith("/")) {
+            normalizedKey = normalizedKey.substring(1);
+        }
+        return normalizedKey;
     }
 }

@@ -83,6 +83,23 @@ public abstract class Operations {
         }
     }
 
+    /**
+     * 对必须显式成功的请求进行约束。
+     *
+     * 某些 S3 兼容实现会把权限、能力不支持等问题折叠成异常，
+     * 而 handleRequest 会把这类异常转换成 null。
+     * 对写操作和必须命中的查询，如果继续把 null 当成功处理，
+     * 就会出现“接口返回成功，但实际没有生效”的假象。
+     */
+    protected <T> T requireSuccessfulRequest(Supplier<CompletableFuture<T>> requestSupplier,
+                                             String errorCode, String errorMessage) {
+        T response = handleRequest(requestSupplier);
+        if (response == null) {
+            throw new OssException(errorCode, errorMessage);
+        }
+        return response;
+    }
+
     protected String formatPath(String path) {
         return Util.formatPath(path);
     }
