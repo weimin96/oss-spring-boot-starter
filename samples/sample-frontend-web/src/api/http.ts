@@ -14,7 +14,17 @@ http.interceptors.response.use(
     }
     return res
   },
-  (err) => Promise.reject(err),
+  (err) => {
+    // 把后端统一响应里的 msg 透传给前端页面，
+    // 这样参数校验失败时能直接展示服务端返回的领域错误消息。
+    if (axios.isAxiosError(err)) {
+      const body = err.response?.data as Partial<R<unknown>> | undefined
+      if (body?.msg) {
+        return Promise.reject(new Error(body.msg))
+      }
+    }
+    return Promise.reject(err)
+  },
 )
 
 export async function request<T>(config: AxiosRequestConfig): Promise<T> {
