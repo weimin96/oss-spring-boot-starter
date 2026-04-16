@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import ApiCard from '@/components/ApiCard.vue'
+import ObjectTreePanel from '@/components/ObjectTreePanel.vue'
 import ResultPanel from '@/components/ResultPanel.vue'
 import { useResult } from '@/composables/useResult'
 import { ossApi } from '@/api/oss'
+import { normalizeTreeNodes } from '@/utils/objectExplorer'
+import type { ObjectTreeNode } from '@/types'
 
 // 文件夹树
 const folderTreePath = ref('demo/')
-const { status: folderTreeStatus, result: folderTreeResult, error: folderTreeError, execute: execFolderTree } = useResult()
+const { status: folderTreeStatus, result: folderTreeResult, error: folderTreeError, execute: execFolderTree } = useResult<ObjectTreeNode[]>()
+const folderTreeNodes = computed(() => normalizeTreeNodes(folderTreeResult.value ?? []))
 </script>
 
 <template>
@@ -24,7 +28,16 @@ const { status: folderTreeStatus, result: folderTreeResult, error: folderTreeErr
       <button class="btn btn-ghost" :disabled="folderTreeStatus === 'loading'" @click="execFolderTree(() => ossApi.query.getFolderTree(folderTreePath))">
         <span v-if="folderTreeStatus === 'loading'" class="spinner" />获取
       </button>
-      <ResultPanel :status="folderTreeStatus" :result="folderTreeResult" :error="folderTreeError" label="ObjectTreeNode[]（仅文件夹）" />
+      <ResultPanel :status="folderTreeStatus" :result="folderTreeResult" :error="folderTreeError">
+        <template #success>
+          <ObjectTreePanel
+            title="文件夹树"
+            :nodes="folderTreeNodes"
+            empty-text="当前路径下没有文件夹"
+            :default-expanded-depth="3"
+          />
+        </template>
+      </ResultPanel>
     </ApiCard>
   </div>
 </template>

@@ -462,21 +462,13 @@ async function queryUploadedParts() {
 <template>
   <div>
     <h2 class="text-base font-semibold mb-1">分片上传</h2>
-    <p class="text-sm text-[var(--color-muted)] mb-5">
-      演示从初始化任务、并发上传分片到合并对象的完整流程，适合作为业务项目的基础实现参考。
-    </p>
 
-    <ApiCard method="POST" path="/oss/multipart/{init,chunk,merge}" summary="全自动分片上传">
+    <ApiCard method="POST" path="/oss/multipart/{init,chunk,merge}" summary="">
       <div class="mb-4 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs text-[var(--color-muted)]">
         <div class="rounded border border-[var(--color-border)] p-3 space-y-1">
           <p>分片大小：<code class="text-[var(--color-accent)]">5 MB</code></p>
           <p>并发数：<code class="text-[var(--color-accent)]">{{ MAX_PARALLEL_CHUNKS }}</code></p>
           <p>单片最大重试：<code class="text-[var(--color-accent)]">{{ MAX_RETRY }}</code> 次</p>
-        </div>
-        <div class="rounded border border-[var(--color-border)] p-3 space-y-1">
-          <p>空分片防御：发送前校验分片大小，阻止空 `FormData` 请求</p>
-          <p>取消能力：通过 `AbortController` 中断正在进行的请求</p>
-          <p>合并保护：只有全部分片成功返回 `etag` 才允许执行 merge</p>
         </div>
       </div>
 
@@ -497,7 +489,7 @@ async function queryUploadedParts() {
         </div>
         <div v-else>
           <p class="text-sm">点击选择文件，或拖拽到此处</p>
-          <p class="text-xs mt-1 opacity-60">建议选择大于 10 MB 的文件验证分片流程</p>
+          <p class="text-xs mt-1 opacity-60">建议选择大于 10 MB 的文件</p>
         </div>
       </div>
 
@@ -597,43 +589,6 @@ async function queryUploadedParts() {
         :result="mergeResult"
         :error="mergeError"
         label="合并结果 ObjectInfo"
-      />
-    </ApiCard>
-
-    <ApiCard method="GET" path="/oss/multipart/parts" summary="查询已上传分片列表">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
-        <div>
-          <p class="section-label">objectName</p>
-          <input
-            v-model="partsObjectName"
-            class="oss-input"
-            :placeholder="resolvedObjectName || 'demo/file.zip'"
-          />
-        </div>
-        <div>
-          <p class="section-label">uploadId</p>
-          <input
-            v-model="partsUploadId"
-            class="oss-input"
-            :placeholder="uploadId || '请输入 uploadId'"
-          />
-        </div>
-      </div>
-
-      <button
-        class="btn btn-ghost"
-        :disabled="partsStatus === 'loading'"
-        @click="queryUploadedParts"
-      >
-        <span v-if="partsStatus === 'loading'" class="spinner" />
-        查询已上传分片
-      </button>
-
-      <ResultPanel
-        :status="partsStatus"
-        :result="partsResult"
-        :error="partsError"
-        label="已上传分片列表"
       />
     </ApiCard>
   </div>

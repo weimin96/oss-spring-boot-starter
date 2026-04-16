@@ -1,20 +1,18 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue'
 import ApiCard from '@/components/ApiCard.vue'
+import ObjectTreePanel from '@/components/ObjectTreePanel.vue'
 import ResultPanel from '@/components/ResultPanel.vue'
 import { useResult } from '@/composables/useResult'
 import { ossApi } from '@/api/oss'
+import { normalizeTreeRoot } from '@/utils/objectExplorer'
 import type { ObjectTreeNode } from '@/types'
 
 // 关键字搜索树（带空结果处理）
 const searchPath = ref('demo/')
 const searchKeyword = ref('')
 const { status: searchStatus, result: searchResult, error: searchError, execute: execSearch } = useResult<ObjectTreeNode | null>()
-const searchIsEmpty = computed(() => {
-  if (searchStatus.value !== 'success') return false
-  const node = searchResult.value as ObjectTreeNode | null
-  return !node
-})
+const searchNodes = computed(() => normalizeTreeRoot(searchResult.value))
 </script>
 
 <template>
@@ -40,11 +38,16 @@ const searchIsEmpty = computed(() => {
       <button class="btn btn-ghost" :disabled="searchStatus === 'loading'" @click="execSearch(() => ossApi.query.searchTree(searchPath, searchKeyword))">
         <span v-if="searchStatus === 'loading'" class="spinner" />搜索
       </button>
-      <!-- 无匹配提示 -->
-      <div v-if="searchIsEmpty" class="mt-3 p-2 rounded border border-[var(--color-warning)] bg-[rgba(210,153,34,0.08)] text-[var(--color-warning)] text-xs">
-        ⚠️ 无匹配结果（后端返回空节点，非报错）
-      </div>
-      <ResultPanel v-else :status="searchStatus" :result="searchResult" :error="searchError" label="ObjectTreeNode（已过滤）" />
+      <ResultPanel :status="searchStatus" :result="searchResult" :error="searchError">
+        <template #success>
+          <ObjectTreePanel
+            title="过滤后的目录树"
+            :nodes="searchNodes"
+            empty-text="没有匹配结果"
+            :default-expanded-depth="2"
+          />
+        </template>
+      </ResultPanel>
     </ApiCard>
   </div>
 </template>

@@ -70,6 +70,12 @@ async function fetchFileSize(): Promise<boolean> {
 
   try {
     const res = await ossApi.query.getObject(downloadKey.value)
+    // 这里依赖详情接口返回文件大小；若后端返回 null，说明对象不存在或无法获取元数据，
+    // 必须立刻终止下载流程，避免后续分片计算基于错误前提继续执行。
+    if (!res) {
+      fileSizeError.value = '没有数据'
+      return false
+    }
     fileSize.value = res.size || 0
     return true
   } catch (e: unknown) {

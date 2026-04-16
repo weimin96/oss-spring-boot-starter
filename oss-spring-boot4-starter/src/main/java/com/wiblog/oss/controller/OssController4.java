@@ -64,7 +64,7 @@ public class OssController4 {
 
     @PostMapping("/multipart/merge")
     @Operation(summary = "合并分片")
-    public OssResponse<ObjectInfo> merge(@Validated ChunkMerge chunkMerge) {
+    public OssResponse<ObjectInfo> merge(@RequestBody @Validated ChunkMerge chunkMerge) {
         return OssResponse.data(ossTemplate.put().merge(chunkMerge));
     }
 
