@@ -20,12 +20,12 @@ function parseBatch(): string[] {
 <template>
   <div>
     <h2 class="text-base font-semibold mb-1">批量删除文件</h2>
-    <p class="text-sm text-[var(--color-muted)] mb-5">一次删除多个文件（最多 1000 个）</p>
+    <p class="text-sm text-[var(--color-muted)] mb-5">一次删除多个对象，支持文件 key，也支持文件夹路径</p>
 
     <!-- 批量删除 -->
-    <ApiCard method="DELETE" path="/oss/objects" summary="批量删除文件（一次最多 1000 个）">
+    <ApiCard method="DELETE" path="/oss/objects" summary="批量删除对象（文件 key / 文件夹路径，一次最多 1000 行）">
       <div class="mb-4">
-        <p class="section-label">objectNames（每行一个 key）<span class="text-[var(--color-danger)]">*</span></p>
+        <p class="section-label">objectNames（每行一个 key 或路径）<span class="text-[var(--color-danger)]">*</span></p>
         <textarea
           v-model="batchInput"
           class="oss-input"
@@ -33,7 +33,9 @@ function parseBatch(): string[] {
           placeholder="demo/a.txt&#10;demo/b.txt&#10;demo/c.txt"
           style="resize: vertical;"
         />
-        <p class="text-xs text-[var(--color-muted)] mt-1">共 {{ parseBatch().length }} 个</p>
+        <p class="text-xs text-[var(--color-muted)] mt-1">
+          共 {{ parseBatch().length }} 行。目录路径建议使用以 <code>/</code> 结尾的形式。
+        </p>
       </div>
       <button
         class="btn btn-danger"

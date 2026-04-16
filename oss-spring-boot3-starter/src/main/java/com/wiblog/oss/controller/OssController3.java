@@ -113,7 +113,7 @@ public class OssController3 {
     @DeleteMapping("/objects")
     @Operation(summary = "批量删除文件")
     public OssResponse<Void> deleteObjects(@RequestBody @NotNull List<String> objectNames) {
-        objectNames.forEach(key -> ossTemplate.delete().removeObject(key));
+        ossTemplate.delete().removeObjects(objectNames);
         return OssResponse.success("批量删除成功");
     }
 

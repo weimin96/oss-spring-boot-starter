@@ -14,10 +14,6 @@ const { status: blockStatus, result: blockResult, error: blockError, execute: ex
   <div>
     <h2 class="text-base font-semibold mb-1">安全配置</h2>
     <p class="text-sm text-[var(--color-muted)] mb-2">Bucket 的安全相关配置</p>
-    <p class="text-xs text-[var(--color-muted)] mb-5">
-      ℹ️ 大部分写操作后端返回 <code>R.success("xxx")</code>，
-      <code>data</code> 字段为 null（void 语义），ResultPanel 已做处理显示「操作成功」。
-    </p>
 
     <!-- 安全配置 -->
     <div class="card mb-4">

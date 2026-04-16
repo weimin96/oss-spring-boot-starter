@@ -1,11 +1,15 @@
 package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.exception.OssException;
+import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -36,8 +40,31 @@ public class DeleteOperations extends Operations {
     }
 
     public void removeObject(String bucketName, String objectName) {
-        DeleteObjectResponse ignored = handleRequest(() -> client.deleteObject(x -> x.bucket(bucketName)
-                .key(formatPath(objectName)).build()));
+        String normalizedKey = normalizeObjectKey(objectName);
+        if (!deleteExactObjectIfExists(bucketName, normalizedKey)) {
+            throw OssException.objectNotFound(normalizedKey);
+        }
+    }
+
+    public void removeObjects(List<String> objectNames) {
+        removeObjects(ossProperties.getBucketName(), objectNames);
+    }
+
+    /**
+     * 批量删除支持“文件 key + 文件夹路径”混合输入。
+     *
+     * <p>这样设计的原因是前端批量操作通常来自多选结果，其中可能同时包含文件和目录。
+     * 这里优先按精确对象命中，命不中且输入更像目录时，再按目录前缀展开为对象集合删除，
+     * 从而避免把目录请求错误地当作单个占位对象删除。</p>
+     */
+    public void removeObjects(String bucketName, List<String> objectNames) {
+        LinkedHashSet<String> deleteKeys = resolveDeleteKeys(bucketName, objectNames);
+        if (deleteKeys.isEmpty()) {
+            throw new OssException("OBJECT_NOT_FOUND", "未命中任何可删除对象");
+        }
+        deleteByIdentifiers(bucketName, "批量删除", deleteKeys.stream()
+                .map(this::toObjectIdentifier)
+                .collect(Collectors.toList()));
     }
 
     public void removeFolder(String path) {
@@ -51,29 +78,12 @@ public class DeleteOperations extends Operations {
      * 可以避免只删除第一页对象或陷入死循环。</p>
      */
     public void removeFolder(String bucketName, String path) {
-        String continuationToken = null;
-        do {
-            ListObjectsV2Request.Builder requestBuilder = ListObjectsV2Request.builder()
-                    .bucket(bucketName)
-                    .prefix(path)
-                    .maxKeys(BATCH_DELETE_SIZE);
-            if (continuationToken != null) {
-                requestBuilder.continuationToken(continuationToken);
-            }
-
-            ListObjectsV2Response response = handleRequest(() -> client.listObjectsV2(requestBuilder.build()));
-            if (response == null || response.contents().isEmpty()) {
-                break;
-            }
-
-            List<ObjectIdentifier> objectIdentifiers = response.contents().stream()
-                    .map(s3Object -> ObjectIdentifier.builder().key(formatPath(s3Object.key())).build())
-                    .collect(Collectors.toList());
-            deleteObjectsWithCompatibility(bucketName, path, objectIdentifiers);
-            log.debug("Deleted {} objects under path [{}]", objectIdentifiers.size(), path);
-
-            continuationToken = response.nextContinuationToken();
-        } while (continuationToken != null);
+        String normalizedPath = Util.formatPath(path);
+        List<ObjectIdentifier> objectIdentifiers = collectObjectIdentifiersByPrefix(bucketName, normalizedPath);
+        if (objectIdentifiers.isEmpty()) {
+            throw new OssException("OBJECT_NOT_FOUND", "未找到文件夹或文件夹下没有对象：" + normalizedPath);
+        }
+        deleteByIdentifiers(bucketName, normalizedPath, objectIdentifiers);
     }
 
     /**
@@ -115,7 +125,100 @@ public class DeleteOperations extends Operations {
 
     private void deleteObjectsOneByOne(String bucketName, List<ObjectIdentifier> objectIdentifiers) {
         for (ObjectIdentifier objectIdentifier : objectIdentifiers) {
-            removeObject(bucketName, objectIdentifier.key());
+            deleteExactObjectIfExists(bucketName, objectIdentifier.key());
         }
+    }
+
+    private LinkedHashSet<String> resolveDeleteKeys(String bucketName, List<String> objectNames) {
+        LinkedHashSet<String> deleteKeys = new LinkedHashSet<>();
+        if (objectNames == null || objectNames.isEmpty()) {
+            return deleteKeys;
+        }
+
+        for (String rawTarget : objectNames) {
+            String normalizedTarget = normalizeObjectKey(rawTarget);
+            if (Util.isBlank(normalizedTarget)) {
+                continue;
+            }
+
+            if (deleteKeys.contains(normalizedTarget)) {
+                continue;
+            }
+
+            if (objectExists(bucketName, normalizedTarget)) {
+                deleteKeys.add(normalizedTarget);
+                continue;
+            }
+
+            if (looksLikeFolderTarget(rawTarget, normalizedTarget)) {
+                collectObjectIdentifiersByPrefix(bucketName, Util.formatPath(normalizedTarget)).stream()
+                        .map(ObjectIdentifier::key)
+                        .forEach(deleteKeys::add);
+            }
+        }
+
+        return deleteKeys;
+    }
+
+    private void deleteByIdentifiers(String bucketName, String operationName,
+                                     List<ObjectIdentifier> objectIdentifiers) {
+        for (int start = 0; start < objectIdentifiers.size(); start += BATCH_DELETE_SIZE) {
+            int end = Math.min(start + BATCH_DELETE_SIZE, objectIdentifiers.size());
+            List<ObjectIdentifier> batch = new ArrayList<>(objectIdentifiers.subList(start, end));
+            deleteObjectsWithCompatibility(bucketName, operationName, batch);
+        }
+        log.debug("{} completed, deleted {} objects", operationName, objectIdentifiers.size());
+    }
+
+    private List<ObjectIdentifier> collectObjectIdentifiersByPrefix(String bucketName, String prefix) {
+        List<ObjectIdentifier> objectIdentifiers = new ArrayList<>();
+        client.listObjectsV2Paginator(ListObjectsV2Request.builder()
+                        .bucket(bucketName)
+                        .prefix(prefix)
+                        .maxKeys(BATCH_DELETE_SIZE)
+                        .build())
+                .subscribe(response -> response.contents().stream()
+                        .map(S3Object::key)
+                        .map(this::normalizeObjectKey)
+                        .map(this::toObjectIdentifier)
+                        .forEach(objectIdentifiers::add))
+                .join();
+        return objectIdentifiers;
+    }
+
+    private boolean deleteExactObjectIfExists(String bucketName, String objectKey) {
+        if (!objectExists(bucketName, objectKey)) {
+            return false;
+        }
+        handleRequest(() -> client.deleteObject(x -> x.bucket(bucketName).key(objectKey).build()));
+        return true;
+    }
+
+    private boolean objectExists(String bucketName, String objectKey) {
+        HeadObjectResponse response = handleRequest(() -> client.headObject(HeadObjectRequest.builder()
+                .bucket(bucketName)
+                .key(objectKey)
+                .build()));
+        return response != null;
+    }
+
+    private boolean looksLikeFolderTarget(String rawTarget, String normalizedTarget) {
+        String trimmedTarget = rawTarget == null ? "" : rawTarget.trim().replace('\\', '/');
+        return trimmedTarget.endsWith("/") || !Util.checkIsFile(normalizedTarget);
+    }
+
+    private ObjectIdentifier toObjectIdentifier(String key) {
+        return ObjectIdentifier.builder().key(normalizeObjectKey(key)).build();
+    }
+
+    private String normalizeObjectKey(String objectKey) {
+        if (Util.isBlank(objectKey)) {
+            return "";
+        }
+        String normalizedKey = objectKey.trim().replace('\\', '/');
+        while (normalizedKey.startsWith("/")) {
+            normalizedKey = normalizedKey.substring(1);
+        }
+        return normalizedKey;
     }
 }
