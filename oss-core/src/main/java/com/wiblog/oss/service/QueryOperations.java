@@ -1,5 +1,6 @@
 package com.wiblog.oss.service;
 
+import com.wiblog.oss.bean.BucketInfo;
 import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
@@ -68,8 +69,13 @@ public class QueryOperations extends Operations {
         return testConnectForBucket(ossProperties.getBucketName());
     }
 
-    public List<Bucket> getAllBuckets() {
-        return client.listBuckets().join().buckets();
+    public List<BucketInfo> getAllBuckets() {
+        return client.listBuckets().join().buckets().stream()
+                .map(bucket -> BucketInfo.builder()
+                        .name(bucket.name())
+                        .creationDate(bucket.creationDate() == null ? null : Date.from(bucket.creationDate()))
+                        .build())
+                .collect(Collectors.toList());
     }
 
     // ----------------------------------------------------------------
@@ -86,6 +92,8 @@ public class QueryOperations extends Operations {
                         .uri(e.key())
                         .url(getDomain() + e.key())
                         .name(Util.getFilename(e.key()))
+                        .size(e.size())
+                        .ext(Util.getExtension(e.key()))
                         .uploadTime(Date.from(e.lastModified()))
                         .build())
                 .collect(Collectors.toList());

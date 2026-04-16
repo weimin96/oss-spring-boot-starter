@@ -1,5 +1,6 @@
 package com.wiblog.oss.controller;
 
+import com.wiblog.oss.bean.BucketInfo;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.bean.UnzipResult;
@@ -182,7 +183,7 @@ public class OssController3 {
 
     @GetMapping("/buckets")
     @Operation(summary = "列举所有 Bucket")
-    public OssResponse<List<?>> listBuckets() {
+    public OssResponse<List<BucketInfo>> listBuckets() {
         return OssResponse.data(ossTemplate.query().getAllBuckets());
     }
 

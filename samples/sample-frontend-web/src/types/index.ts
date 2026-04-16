@@ -46,3 +46,8 @@ export interface LazyListResult {
   continuationToken?: string | null
   records: ObjectInfo[]
 }
+
+export interface BucketInfo {
+  name: string
+  creationDate?: string | null
+}

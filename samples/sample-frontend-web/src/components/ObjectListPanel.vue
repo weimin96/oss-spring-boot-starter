@@ -58,7 +58,7 @@ const fileCount = computed(() => props.items.length - folderCount.value)
                 </span>
               </td>
               <td class="px-3 py-3 whitespace-nowrap">{{ formatObjectExt(item.ext, item.kind) }}</td>
-              <td class="px-3 py-3 whitespace-nowrap">{{ formatObjectSize(item.size) }}</td>
+              <td class="px-3 py-3 whitespace-nowrap">{{ formatObjectSize(item.size, item.kind) }}</td>
               <td class="px-3 py-3 whitespace-nowrap">{{ formatObjectTime(item.uploadTime) }}</td>
               <td class="px-3 py-3 min-w-[160px]">
                 <a

@@ -104,7 +104,8 @@ function buildUriFromSegments(prefix: string, segments: string[], kind: ObjectEn
   return kind === 'folder' ? `${combined}/` : combined
 }
 
-export function formatObjectSize(size?: number | null): string {
+export function formatObjectSize(size?: number | null, kind?: ObjectEntryKind): string {
+  if (kind === 'folder') return '-'
   if (typeof size !== 'number' || Number.isNaN(size)) return '-'
   if (size <= 0) return '0 B'
   if (size < 1024) return `${size} B`

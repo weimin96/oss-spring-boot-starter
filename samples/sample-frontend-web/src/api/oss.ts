@@ -15,6 +15,7 @@ import { request, requestRaw } from './http'
 import type {
   ObjectInfo,
   ObjectTreeNode,
+  BucketInfo,
   ChunkTarget,
   UnzipResult,
   LazyListResult,
@@ -176,13 +177,8 @@ export const ossApi = {
     getFolderTree: (path: string) =>
       request<ObjectTreeNode[]>({ method: 'GET', url: '/object/tree/folder', params: { path } }),
 
-    /**
-     * GET /buckets
-     * 注意：直接返回 SDK Bucket 对象列表，可能触发序列化问题（HttpMessageConversionException）
-     * 后端 workaround：在 application.yml 配置 jackson 忽略未知字段
-     */
     listBuckets: () =>
-      request<unknown[]>({ method: 'GET', url: '/buckets' }),
+      request<BucketInfo[]>({ method: 'GET', url: '/buckets' }),
 
     /** GET /object/preview/** — inline 预览，返回原始响应 */
     preview: (objectName: string) =>

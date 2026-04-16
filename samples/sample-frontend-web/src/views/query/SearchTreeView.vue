@@ -22,9 +22,6 @@ const searchNodes = computed(() => normalizeTreeRoot(searchResult.value))
 
     <!-- 关键字搜索树 -->
     <ApiCard method="GET" path="/oss/object/tree/search" summary="按关键字搜索目录树">
-      <div class="text-xs text-[var(--color-muted)] mb-3 p-2 rounded bg-[var(--color-bg)] border border-[var(--color-border)]">
-        ⚠️ 注意：若无匹配结果，后端可能返回包含不存在路径的空节点（非报错），前端已做判断处理。
-      </div>
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div>
           <p class="section-label">path</p>
