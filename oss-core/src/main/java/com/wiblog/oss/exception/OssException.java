@@ -23,18 +23,18 @@ public class OssException extends RuntimeException {
     }
 
     public static OssException bucketNotFound(String bucketName) {
-        return new OssException("BUCKET_NOT_FOUND", "Bucket not found: " + bucketName);
+        return new OssException("BUCKET_NOT_FOUND", "未找到 Bucket：" + bucketName);
     }
 
     public static OssException objectNotFound(String objectName) {
-        return new OssException("OBJECT_NOT_FOUND", "Object not found: " + objectName);
+        return new OssException("OBJECT_NOT_FOUND", "未找到对象：" + objectName);
     }
 
     public static OssException uploadFailed(String objectName, Throwable cause) {
-        return new OssException("UPLOAD_FAILED", "Upload failed for: " + objectName, cause);
+        return new OssException("UPLOAD_FAILED", "上传失败：" + objectName, cause);
     }
 
     public static OssException configInvalid(String field) {
-        return new OssException("CONFIG_INVALID", "Invalid OSS configuration: " + field);
+        return new OssException("CONFIG_INVALID", "OSS 配置无效：" + field);
     }
 }

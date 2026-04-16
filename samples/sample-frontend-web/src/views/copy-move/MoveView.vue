@@ -15,9 +15,6 @@ const { status: moveStatus, result: moveResult, error: moveError, execute: execM
   <div>
     <h2 class="text-base font-semibold mb-1">移动文件</h2>
     <p class="text-sm text-[var(--color-muted)] mb-2">移动文件到目标目录（复制 + 删除源）</p>
-    <p class="text-xs text-[var(--color-muted)] mb-5">
-      ℹ️ 后端返回 <code>R.success("xxx")</code>，<code>data</code> 字段为 null（void 语义），属正常响应。
-    </p>
 
     <!-- 移动 -->
     <ApiCard method="POST" path="/oss/object/move" summary="移动文件（复制后删除源文件）">

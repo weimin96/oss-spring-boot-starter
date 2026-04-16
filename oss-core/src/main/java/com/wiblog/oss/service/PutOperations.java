@@ -247,9 +247,13 @@ public class PutOperations extends Operations {
                 .uploadId(chunkMerge.getUploadId())
                 .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())).join();
 
-        return ObjectInfo.builder()
-                .uri(objectName).url(getDomain() + objectName)
-                .name(Util.getFilename(objectName)).build();
+        // 合并成功后立即回查对象元数据，确保把最终文件大小返回给调用方，
+        // 避免前端拿到一个只有名称和 URL 的不完整结果。
+        HeadObjectResponse response = handleRequest(() -> client.headObject(HeadObjectRequest.builder()
+                .bucket(ossProperties.getBucketName())
+                .key(objectName)
+                .build()));
+        return buildObjectInfo(objectName, response);
     }
 
     public List<Part> listParts(String bucketName, String objectName, String uploadId) {

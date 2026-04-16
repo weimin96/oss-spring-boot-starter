@@ -24,9 +24,6 @@ const { status: delBucketTagStatus, result: delBucketTagResult, error: delBucket
   <div>
     <h2 class="text-base font-semibold mb-1">Bucket 标签管理</h2>
     <p class="text-sm text-[var(--color-muted)] mb-2">Bucket 的标签 CRUD 操作</p>
-    <p class="text-xs text-[var(--color-muted)] mb-5">
-      ℹ️ PUT / DELETE 标签接口后端返回 void（data 为 null），ResultPanel 已做处理显示「操作成功」。
-    </p>
 
     <!-- Bucket 标签区 -->
     <ApiCard method="GET" path="/oss/bucket/tags" summary="获取 Bucket 标签">

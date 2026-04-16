@@ -15,9 +15,6 @@ const { status: copyStatus, result: copyResult, error: copyError, execute: execC
   <div>
     <h2 class="text-base font-semibold mb-1">复制文件</h2>
     <p class="text-sm text-[var(--color-muted)] mb-2">在同一个 Bucket 内复制文件</p>
-    <p class="text-xs text-[var(--color-muted)] mb-5">
-      ℹ️ 后端返回 <code>R.success("xxx")</code>，<code>data</code> 字段为 null（void 语义），属正常响应。
-    </p>
 
     <!-- 复制 -->
     <ApiCard method="POST" path="/oss/object/copy" summary="复制文件（同 Bucket 内）">
