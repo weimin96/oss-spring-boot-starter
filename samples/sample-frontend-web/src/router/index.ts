@@ -10,7 +10,7 @@ export interface NavGroup {
 export const navGroups: NavGroup[] = [
   {
     label: '文件上传',
-    icon: '↑',
+    icon: '⏫',
     routes: [
       { name: 'upload', label: '单文件上传', path: '/upload' },
       { name: 'create-folder', label: '创建文件夹', path: '/upload/folder' },
@@ -19,7 +19,7 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: '文件查询',
-    icon: '□',
+    icon: '🔍',
     routes: [
       { name: 'connect', label: '连接测试', path: '/query/connect' },
       { name: 'get-object', label: '文件详情', path: '/query/get' },
