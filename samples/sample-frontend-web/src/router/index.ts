@@ -19,7 +19,7 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: '文件查询',
-    icon: '⊙',
+    icon: '□',
     routes: [
       { name: 'connect', label: '连接测试', path: '/query/connect' },
       { name: 'get-object', label: '文件详情', path: '/query/get' },
@@ -38,7 +38,7 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: '文件删除',
-    icon: '✕',
+    icon: '×',
     routes: [
       { name: 'delete-object', label: '单个删除', path: '/delete/object' },
       { name: 'delete-objects', label: '批量删除', path: '/delete/objects' },
@@ -47,7 +47,7 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: '复制 / 移动',
-    icon: '⇌',
+    icon: '→',
     routes: [
       { name: 'copy', label: '复制文件', path: '/copy-move/copy' },
       { name: 'move', label: '移动文件', path: '/copy-move/move' },
@@ -55,16 +55,16 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: '流式解压',
-    icon: '⊕',
+    icon: '▤',
     routes: [
       { name: 'unzip', label: 'ZIP 解压', path: '/unzip' },
-      { name: 'cross-bucket-unzip', label: '跨Bucket解压', path: '/unzip/cross' },
+      { name: 'cross-bucket-unzip', label: '跨 Bucket 解压', path: '/unzip/cross' },
       { name: 'filter-unzip', label: '过滤解压', path: '/unzip/filter' },
     ],
   },
   {
     label: '预签名 URL',
-    icon: '⚿',
+    icon: '⌗',
     routes: [
       { name: 'presign-get', label: '下载预签名', path: '/presign/get' },
       { name: 'presign-put', label: '上传预签名', path: '/presign/put' },
@@ -72,7 +72,7 @@ export const navGroups: NavGroup[] = [
   },
   {
     label: '标签管理',
-    icon: '◈',
+    icon: '○',
     routes: [
       { name: 'object-tag', label: '对象标签', path: '/tag/object' },
       { name: 'bucket-tag', label: 'Bucket 标签', path: '/tag/bucket' },
@@ -83,7 +83,10 @@ export const navGroups: NavGroup[] = [
     icon: '▣',
     routes: [
       { name: 'create-bucket', label: '创建 Bucket', path: '/bucket/create' },
+      { name: 'bucket-detail', label: 'Bucket 详情', path: '/bucket/detail' },
+      { name: 'bucket-access', label: 'Bucket ACL', path: '/bucket/access' },
       { name: 'versioning', label: '版本控制', path: '/bucket/versioning' },
+      { name: 'bucket-rewind', label: 'Bucket 时间回滚', path: '/bucket/rewind' },
       { name: 'lifecycle', label: '生命周期', path: '/bucket/lifecycle' },
       { name: 'cors', label: 'CORS 配置', path: '/bucket/cors' },
       { name: 'policy', label: '访问策略', path: '/bucket/policy' },
@@ -95,12 +98,10 @@ export const navGroups: NavGroup[] = [
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/upload' },
 
-  // 文件上传
   { path: '/upload', name: 'upload', component: () => import('@/views/upload/UploadView.vue') },
   { path: '/upload/folder', name: 'create-folder', component: () => import('@/views/upload/CreateFolderView.vue') },
   { path: '/upload/multipart', name: 'multipart-upload', component: () => import('@/views/upload/MultipartUpload.vue') },
 
-  // 文件查询
   { path: '/query/connect', name: 'connect', component: () => import('@/views/query/ConnectView.vue') },
   { path: '/query/get', name: 'get-object', component: () => import('@/views/query/GetObjectView.vue') },
   { path: '/query/exists', name: 'exists', component: () => import('@/views/query/ExistsView.vue') },
@@ -115,31 +116,28 @@ const routes: RouteRecordRaw[] = [
   { path: '/query/download', name: 'download', component: () => import('@/views/query/DownloadView.vue') },
   { path: '/query/range', name: 'range-download', component: () => import('@/views/query/RangeDownloadView.vue') },
 
-  // 文件删除
   { path: '/delete/object', name: 'delete-object', component: () => import('@/views/delete/DeleteObjectView.vue') },
   { path: '/delete/objects', name: 'delete-objects', component: () => import('@/views/delete/DeleteObjectsView.vue') },
   { path: '/delete/folder', name: 'delete-folder', component: () => import('@/views/delete/DeleteFolderView.vue') },
 
-  // 复制/移动
   { path: '/copy-move/copy', name: 'copy', component: () => import('@/views/copy-move/CopyView.vue') },
   { path: '/copy-move/move', name: 'move', component: () => import('@/views/copy-move/MoveView.vue') },
 
-  // 流式解压
   { path: '/unzip', name: 'unzip', component: () => import('@/views/unzip/UnzipView.vue') },
   { path: '/unzip/cross', name: 'cross-bucket-unzip', component: () => import('@/views/unzip/CrossBucketUnzipView.vue') },
   { path: '/unzip/filter', name: 'filter-unzip', component: () => import('@/views/unzip/FilterUnzipView.vue') },
 
-  // 预签名 URL
   { path: '/presign/get', name: 'presign-get', component: () => import('@/views/presign/PresignGetView.vue') },
   { path: '/presign/put', name: 'presign-put', component: () => import('@/views/presign/PresignPutView.vue') },
 
-  // 标签管理
   { path: '/tag/object', name: 'object-tag', component: () => import('@/views/tag/ObjectTagView.vue') },
   { path: '/tag/bucket', name: 'bucket-tag', component: () => import('@/views/tag/BucketTagView.vue') },
 
-  // Bucket 管理
   { path: '/bucket/create', name: 'create-bucket', component: () => import('@/views/bucket/CreateBucketView.vue') },
+  { path: '/bucket/detail', name: 'bucket-detail', component: () => import('@/views/bucket/BucketDetailView.vue') },
+  { path: '/bucket/access', name: 'bucket-access', component: () => import('@/views/bucket/BucketAccessView.vue') },
   { path: '/bucket/versioning', name: 'versioning', component: () => import('@/views/bucket/VersioningView.vue') },
+  { path: '/bucket/rewind', name: 'bucket-rewind', component: () => import('@/views/bucket/BucketRewindView.vue') },
   { path: '/bucket/lifecycle', name: 'lifecycle', component: () => import('@/views/bucket/LifecycleView.vue') },
   { path: '/bucket/cors', name: 'cors', component: () => import('@/views/bucket/CorsView.vue') },
   { path: '/bucket/policy', name: 'policy', component: () => import('@/views/bucket/PolicyView.vue') },

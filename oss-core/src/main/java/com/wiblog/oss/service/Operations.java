@@ -84,6 +84,27 @@ public abstract class Operations {
     }
 
     /**
+     * 对需要保留底层 S3 错误语义的请求进行严格执行。
+     *
+     * 某些能力需要根据 S3 返回的错误码区分“对象不存在”“能力不支持”“权限不足”等分支，
+     * 如果继续走 handleRequest 的空值折叠逻辑，就无法给调用方提供准确的领域反馈。
+     */
+    protected <T> T executeRequestStrict(Supplier<CompletableFuture<T>> requestSupplier) {
+        try {
+            return requestSupplier.get().get();
+        } catch (ExecutionException e) {
+            Throwable cause = e.getCause();
+            if (cause instanceof RuntimeException) {
+                throw (RuntimeException) cause;
+            }
+            throw new OssException("OSS_ERROR", "Unexpected OSS error: " + e.getMessage(), cause);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new OssException("OSS_INTERRUPTED", "OSS operation was interrupted", e);
+        }
+    }
+
+    /**
      * 对必须显式成功的请求进行约束。
      *
      * 某些 S3 兼容实现会把权限、能力不支持等问题折叠成异常，
