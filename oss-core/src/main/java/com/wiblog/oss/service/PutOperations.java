@@ -35,6 +35,13 @@ import java.util.stream.Collectors;
 @Slf4j
 public class PutOperations extends Operations {
 
+    /**
+     * 创建上传操作门面。
+     *
+     * @param ossProperties   OSS 配置
+     * @param client          S3 异步客户端
+     * @param transferManager 传输管理器
+     */
     public PutOperations(OssProperties ossProperties, S3AsyncClient client, S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
@@ -44,7 +51,12 @@ public class PutOperations extends Operations {
     // ----------------------------------------------------------------
 
     /**
-     * 创建 bucket（若已存在则跳过）
+     * 创建一个 Bucket；若已存在则跳过。
+     *
+     * <p>这里采用“存在即幂等成功”的语义，
+     * 目的是让启动阶段的自动建桶和业务侧显式建桶都可以安全重复调用。</p>
+     *
+     * @param bucketName 待创建的 Bucket 名称
      */
     public void createBucket(String bucketName) {
         if (!bucketExists(bucketName)) {
@@ -67,14 +79,38 @@ public class PutOperations extends Operations {
     // 文件上传 - InputStream
     // ----------------------------------------------------------------
 
+    /**
+     * 向默认 Bucket 上传一个输入流对象。
+     *
+     * @param path     目标目录
+     * @param filename 文件名
+     * @param in       文件输入流
+     * @return 上传后的对象信息
+     */
     public ObjectInfo putObject(String path, String filename, InputStream in) {
         return putObject(ossProperties.getBucketName(), path, filename, in);
     }
 
+    /**
+     * 向指定 Bucket 上传一个输入流对象。
+     *
+     * @param bucketName Bucket 名称
+     * @param path       目标目录
+     * @param filename   文件名
+     * @param in         文件输入流
+     * @return 上传后的对象信息
+     */
     public ObjectInfo putObject(String bucketName, String path, String filename, InputStream in) {
         return putObjectForKey(bucketName, formatPath(path) + filename, in);
     }
 
+    /**
+     * 按完整对象 key 向默认 Bucket 上传输入流。
+     *
+     * @param objectName 完整对象 key
+     * @param stream     文件输入流
+     * @return 上传后的对象信息
+     */
     public ObjectInfo putObjectForKey(String objectName, InputStream stream) {
         return putObjectForKey(ossProperties.getBucketName(), objectName, stream);
     }
@@ -84,6 +120,11 @@ public class PutOperations extends Operations {
      * <p>
      * 改进：原代码使用 stream.available() 获取大小（不可靠），
      * 现改为先将流读入缓冲区，用精确字节数上传，确保 Content-Length 正确。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 完整对象 key
+     * @param stream     文件输入流
+     * @return 上传后的对象信息
      */
     public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
         objectName = formatPath(objectName);
@@ -110,18 +151,50 @@ public class PutOperations extends Operations {
     // 文件上传 - File
     // ----------------------------------------------------------------
 
+    /**
+     * 向默认 Bucket 上传本地文件。
+     *
+     * @param path     目标目录
+     * @param filename 目标文件名
+     * @param file     本地文件
+     * @return 上传后的对象信息
+     */
     public ObjectInfo putObject(String path, String filename, File file) {
         return putObject(ossProperties.getBucketName(), path, filename, file);
     }
 
+    /**
+     * 向指定 Bucket 上传本地文件。
+     *
+     * @param bucketName Bucket 名称
+     * @param path       目标目录
+     * @param filename   目标文件名
+     * @param file       本地文件
+     * @return 上传后的对象信息
+     */
     public ObjectInfo putObject(String bucketName, String path, String filename, File file) {
         return putObjectForKey(bucketName, formatPath(path) + filename, file);
     }
 
+    /**
+     * 按完整对象 key 向默认 Bucket 上传本地文件。
+     *
+     * @param objectName 完整对象 key
+     * @param file       本地文件
+     * @return 上传后的对象信息
+     */
     public ObjectInfo putObjectForKey(String objectName, File file) {
         return putObjectForKey(ossProperties.getBucketName(), objectName, file);
     }
 
+    /**
+     * 按完整对象 key 向指定 Bucket 上传本地文件。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 完整对象 key
+     * @param file       本地文件
+     * @return 上传后的对象信息
+     */
     public ObjectInfo putObjectForKey(String bucketName, String objectName, File file) {
         objectName = formatPath(objectName);
         PutObjectRequest putReq = PutObjectRequest.builder()
@@ -138,10 +211,25 @@ public class PutOperations extends Operations {
     // 目录操作
     // ----------------------------------------------------------------
 
+    /**
+     * 在默认 Bucket 下创建一个目录占位对象。
+     *
+     * @param path 目录前缀
+     * @return 创建后的目录对象信息
+     */
     public ObjectInfo mkdirs(String path) {
         return mkdirs(ossProperties.getBucketName(), path);
     }
 
+    /**
+     * 在指定 Bucket 下创建一个目录占位对象。
+     *
+     * <p>对象存储本身没有真实目录，这里通过写入一个以 `/` 结尾的空对象来稳定表达目录存在。</p>
+     *
+     * @param bucketName Bucket 名称
+     * @param path       目录前缀
+     * @return 创建后的目录对象信息
+     */
     public ObjectInfo mkdirs(String bucketName, String path) {
         PutObjectRequest req = PutObjectRequest.builder()
                 .bucket(bucketName).key(formatPath(path)).build();
@@ -149,14 +237,38 @@ public class PutOperations extends Operations {
         return buildObjectInfo(path, new Date(), 0);
     }
 
+    /**
+     * 上传整个目录到默认 Bucket。
+     *
+     * @param path   目标目录前缀
+     * @param folder 本地目录
+     */
     public void putFolder(String path, File folder) {
         putFolder(path, folder, true);
     }
 
+    /**
+     * 上传整个目录到默认 Bucket，并控制是否保留目录名。
+     *
+     * @param path                目标目录前缀
+     * @param folder              本地目录
+     * @param isIncludeFolderName 是否把本地目录名拼入目标前缀
+     */
     public void putFolder(String path, File folder, boolean isIncludeFolderName) {
         putFolder(ossProperties.getBucketName(), path, folder, isIncludeFolderName);
     }
 
+    /**
+     * 上传整个目录到指定 Bucket。
+     *
+     * <p>目录上传复用了 TransferManager 的目录传输能力，
+     * 是为了在大量文件场景下让 SDK 负责并发调度，而不是在业务层自己循环上传。</p>
+     *
+     * @param bucketName          Bucket 名称
+     * @param path                目标目录前缀
+     * @param folder              本地目录
+     * @param isIncludeFolderName 是否把本地目录名拼入目标前缀
+     */
     public void putFolder(String bucketName, String path, File folder, boolean isIncludeFolderName) {
         if (!folder.exists() || !folder.isDirectory()) {
             throw new IllegalArgumentException("目录不存在: " + folder.getPath());
@@ -175,10 +287,24 @@ public class PutOperations extends Operations {
     // 拷贝 / 移动
     // ----------------------------------------------------------------
 
+    /**
+     * 在默认 Bucket 内复制对象。
+     *
+     * @param sourceKey 源对象 key
+     * @param destKey   目标对象 key
+     */
     public void copyFile(String sourceKey, String destKey) {
         copyFile(ossProperties.getBucketName(), ossProperties.getBucketName(), sourceKey, destKey);
     }
 
+    /**
+     * 在指定源/目标 Bucket 之间复制对象。
+     *
+     * @param sourceBucket 源 Bucket
+     * @param destBucket   目标 Bucket
+     * @param sourceKey    源对象 key
+     * @param destKey      目标对象 key
+     */
     public void copyFile(String sourceBucket, String destBucket, String sourceKey, String destKey) {
         CopyObjectRequest req = CopyObjectRequest.builder()
                 .sourceBucket(sourceBucket).sourceKey(formatPath(sourceKey))
@@ -187,10 +313,25 @@ public class PutOperations extends Operations {
         handleRequest(() -> client.copyObject(req));
     }
 
+    /**
+     * 在默认 Bucket 内移动对象到目标目录。
+     *
+     * @param sourceObjectName     源对象 key
+     * @param destinationDirectory 目标目录
+     */
     public void move(String sourceObjectName, String destinationDirectory) {
         move(ossProperties.getBucketName(), sourceObjectName, destinationDirectory);
     }
 
+    /**
+     * 在指定 Bucket 内移动对象到目标目录。
+     *
+     * <p>对象存储不支持真正的 rename，这里通过“复制到新位置再删除旧对象”来实现移动语义。</p>
+     *
+     * @param bucketName           Bucket 名称
+     * @param sourceObjectName     源对象 key
+     * @param destinationDirectory 目标目录
+     */
     public void move(String bucketName, String sourceObjectName, String destinationDirectory) {
         String filename = Util.getFilename(sourceObjectName);
         String destKey = Util.formatPath(destinationDirectory) + filename;
@@ -202,6 +343,12 @@ public class PutOperations extends Operations {
     // 分片上传
     // ----------------------------------------------------------------
 
+    /**
+     * 初始化一个分片上传任务。
+     *
+     * @param chunkTask 分片任务定义
+     * @return S3 分片上传任务 ID
+     */
     public String initTask(ChunkTask chunkTask) {
         String objectName = formatPath(chunkTask.getPath()) + chunkTask.getFilename();
         CreateMultipartUploadResponse resp = client.createMultipartUpload(b -> b
@@ -209,6 +356,12 @@ public class PutOperations extends Operations {
         return resp.uploadId();
     }
 
+    /**
+     * 上传单个分片。
+     *
+     * @param chunk 分片内容和分片元数据
+     * @return 分片号与 ETag 信息
+     */
     public ChunkTarget chunk(Chunk chunk) {
         UploadPartRequest req = UploadPartRequest.builder()
                 .bucket(ossProperties.getBucketName())
@@ -230,6 +383,15 @@ public class PutOperations extends Operations {
         }
     }
 
+    /**
+     * 合并已上传的所有分片。
+     *
+     * <p>合并完成后会立即回查对象头信息，
+     * 这样返回值能带上最终文件大小，而不是只返回名称和 URL。</p>
+     *
+     * @param chunkMerge 分片合并请求
+     * @return 合并后的对象信息
+     */
     public ObjectInfo merge(ChunkMerge chunkMerge) {
         String objectName = formatPath(chunkMerge.getPath()) + chunkMerge.getFilename();
         // 处理 null 或空列表的情况
@@ -256,6 +418,14 @@ public class PutOperations extends Operations {
         return buildObjectInfo(objectName, response);
     }
 
+    /**
+     * 查询某个分片上传任务已上传的分片列表。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     * @param uploadId   分片上传任务 ID
+     * @return 已上传分片列表
+     */
     public List<Part> listParts(String bucketName, String objectName, String uploadId) {
         ListPartsRequest req = ListPartsRequest.builder()
                 .bucket(bucketName).key(objectName).uploadId(uploadId)

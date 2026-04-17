@@ -12,7 +12,7 @@ import java.util.Date;
 
 /**
  * Bucket 生命周期规则对外返回模型。
- *
+ * <p>
  * 这里显式抽出领域对象，而不是直接暴露 AWS SDK 的 LifecycleRule，
  * 是为了稳定 HTTP 返回协议，并规避 SDK 模型在 Jackson 序列化时的兼容性问题。
  *

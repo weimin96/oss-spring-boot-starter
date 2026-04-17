@@ -20,6 +20,12 @@ import javax.validation.ConstraintViolationException;
 @RestControllerAdvice(basePackages = "com.wiblog.oss.controller")
 public class OssGlobalExceptionHandler2 {
 
+    /**
+     * 把领域异常转换为统一业务失败响应。
+     *
+     * @param ex 领域异常
+     * @return 统一响应
+     */
     @ExceptionHandler(OssException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public OssResponse<Void> handleOssException(OssException ex) {
@@ -27,18 +33,30 @@ public class OssGlobalExceptionHandler2 {
         return OssResponse.fail(ex.getCode() + ": " + ex.getMessage());
     }
 
+    /**
+     * 把参数绑定或校验异常转换为 400 响应。
+     *
+     * @param ex 参数异常
+     * @return 统一响应
+     */
     @ExceptionHandler({BindException.class, ConstraintViolationException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public OssResponse<Void> handleValidationException(Exception ex) {
         String msg = ex instanceof BindException
                 ? ((BindException) ex).getBindingResult().getFieldErrors().stream()
-                        .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
-                        .findFirst().orElse(ex.getMessage())
+                .map(fe -> fe.getField() + ": " + fe.getDefaultMessage())
+                .findFirst().orElse(ex.getMessage())
                 : ex.getMessage();
         log.warn("OSS validation error: {}", msg);
         return OssResponse.fail(400, msg);
     }
 
+    /**
+     * 把未知异常转换为统一 500 响应。
+     *
+     * @param ex 未知异常
+     * @return 统一响应
+     */
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public OssResponse<Void> handleUnexpected(Exception ex) {

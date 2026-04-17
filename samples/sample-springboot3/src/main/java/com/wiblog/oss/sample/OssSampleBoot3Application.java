@@ -5,6 +5,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /**
  * Spring Boot 3.x OSS Starter 示例启动类
+ *
  * @author pwm
  */
 @SpringBootApplication

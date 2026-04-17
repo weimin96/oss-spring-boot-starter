@@ -35,6 +35,14 @@ public class OssTemplate {
     private volatile TaggingOperations taggingOperations;
     private volatile BucketOperations bucketOperations;
 
+    /**
+     * 创建并立即启动一个 OSS 门面对象。
+     *
+     * <p>构造后直接调用 {@link #start()} 的原因是该类型面向工具包调用方时应尽量做到开箱即用，
+     * 避免出现“实例已创建但内部客户端尚未初始化”的半成品状态。</p>
+     *
+     * @param ossProperties OSS 配置
+     */
     public OssTemplate(OssProperties ossProperties) {
         this.ossProperties = ossProperties;
         this.start();
@@ -44,6 +52,12 @@ public class OssTemplate {
     // 生命周期
     // ----------------------------------------------------------------
 
+    /**
+     * 启动或重建底层 S3 客户端及各操作门面。
+     *
+     * <p>该方法使用同步锁保护，是为了保证 stop/restart 场景下不会出现部分组件已经替换、
+     * 部分组件仍引用旧客户端的竞态状态。</p>
+     */
     public synchronized void start() {
         this.client = buildClient();
         this.transferManager = S3TransferManager.builder().s3Client(this.client).build();
@@ -59,6 +73,12 @@ public class OssTemplate {
                 ossProperties.getEndpoint(), ossProperties.getBucketName(), ossProperties.getType());
     }
 
+    /**
+     * 关闭底层客户端和附属资源。
+     *
+     * <p>这里按“预签名器 -> 传输管理器 -> S3 客户端”的顺序关闭，
+     * 是为了先释放上层依赖，再释放底层连接资源，避免后续清理过程访问到已关闭的客户端。</p>
+     */
     public synchronized void stop() {
         if (this.presignOperations != null) {
             this.presignOperations.close();
@@ -79,30 +99,65 @@ public class OssTemplate {
     // 门面方法
     // ----------------------------------------------------------------
 
+    /**
+     * 返回上传相关操作入口。
+     *
+     * @return 上传操作门面
+     */
     public PutOperations put() {
         return putOperations;
     }
 
+    /**
+     * 返回查询相关操作入口。
+     *
+     * @return 查询操作门面
+     */
     public QueryOperations query() {
         return queryOperations;
     }
 
+    /**
+     * 返回删除相关操作入口。
+     *
+     * @return 删除操作门面
+     */
     public DeleteOperations delete() {
         return deleteOperations;
     }
 
+    /**
+     * 返回流式解压相关操作入口。
+     *
+     * @return 解压操作门面
+     */
     public StreamUnzipOperations unzip() {
         return streamUnzipOperations;
     }
 
+    /**
+     * 返回预签名 URL 相关操作入口。
+     *
+     * @return 预签名操作门面
+     */
     public PresignOperations presign() {
         return presignOperations;
     }
 
+    /**
+     * 返回对象/桶标签相关操作入口。
+     *
+     * @return 标签操作门面
+     */
     public TaggingOperations tagging() {
         return taggingOperations;
     }
 
+    /**
+     * 返回 Bucket 级管理操作入口。
+     *
+     * @return Bucket 操作门面
+     */
     public BucketOperations bucket() {
         return bucketOperations;
     }

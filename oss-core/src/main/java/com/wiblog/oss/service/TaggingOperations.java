@@ -4,16 +4,7 @@ import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
-import software.amazon.awssdk.services.s3.model.DeleteBucketTaggingRequest;
-import software.amazon.awssdk.services.s3.model.DeleteObjectTaggingRequest;
-import software.amazon.awssdk.services.s3.model.GetBucketTaggingRequest;
-import software.amazon.awssdk.services.s3.model.GetBucketTaggingResponse;
-import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
-import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
-import software.amazon.awssdk.services.s3.model.PutBucketTaggingRequest;
-import software.amazon.awssdk.services.s3.model.PutObjectTaggingRequest;
-import software.amazon.awssdk.services.s3.model.Tag;
-import software.amazon.awssdk.services.s3.model.Tagging;
+import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 import java.util.Collections;
@@ -30,15 +21,35 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TaggingOperations extends Operations {
 
+    /**
+     * 创建标签操作门面。
+     *
+     * @param ossProperties   OSS 配置
+     * @param client          S3 异步客户端
+     * @param transferManager 传输管理器
+     */
     public TaggingOperations(OssProperties ossProperties, S3AsyncClient client,
                              S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
 
+    /**
+     * 查询默认 Bucket 下对象的全部标签。
+     *
+     * @param objectName 对象 key
+     * @return 标签键值对
+     */
     public Map<String, String> getObjectTags(String objectName) {
         return getObjectTags(ossProperties.getBucketName(), objectName);
     }
 
+    /**
+     * 查询指定 Bucket 下对象的全部标签。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     * @return 标签键值对
+     */
     public Map<String, String> getObjectTags(String bucketName, String objectName) {
         String normalizedObjectKey = normalizeObjectKey(objectName);
         GetObjectTaggingRequest req = GetObjectTaggingRequest.builder()
@@ -53,10 +64,26 @@ public class TaggingOperations extends Operations {
                 .collect(Collectors.toMap(Tag::key, Tag::value));
     }
 
+    /**
+     * 覆盖设置默认 Bucket 下对象的标签。
+     *
+     * @param objectName 对象 key
+     * @param tags       目标标签集合
+     */
     public void setObjectTags(String objectName, Map<String, String> tags) {
         setObjectTags(ossProperties.getBucketName(), objectName, tags);
     }
 
+    /**
+     * 覆盖设置指定 Bucket 下对象的标签。
+     *
+     * <p>该方法采取“整体覆盖”语义，
+     * 目的是与 S3 `PutObjectTagging` 的原生行为保持一致，避免误导调用方以为是增量更新。</p>
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     * @param tags       目标标签集合
+     */
     public void setObjectTags(String bucketName, String objectName, Map<String, String> tags) {
         String normalizedObjectKey = normalizeObjectKey(objectName);
         List<Tag> tagList = tags.entrySet().stream()
@@ -74,20 +101,44 @@ public class TaggingOperations extends Operations {
         log.debug("Set {} tags on object [{}]", tags.size(), normalizedObjectKey);
     }
 
+    /**
+     * 合并更新默认 Bucket 下对象的标签。
+     *
+     * @param objectName 对象 key
+     * @param tags       需要合并的新标签
+     */
     public void mergeObjectTags(String objectName, Map<String, String> tags) {
         mergeObjectTags(ossProperties.getBucketName(), objectName, tags);
     }
 
+    /**
+     * 合并更新指定 Bucket 下对象的标签。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     * @param tags       需要合并的新标签
+     */
     public void mergeObjectTags(String bucketName, String objectName, Map<String, String> tags) {
         Map<String, String> mergedTags = new HashMap<String, String>(getObjectTags(bucketName, objectName));
         mergedTags.putAll(tags);
         setObjectTags(bucketName, objectName, mergedTags);
     }
 
+    /**
+     * 删除默认 Bucket 下对象的全部标签。
+     *
+     * @param objectName 对象 key
+     */
     public void deleteObjectTags(String objectName) {
         deleteObjectTags(ossProperties.getBucketName(), objectName);
     }
 
+    /**
+     * 删除指定 Bucket 下对象的全部标签。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     */
     public void deleteObjectTags(String bucketName, String objectName) {
         String normalizedObjectKey = normalizeObjectKey(objectName);
         DeleteObjectTaggingRequest req = DeleteObjectTaggingRequest.builder()
@@ -100,10 +151,21 @@ public class TaggingOperations extends Operations {
         log.debug("Deleted all tags on object [{}]", normalizedObjectKey);
     }
 
+    /**
+     * 查询默认 Bucket 的全部标签。
+     *
+     * @return 标签键值对
+     */
     public Map<String, String> getBucketTags() {
         return getBucketTags(ossProperties.getBucketName());
     }
 
+    /**
+     * 查询指定 Bucket 的全部标签。
+     *
+     * @param bucketName Bucket 名称
+     * @return 标签键值对；不存在时返回空集合
+     */
     public Map<String, String> getBucketTags(String bucketName) {
         GetBucketTaggingRequest req = GetBucketTaggingRequest.builder()
                 .bucket(bucketName)
@@ -116,10 +178,21 @@ public class TaggingOperations extends Operations {
                 .collect(Collectors.toMap(Tag::key, Tag::value));
     }
 
+    /**
+     * 覆盖设置默认 Bucket 的标签。
+     *
+     * @param tags 目标标签集合
+     */
     public void setBucketTags(Map<String, String> tags) {
         setBucketTags(ossProperties.getBucketName(), tags);
     }
 
+    /**
+     * 覆盖设置指定 Bucket 的标签。
+     *
+     * @param bucketName Bucket 名称
+     * @param tags       目标标签集合
+     */
     public void setBucketTags(String bucketName, Map<String, String> tags) {
         List<Tag> tagList = tags.entrySet().stream()
                 .map(entry -> Tag.builder().key(entry.getKey()).value(entry.getValue()).build())
@@ -135,10 +208,18 @@ public class TaggingOperations extends Operations {
         log.debug("Set {} tags on bucket [{}]", tags.size(), bucketName);
     }
 
+    /**
+     * 删除默认 Bucket 的全部标签。
+     */
     public void deleteBucketTags() {
         deleteBucketTags(ossProperties.getBucketName());
     }
 
+    /**
+     * 删除指定 Bucket 的全部标签。
+     *
+     * @param bucketName Bucket 名称
+     */
     public void deleteBucketTags(String bucketName) {
         DeleteBucketTaggingRequest req = DeleteBucketTaggingRequest.builder()
                 .bucket(bucketName)
@@ -151,7 +232,7 @@ public class TaggingOperations extends Operations {
 
     /**
      * 对象标签必须命中精确对象 key。
-     *
+     * <p>
      * 这里不能复用 formatPath 的“目录自动补斜杠”规则，
      * 否则无扩展名对象或目录风格对象名会被错误改写，导致写入和查询对不上同一个 key。
      */

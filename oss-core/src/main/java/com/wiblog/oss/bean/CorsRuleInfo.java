@@ -11,7 +11,7 @@ import java.util.List;
 
 /**
  * Bucket CORS 规则对外返回模型。
- *
+ * <p>
  * 这里不直接返回 AWS SDK 的 CORSRule，
  * 是为了让前端始终拿到稳定、可序列化的领域字段，
  * 同时避免把 SDK 内部实现细节暴露到接口协议中。

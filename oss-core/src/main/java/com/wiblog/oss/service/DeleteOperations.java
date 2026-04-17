@@ -8,11 +8,7 @@ import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
-import java.util.ArrayList;
-import java.util.LinkedHashSet;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 /**
@@ -31,14 +27,35 @@ public class DeleteOperations extends Operations {
      */
     private static final int BATCH_DELETE_SIZE = 1000;
 
+    /**
+     * 创建删除操作门面。
+     *
+     * @param ossProperties   OSS 配置
+     * @param client          S3 异步客户端
+     * @param transferManager 传输管理器
+     */
     public DeleteOperations(OssProperties ossProperties, S3AsyncClient client, S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
 
+    /**
+     * 删除默认 Bucket 下的单个对象。
+     *
+     * @param objectName 对象 key
+     */
     public void removeObject(String objectName) {
         removeObject(ossProperties.getBucketName(), objectName);
     }
 
+    /**
+     * 删除指定 Bucket 下的单个对象。
+     *
+     * <p>单对象删除要求精确命中对象 key；如果对象不存在，方法会显式抛出领域异常，
+     * 避免调用方误把“未删除任何内容”当成成功。</p>
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     */
     public void removeObject(String bucketName, String objectName) {
         String normalizedKey = normalizeObjectKey(objectName);
         if (!deleteExactObjectIfExists(bucketName, normalizedKey)) {
@@ -46,6 +63,11 @@ public class DeleteOperations extends Operations {
         }
     }
 
+    /**
+     * 在默认 Bucket 下批量删除对象或目录。
+     *
+     * @param objectNames 对象 key 或目录前缀集合
+     */
     public void removeObjects(List<String> objectNames) {
         removeObjects(ossProperties.getBucketName(), objectNames);
     }
@@ -67,6 +89,11 @@ public class DeleteOperations extends Operations {
                 .collect(Collectors.toList()));
     }
 
+    /**
+     * 删除默认 Bucket 下某个目录前缀对应的全部对象。
+     *
+     * @param path 目录前缀
+     */
     public void removeFolder(String path) {
         removeFolder(ossProperties.getBucketName(), path);
     }

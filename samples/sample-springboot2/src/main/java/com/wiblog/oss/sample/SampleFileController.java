@@ -18,7 +18,9 @@ import java.util.List;
 @RequestMapping("/api/files")
 public class SampleFileController {
 
-    /** 由 OssAutoConfiguration2 自动注册，直接注入即可 */
+    /**
+     * 由 OssAutoConfiguration2 自动注册，直接注入即可
+     */
     private final OssTemplate ossTemplate;
 
     /**

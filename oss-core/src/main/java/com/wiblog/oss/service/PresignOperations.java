@@ -37,6 +37,13 @@ public class PresignOperations extends Operations {
 
     private final S3Presigner presigner;
 
+    /**
+     * 创建预签名操作门面。
+     *
+     * @param ossProperties   OSS 配置
+     * @param client          S3 异步客户端
+     * @param transferManager 传输管理器
+     */
     public PresignOperations(OssProperties ossProperties, S3AsyncClient client,
                              S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
