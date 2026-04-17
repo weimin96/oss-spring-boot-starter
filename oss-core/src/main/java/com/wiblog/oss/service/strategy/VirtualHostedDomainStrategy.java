@@ -24,11 +24,27 @@ public class VirtualHostedDomainStrategy implements DomainStrategy {
     private static final Set<String> SUPPORTED_TYPES = Collections.unmodifiableSet(
             new java.util.HashSet<>(Arrays.asList("obs", "cos")));
 
+    /**
+     * 判断当前 OSS 类型是否应该使用 Virtual-Hosted 域名格式。
+     *
+     * @param type `oss.type` 配置值
+     * @return 支持返回 {@code true}
+     */
     @Override
     public boolean supports(String type) {
         return type != null && SUPPORTED_TYPES.contains(type.toLowerCase());
     }
 
+    /**
+     * 按 Virtual-Hosted 规则拼接访问域名前缀。
+     *
+     * <p>这里显式校验 endpoint 是否可解析成 URL，
+     * 是为了在配置错误时尽早抛出领域异常，而不是把非法地址拖到后续请求阶段才暴露。</p>
+     *
+     * @param endpoint   服务端点
+     * @param bucketName Bucket 名称
+     * @return 形如 `{protocol}://{bucket}.{host}/` 的域名前缀
+     */
     @Override
     public String buildDomain(String endpoint, String bucketName) {
         try {

@@ -12,12 +12,7 @@ import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
-import java.io.BufferedInputStream;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
-import java.io.FilterInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Date;
@@ -27,7 +22,7 @@ import java.util.zip.ZipInputStream;
 
 /**
  * 流式解压操作类。
- *
+ * <p>
  * 通过 ZipInputStream 边下载边解压，避免把整个 ZIP 文件先落盘到本地。
  *
  * @author panwm
@@ -42,20 +37,46 @@ public class StreamUnzipOperations extends Operations {
 
     /**
      * 单个 ZIP 条目允许进入内存缓冲的上限。
-     *
+     * <p>
      * 这里显式限制，是为了避免过滤解压和自定义处理在遇到异常大条目时把 JVM 内存拖垮。
      */
     private static final int MAX_BUFFER_BYTES = 128 * 1024 * 1024;
 
+    /**
+     * 创建流式解压操作门面。
+     *
+     * @param ossProperties   OSS 配置
+     * @param client          S3 异步客户端
+     * @param transferManager 传输管理器
+     */
     public StreamUnzipOperations(OssProperties ossProperties, S3AsyncClient client,
                                  S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
 
+    /**
+     * 在默认 Bucket 内把 ZIP 对象解压到默认 Bucket 的目标目录。
+     *
+     * @param zipObjectKey ZIP 对象 key
+     * @param targetPath   目标目录前缀
+     * @return 解压结果
+     */
     public UnzipResult unzip(String zipObjectKey, String targetPath) {
         return unzip(ossProperties.getBucketName(), zipObjectKey, ossProperties.getBucketName(), targetPath);
     }
 
+    /**
+     * 在指定源/目标 Bucket 之间执行流式解压。
+     *
+     * <p>该方法按条目边读取边上传，
+     * 目的是避免先把整个 ZIP 下载到本地，降低临时磁盘依赖和大文件内存峰值。</p>
+     *
+     * @param sourceBucket 源 Bucket
+     * @param zipObjectKey ZIP 对象 key
+     * @param targetBucket 目标 Bucket
+     * @param targetPath   目标目录前缀
+     * @return 解压结果
+     */
     public UnzipResult unzip(String sourceBucket, String zipObjectKey,
                              String targetBucket, String targetPath) {
         String normalizedTargetPath = Util.formatPath(targetPath);
@@ -101,10 +122,28 @@ public class StreamUnzipOperations extends Operations {
                 .build();
     }
 
+    /**
+     * 在默认 Bucket 内按自定义处理器消费 ZIP 条目。
+     *
+     * @param zipObjectKey ZIP 对象 key
+     * @param handler      条目处理器
+     * @return 处理结果
+     */
     public UnzipResult unzip(String zipObjectKey, UnzipEntryHandler handler) {
         return unzip(ossProperties.getBucketName(), zipObjectKey, handler);
     }
 
+    /**
+     * 在指定 Bucket 内按自定义处理器消费 ZIP 条目。
+     *
+     * <p>该重载适用于“读取 ZIP 条目后不直接上传，而是交由业务方自定义处理”的场景，
+     * 例如筛选、转码或二次写入其他系统。</p>
+     *
+     * @param bucketName   Bucket 名称
+     * @param zipObjectKey ZIP 对象 key
+     * @param handler      条目处理器
+     * @return 处理结果
+     */
     public UnzipResult unzip(String bucketName, String zipObjectKey, UnzipEntryHandler handler) {
         log.info("Stream unzip with custom handler: [{}/{}]", bucketName, zipObjectKey);
 
@@ -149,6 +188,14 @@ public class StreamUnzipOperations extends Operations {
                 .build();
     }
 
+    /**
+     * 在默认 Bucket 内按条目前缀过滤并解压 ZIP。
+     *
+     * @param zipObjectKey ZIP 对象 key
+     * @param entryPrefix  条目前缀；为空时表示不过滤
+     * @param targetPath   目标目录前缀
+     * @return 解压结果
+     */
     public UnzipResult unzipWithFilter(String zipObjectKey, String entryPrefix, String targetPath) {
         return unzipWithFilter(ossProperties.getBucketName(), zipObjectKey,
                 ossProperties.getBucketName(), entryPrefix, targetPath);
@@ -156,9 +203,16 @@ public class StreamUnzipOperations extends Operations {
 
     /**
      * 过滤解压必须只记录真正命中过滤条件且成功上传的条目。
-     *
+     * <p>
      * 这里不再复用“自定义 handler 解压”分支，因为那个分支会把每个非目录条目都计入 succeeded，
      * 无法区分“被过滤跳过”和“实际已解压”。
+     *
+     * @param sourceBucket 源 Bucket
+     * @param zipObjectKey ZIP 对象 key
+     * @param targetBucket 目标 Bucket
+     * @param entryPrefix  条目前缀；为空时表示不过滤
+     * @param targetPath   目标目录前缀
+     * @return 解压结果
      */
     public UnzipResult unzipWithFilter(String sourceBucket, String zipObjectKey,
                                        String targetBucket, String entryPrefix, String targetPath) {

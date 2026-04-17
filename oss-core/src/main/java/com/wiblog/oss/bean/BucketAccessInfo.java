@@ -9,7 +9,7 @@ import lombok.experimental.Accessors;
 
 /**
  * Bucket ACL 信息。
- *
+ * <p>
  * 这里对外只暴露 S3 默认 canned ACL 名称，
  * 目的是让前端和调用方围绕稳定的权限枚举交互，
  * 而不是直接耦合到底层 grants 明细结构。

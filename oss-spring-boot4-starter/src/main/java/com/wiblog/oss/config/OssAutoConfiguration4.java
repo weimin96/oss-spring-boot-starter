@@ -27,6 +27,12 @@ public class OssAutoConfiguration4 {
 
     private static final Logger log = LoggerFactory.getLogger(OssAutoConfiguration4.class);
 
+    /**
+     * 创建 OSS 门面 Bean。
+     *
+     * @param properties 绑定后的 OSS 配置
+     * @return OSS 门面对象
+     */
     @Bean(destroyMethod = "stop", name = "ossTemplate")
     @ConditionalOnMissingBean(OssTemplate.class)
     public OssTemplate ossTemplate(OssProperties4 properties) {
@@ -34,6 +40,12 @@ public class OssAutoConfiguration4 {
         return new OssTemplate(properties);
     }
 
+    /**
+     * 在 Web 环境下注册 HTTP 控制器。
+     *
+     * @param template 已初始化的 OSS 门面
+     * @return HTTP 控制器
+     */
     @Bean
     @ConditionalOnWebApplication
     @ConditionalOnMissingBean(OssController4.class)
@@ -43,6 +55,11 @@ public class OssAutoConfiguration4 {
         return new OssController4(template);
     }
 
+    /**
+     * 注册统一异常处理器。
+     *
+     * @return 异常处理器
+     */
     @Bean
     @ConditionalOnWebApplication
     @ConditionalOnMissingBean(OssGlobalExceptionHandler4.class)

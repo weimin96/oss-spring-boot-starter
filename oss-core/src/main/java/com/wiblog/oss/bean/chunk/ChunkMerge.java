@@ -1,7 +1,6 @@
 package com.wiblog.oss.bean.chunk;
 
 import io.swagger.v3.oas.annotations.media.Schema;
-
 import lombok.Data;
 
 import java.util.List;

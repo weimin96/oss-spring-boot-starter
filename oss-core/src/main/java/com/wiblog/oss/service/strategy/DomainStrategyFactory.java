@@ -26,7 +26,10 @@ public class DomainStrategyFactory {
     }
 
     /**
-     * 根据 OSS 类型选取匹配的策略
+     * 根据 OSS 类型选取匹配的策略。
+     *
+     * <p>工厂按顺序遍历策略列表，是为了让默认兜底策略始终放在最后，
+     * 新增厂商类型时只需要补一个实现并注册，不必改调用方分支判断。</p>
      *
      * @param type OSS 类型，如 "obs" / "cos" / "minio"
      * @return 匹配的域名策略（不会返回 null）

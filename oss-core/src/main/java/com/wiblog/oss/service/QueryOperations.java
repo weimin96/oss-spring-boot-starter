@@ -1,10 +1,7 @@
 package com.wiblog.oss.service;
 
+import com.wiblog.oss.bean.*;
 import com.wiblog.oss.bean.BucketInfo;
-import com.wiblog.oss.bean.LazyDataList;
-import com.wiblog.oss.bean.ObjectInfo;
-import com.wiblog.oss.bean.ObjectTreeNode;
-import com.wiblog.oss.bean.OssProperties;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
@@ -33,10 +30,14 @@ import java.util.stream.Collectors;
 @Slf4j
 public class QueryOperations extends Operations {
 
-    /** 预览/下载时的 IO 缓冲区大小 4KB */
+    /**
+     * 预览/下载时的 IO 缓冲区大小 4KB
+     */
     private static final int BUFFER_SIZE = 4 * 1024;
 
-    /** 列举对象时每页最大数量 */
+    /**
+     * 列举对象时每页最大数量
+     */
     private static final int LIST_MAX_KEYS = 1000;
 
     public QueryOperations(OssProperties ossProperties, S3AsyncClient client,
@@ -44,6 +45,11 @@ public class QueryOperations extends Operations {
         super(ossProperties, client, transferManager);
     }
 
+    /**
+     * 返回当前查询操作绑定的 OSS 配置。
+     *
+     * @return OSS 配置
+     */
     public OssProperties getOssProperties() {
         return ossProperties;
     }
@@ -52,10 +58,21 @@ public class QueryOperations extends Operations {
     // 连接 / Bucket 检测
     // ----------------------------------------------------------------
 
+    /**
+     * 测试默认 Bucket 是否可访问。
+     *
+     * @return 可访问返回 {@code true}
+     */
     public boolean testConnect() {
         return testConnectForBucket();
     }
 
+    /**
+     * 测试指定 Bucket 是否可访问。
+     *
+     * @param bucketName Bucket 名称
+     * @return 可访问返回 {@code true}
+     */
     public boolean testConnectForBucket(String bucketName) {
         try {
             client.headBucket(HeadBucketRequest.builder().bucket(bucketName).build()).join();
@@ -65,10 +82,20 @@ public class QueryOperations extends Operations {
         }
     }
 
+    /**
+     * 使用默认配置里的 Bucket 执行连通性测试。
+     *
+     * @return 可访问返回 {@code true}
+     */
     public boolean testConnectForBucket() {
         return testConnectForBucket(ossProperties.getBucketName());
     }
 
+    /**
+     * 列举当前凭证可见的全部 Bucket。
+     *
+     * @return Bucket 列表
+     */
     public List<BucketInfo> getAllBuckets() {
         return client.listBuckets().join().buckets().stream()
                 .map(bucket -> BucketInfo.builder()
@@ -82,10 +109,23 @@ public class QueryOperations extends Operations {
     // 对象列表查询
     // ----------------------------------------------------------------
 
+    /**
+     * 列举默认 Bucket 某个前缀下的所有对象。
+     *
+     * @param path 查询前缀
+     * @return 对象信息列表
+     */
     public List<ObjectInfo> listObjects(String path) {
         return listObjects(ossProperties.getBucketName(), path);
     }
 
+    /**
+     * 列举指定 Bucket 某个前缀下的所有对象。
+     *
+     * @param bucketName Bucket 名称
+     * @param path       查询前缀
+     * @return 对象信息列表
+     */
     public List<ObjectInfo> listObjects(String bucketName, String path) {
         return listObject(bucketName, path, null).stream()
                 .map(e -> ObjectInfo.builder()
@@ -99,14 +139,38 @@ public class QueryOperations extends Operations {
                 .collect(Collectors.toList());
     }
 
+    /**
+     * 列举默认 Bucket 下的原始 S3 对象列表。
+     *
+     * @param path 查询前缀
+     * @return 原始对象列表
+     */
     public List<S3Object> listObject(String path) {
         return listObject(ossProperties.getBucketName(), path, null);
     }
 
+    /**
+     * 列举指定 Bucket 下的原始 S3 对象列表。
+     *
+     * @param bucketName Bucket 名称
+     * @param path       查询前缀
+     * @return 原始对象列表
+     */
     public List<S3Object> listObject(String bucketName, String path) {
         return listObject(bucketName, path, null);
     }
 
+    /**
+     * 列举指定 Bucket 下的对象，并可按关键字二次过滤。
+     *
+     * <p>S3 本身只支持按前缀筛选，不支持任意关键字查询，
+     * 因此这里先按前缀分页拉取，再在客户端侧按关键字过滤。</p>
+     *
+     * @param bucketName Bucket 名称
+     * @param path       查询前缀
+     * @param keyword    关键字；为空时不过滤
+     * @return 原始对象列表
+     */
     public List<S3Object> listObject(String bucketName, String path, String keyword) {
         List<S3Object> list = new ArrayList<>();
         String prefix = Util.formatPath(path);
@@ -131,12 +195,32 @@ public class QueryOperations extends Operations {
     // 懒加载列表
     // ----------------------------------------------------------------
 
+    /**
+     * 查询默认 Bucket 的懒加载分页列表。
+     *
+     * @param path              查询前缀
+     * @param maxKeys           单次返回上限
+     * @param continuationToken 分页游标
+     * @return 懒加载分页结果
+     */
     public LazyDataList<ObjectInfo> lazyList(String path, int maxKeys, String continuationToken) {
         return lazyList(ossProperties.getBucketName(), path, maxKeys, continuationToken);
     }
 
+    /**
+     * 查询指定 Bucket 的懒加载分页列表。
+     *
+     * <p>第一页会额外补充下一层级目录节点，
+     * 目的是让调用方在“分页文件 + 目录结构”并存的界面里一次拿到可展示数据。</p>
+     *
+     * @param bucketName        Bucket 名称
+     * @param path              查询前缀
+     * @param maxKeys           单次返回上限
+     * @param continuationToken 分页游标
+     * @return 懒加载分页结果
+     */
     public LazyDataList<ObjectInfo> lazyList(String bucketName, String path,
-                                              int maxKeys, String continuationToken) {
+                                             int maxKeys, String continuationToken) {
         if (maxKeys <= 0) {
             maxKeys = 1000;
         }
@@ -167,10 +251,23 @@ public class QueryOperations extends Operations {
     // 树形结构查询
     // ----------------------------------------------------------------
 
+    /**
+     * 列举默认 Bucket 指定前缀下一层级的文件和目录。
+     *
+     * @param path 查询前缀
+     * @return 下一层级节点列表
+     */
     public List<ObjectTreeNode> listNextLevel(String path) {
         return listNextLevel(ossProperties.getBucketName(), path);
     }
 
+    /**
+     * 列举指定 Bucket 指定前缀下一层级的文件和目录。
+     *
+     * @param bucketName Bucket 名称
+     * @param path       查询前缀
+     * @return 下一层级节点列表
+     */
     public List<ObjectTreeNode> listNextLevel(String bucketName, String path) {
         List<ObjectTreeNode> resultList = new ArrayList<>();
         String prefix = Util.formatPath(path);
@@ -194,10 +291,23 @@ public class QueryOperations extends Operations {
         return resultList;
     }
 
+    /**
+     * 获取默认 Bucket 的纯文件夹树。
+     *
+     * @param path 查询前缀
+     * @return 文件夹树
+     */
     public List<ObjectTreeNode> getFolderTreeList(String path) {
         return getFolderTreeList(ossProperties.getBucketName(), path);
     }
 
+    /**
+     * 获取指定 Bucket 的纯文件夹树。
+     *
+     * @param bucketName Bucket 名称
+     * @param path       查询前缀
+     * @return 文件夹树
+     */
     public List<ObjectTreeNode> getFolderTreeList(String bucketName, String path) {
         String prefix = Util.formatPath(path);
         List<S3Object> list = new ArrayList<>();
@@ -212,10 +322,23 @@ public class QueryOperations extends Operations {
         return root.getChildren() == null ? Collections.emptyList() : root.getChildren();
     }
 
+    /**
+     * 列举默认 Bucket 指定路径下的下一层目录，并转换成 {@link ObjectInfo} 结构。
+     *
+     * @param path 查询前缀
+     * @return 目录信息列表
+     */
     public List<ObjectInfo> listNextLevelFolder(String path) {
         return listNextLevelFolder(ossProperties.getBucketName(), path);
     }
 
+    /**
+     * 列举指定 Bucket 指定路径下的下一层目录，并转换成 {@link ObjectInfo} 结构。
+     *
+     * @param bucketName Bucket 名称
+     * @param path       查询前缀
+     * @return 目录信息列表
+     */
     public List<ObjectInfo> listNextLevelFolder(String bucketName, String path) {
         List<ObjectInfo> resultList = new ArrayList<>();
         String prefix = Util.formatPath(path);
@@ -238,10 +361,23 @@ public class QueryOperations extends Operations {
     // 文件存在性 & 元数据
     // ----------------------------------------------------------------
 
+    /**
+     * 检查默认 Bucket 中对象是否存在。
+     *
+     * @param objectName 对象 key
+     * @return 存在返回 {@code true}
+     */
     public boolean checkExist(String objectName) {
         return checkExist(ossProperties.getBucketName(), objectName);
     }
 
+    /**
+     * 检查指定 Bucket 中对象是否存在。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     * @return 存在返回 {@code true}
+     */
     public boolean checkExist(String bucketName, String objectName) {
         try {
             client.headObject(HeadObjectRequest.builder()
@@ -252,10 +388,23 @@ public class QueryOperations extends Operations {
         }
     }
 
+    /**
+     * 查询默认 Bucket 中对象的元数据。
+     *
+     * @param objectName 对象 key
+     * @return 对象信息
+     */
     public ObjectInfo getObjectInfo(String objectName) {
         return getObjectInfo(ossProperties.getBucketName(), objectName);
     }
 
+    /**
+     * 查询指定 Bucket 中对象的元数据。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     * @return 对象信息
+     */
     public ObjectInfo getObjectInfo(String bucketName, String objectName) {
         HeadObjectRequest req = HeadObjectRequest.builder()
                 .bucket(bucketName).key(objectName).build();
@@ -267,10 +416,23 @@ public class QueryOperations extends Operations {
     // 内容读取
     // ----------------------------------------------------------------
 
+    /**
+     * 读取默认 Bucket 中对象的文本内容。
+     *
+     * @param objectName 对象 key
+     * @return UTF-8 文本内容；对象不存在时返回 {@code null}
+     */
     public String getContent(String objectName) {
         return getContent(ossProperties.getBucketName(), objectName);
     }
 
+    /**
+     * 读取指定 Bucket 中对象的文本内容。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     * @return UTF-8 文本内容；对象不存在时返回 {@code null}
+     */
     public String getContent(String bucketName, String objectName) {
         try {
             return client.getObject(buildGetRequest(bucketName, objectName),
@@ -283,10 +445,23 @@ public class QueryOperations extends Operations {
         }
     }
 
+    /**
+     * 获取默认 Bucket 中对象的输入流。
+     *
+     * @param objectName 对象 key
+     * @return 对象输入流
+     */
     public InputStream getInputStream(String objectName) {
         return getInputStream(ossProperties.getBucketName(), objectName);
     }
 
+    /**
+     * 获取指定 Bucket 中对象的完整输入流。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     * @return 对象输入流
+     */
     public InputStream getInputStream(String bucketName, String objectName) {
         return handleRequest(() ->
                 client.getObject(buildGetRequest(bucketName, objectName),
@@ -294,6 +469,14 @@ public class QueryOperations extends Operations {
                         .thenApply(rb -> toInputStream(rb.asByteBuffer())));
     }
 
+    /**
+     * 获取指定 Bucket 中对象某个字节区间的输入流。
+     *
+     * @param bucketName Bucket 名称
+     * @param objectName 对象 key
+     * @param range      字节区间，例如 `bytes=0-1023`
+     * @return 对应区间的输入流
+     */
     public InputStream getInputStream(String bucketName, String objectName, String range) {
         GetObjectRequest req = GetObjectRequest.builder()
                 .bucket(bucketName).key(Util.formatPath(objectName)).range(range).build();
@@ -306,10 +489,25 @@ public class QueryOperations extends Operations {
     // 文件下载到本地
     // ----------------------------------------------------------------
 
+    /**
+     * 下载默认 Bucket 中的对象到本地。
+     *
+     * @param objectName    对象 key
+     * @param localFilePath 本地文件路径或目录路径
+     * @return 下载后的本地文件
+     */
     public File getFile(String objectName, String localFilePath) {
         return getFile(ossProperties.getBucketName(), objectName, localFilePath);
     }
 
+    /**
+     * 下载指定 Bucket 中的对象到本地。
+     *
+     * @param bucketName    Bucket 名称
+     * @param objectName    对象 key
+     * @param localFilePath 本地文件路径或目录路径
+     * @return 下载后的本地文件
+     */
     public File getFile(String bucketName, String objectName, String localFilePath) {
         File outputFile = new File(localFilePath);
         outputFile.getParentFile().mkdirs();
@@ -323,10 +521,23 @@ public class QueryOperations extends Operations {
         return outputFile;
     }
 
+    /**
+     * 下载默认 Bucket 下整个目录前缀到本地。
+     *
+     * @param objectName    目录前缀
+     * @param localFilePath 本地目录
+     */
     public void getFolder(String objectName, String localFilePath) {
         getFolder(ossProperties.getBucketName(), objectName, localFilePath);
     }
 
+    /**
+     * 下载指定 Bucket 下整个目录前缀到本地。
+     *
+     * @param bucketName    Bucket 名称
+     * @param objectName    目录前缀
+     * @param localFilePath 本地目录
+     */
     public void getFolder(String bucketName, String objectName, String localFilePath) {
         List<S3Object> objects = listObject(bucketName, objectName, null);
         if (!localFilePath.endsWith(File.separator)) {
@@ -407,18 +618,46 @@ public class QueryOperations extends Operations {
     // 树形结构构建（私有）
     // ----------------------------------------------------------------
 
+    /**
+     * 获取默认 Bucket 下的完整目录树。
+     *
+     * @param path 根目录前缀
+     * @return 根节点；无命中时返回 {@code null}
+     */
     public ObjectTreeNode getTreeList(String path) {
         return getTreeList(ossProperties.getBucketName(), path);
     }
 
+    /**
+     * 获取指定 Bucket 下的完整目录树。
+     *
+     * @param bucketName Bucket 名称
+     * @param path       根目录前缀
+     * @return 根节点；无命中时返回 {@code null}
+     */
     public ObjectTreeNode getTreeList(String bucketName, String path) {
         return buildTree(listObject(bucketName, path), path);
     }
 
+    /**
+     * 按关键字搜索默认 Bucket 下的目录树。
+     *
+     * @param path    根目录前缀
+     * @param keyword 关键字
+     * @return 根节点；无命中时返回 {@code null}
+     */
     public ObjectTreeNode getTreeListByName(String path, String keyword) {
         return getTreeListByName(ossProperties.getBucketName(), path, keyword);
     }
 
+    /**
+     * 按关键字搜索指定 Bucket 下的目录树。
+     *
+     * @param bucketName Bucket 名称
+     * @param path       根目录前缀
+     * @param keyword    关键字
+     * @return 根节点；无命中时返回 {@code null}
+     */
     public ObjectTreeNode getTreeListByName(String bucketName, String path, String keyword) {
         return buildTree(listObject(bucketName, path, keyword), path);
     }
@@ -519,7 +758,7 @@ public class QueryOperations extends Operations {
     }
 
     private void serveFullContent(OssPreviewContext context, String objectName,
-                                   long fileSize) throws IOException {
+                                  long fileSize) throws IOException {
         context.setContentLengthLong(fileSize);
         try (InputStream in = getInputStream(objectName);
              OutputStream out = context.getOutputStream()) {
@@ -528,7 +767,7 @@ public class QueryOperations extends Operations {
     }
 
     private void serveRangeContent(OssPreviewContext context, String objectName,
-                                    long fileSize, String rangeHeader) throws IOException {
+                                   long fileSize, String rangeHeader) throws IOException {
         long[] range = parseRange(rangeHeader, fileSize);
         long start = range[0], end = range[1];
         long contentLength = end - start + 1;

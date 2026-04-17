@@ -26,6 +26,15 @@ public class OssAutoConfiguration2 {
 
     private static final Logger log = LoggerFactory.getLogger(OssAutoConfiguration2.class);
 
+    /**
+     * 创建 OSS 门面 Bean。
+     *
+     * <p>自动配置把 `OssTemplate` 作为唯一入口暴露给宿主应用，
+     * 让上传、查询、删除等能力共享同一套客户端生命周期。</p>
+     *
+     * @param properties 绑定后的 OSS 配置
+     * @return OSS 门面对象
+     */
     @Bean(destroyMethod = "stop", name = "ossTemplate")
     @ConditionalOnMissingBean(OssTemplate.class)
     public OssTemplate ossTemplate(OssProperties2 properties) {
@@ -33,6 +42,12 @@ public class OssAutoConfiguration2 {
         return new OssTemplate(properties);
     }
 
+    /**
+     * 在 Web 环境下注册 HTTP 控制器。
+     *
+     * @param template 已初始化的 OSS 门面
+     * @return HTTP 控制器
+     */
     @Bean
     @ConditionalOnWebApplication
     @ConditionalOnMissingBean(OssController2.class)
@@ -42,6 +57,11 @@ public class OssAutoConfiguration2 {
         return new OssController2(template);
     }
 
+    /**
+     * 注册统一异常处理器。
+     *
+     * @return 异常处理器
+     */
     @Bean
     @ConditionalOnWebApplication
     @ConditionalOnMissingBean(OssGlobalExceptionHandler2.class)

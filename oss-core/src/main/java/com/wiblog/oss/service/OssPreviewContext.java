@@ -17,25 +17,39 @@ import java.io.OutputStream;
  */
 public interface OssPreviewContext {
 
-    /** 获取 HTTP 请求方法（GET / HEAD 等） */
+    /**
+     * 获取 HTTP 请求方法（GET / HEAD 等）
+     */
     String getMethod();
 
-    /** 获取 Range 请求头，不存在时返回 null */
+    /**
+     * 获取 Range 请求头，不存在时返回 null
+     */
     String getRangeHeader();
 
-    /** 设置响应 Content-Type */
+    /**
+     * 设置响应 Content-Type
+     */
     void setContentType(String contentType);
 
-    /** 设置响应头 */
+    /**
+     * 设置响应头
+     */
     void setHeader(String name, String value);
 
-    /** 设置响应状态码 */
+    /**
+     * 设置响应状态码
+     */
     void setStatus(int statusCode);
 
-    /** 设置 Content-Length */
+    /**
+     * 设置 Content-Length
+     */
     void setContentLengthLong(long length);
 
-    /** 获取响应输出流 */
+    /**
+     * 获取响应输出流
+     */
     OutputStream getOutputStream() throws IOException;
 
     /**
