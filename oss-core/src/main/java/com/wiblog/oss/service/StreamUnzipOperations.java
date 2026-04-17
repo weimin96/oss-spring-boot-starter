@@ -185,6 +185,9 @@ public class StreamUnzipOperations extends Operations {
 
                 try {
                     String relativeName = prefix.isEmpty() ? entryName : entryName.substring(prefix.length());
+                    while (relativeName.startsWith("/")) {
+                        relativeName = relativeName.substring(1);
+                    }
                     String destKey = normalizedTargetPath + relativeName;
                     ObjectInfo info = uploadEntry(zis, entry, targetBucket, destKey);
                     succeeded.add(info);

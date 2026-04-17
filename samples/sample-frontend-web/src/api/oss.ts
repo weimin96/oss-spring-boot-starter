@@ -15,9 +15,13 @@ import { request, requestRaw } from './http'
 import type {
   ObjectInfo,
   ObjectTreeNode,
+  BucketAccessInfo,
+  BucketCannedAcl,
+  BucketDetailInfo,
   BucketInfo,
   CorsRuleInfo,
   ChunkTarget,
+  BucketRewindResult,
   LifecycleRuleInfo,
   UnzipResult,
   LazyListResult,
@@ -286,6 +290,26 @@ export const ossApi = {
     /** POST /bucket — 返回 void */
     create: (bucketName: string) =>
       request<void>({ method: 'POST', url: '/bucket', params: { bucketName } }),
+
+    getDetail: (bucketName: string) =>
+      request<BucketDetailInfo>({ method: 'GET', url: `/buckets/${bucketName}` }),
+
+    getAccess: (bucketName: string) =>
+      request<BucketAccessInfo>({ method: 'GET', url: `/buckets/${bucketName}/access` }),
+
+    setAccess: (bucketName: string, acl: BucketCannedAcl) =>
+      request<BucketAccessInfo>({
+        method: 'PUT',
+        url: `/buckets/${bucketName}/access`,
+        params: { acl },
+      }),
+
+    rewind: (bucketName: string, targetTime: string) =>
+      request<BucketRewindResult>({
+        method: 'POST',
+        url: `/buckets/${bucketName}/rewind`,
+        params: { targetTime },
+      }),
 
     getVersioning: () => request<string>({ method: 'GET', url: '/bucket/versioning' }),
     enableVersioning: () => request<void>({ method: 'PUT', url: '/bucket/versioning/enable' }),

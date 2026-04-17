@@ -1,6 +1,9 @@
 package com.wiblog.oss.controller;
 
 import com.wiblog.oss.bean.BucketInfo;
+import com.wiblog.oss.bean.BucketAccessInfo;
+import com.wiblog.oss.bean.BucketDetailInfo;
+import com.wiblog.oss.bean.BucketRewindResult;
 import com.wiblog.oss.bean.CorsRuleInfo;
 import com.wiblog.oss.bean.LifecycleRuleInfo;
 import com.wiblog.oss.bean.ObjectInfo;
@@ -187,6 +190,34 @@ public class OssController2 {
     @Operation(summary = "列举所有 Bucket")
     public OssResponse<List<BucketInfo>> listBuckets() {
         return OssResponse.data(ossTemplate.query().getAllBuckets());
+    }
+
+    @GetMapping("/buckets/{bucketName}")
+    @Operation(summary = "获取指定 Bucket 详情")
+    public OssResponse<BucketDetailInfo> getBucketDetail(@PathVariable String bucketName) {
+        return OssResponse.data(ossTemplate.bucket().getBucketDetail(bucketName));
+    }
+
+    @GetMapping("/buckets/{bucketName}/access")
+    @Operation(summary = "获取指定 Bucket ACL")
+    public OssResponse<BucketAccessInfo> getBucketAccess(@PathVariable String bucketName) {
+        return OssResponse.data(ossTemplate.bucket().getBucketAccess(bucketName));
+    }
+
+    @PutMapping("/buckets/{bucketName}/access")
+    @Operation(summary = "设置指定 Bucket ACL")
+    public OssResponse<BucketAccessInfo> setBucketAccess(
+            @PathVariable String bucketName,
+            @NotBlank @RequestParam String acl) {
+        return OssResponse.data(ossTemplate.bucket().setBucketAccess(bucketName, acl));
+    }
+
+    @PostMapping("/buckets/{bucketName}/rewind")
+    @Operation(summary = "按时间回滚指定 Bucket")
+    public OssResponse<BucketRewindResult> rewindBucket(
+            @PathVariable String bucketName,
+            @NotBlank @RequestParam String targetTime) {
+        return OssResponse.data(ossTemplate.bucket().rewindBucket(bucketName, targetTime));
     }
 
     @GetMapping("/connect")

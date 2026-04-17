@@ -53,6 +53,33 @@ export interface BucketInfo {
   creationDate?: string | null
 }
 
+export type BucketCannedAcl = 'private' | 'public-read' | 'public-read-write' | 'authenticated-read'
+
+export interface BucketAccessInfo {
+  bucketName: string
+  acl: string
+  supported: boolean
+  message?: string | null
+}
+
+export interface BucketDetailInfo {
+  name: string
+  creationDate?: string | null
+  access?: string | null
+  totalSize: number
+  totalObjectCount: number
+  tags: Record<string, string>
+}
+
+export interface BucketRewindResult {
+  bucketName: string
+  targetTime?: string | null
+  scannedObjectCount: number
+  restoredObjectCount: number
+  deletedObjectCount: number
+  skippedObjectCount: number
+}
+
 export interface LifecycleRuleInfo {
   id?: string | null
   status?: string | null
