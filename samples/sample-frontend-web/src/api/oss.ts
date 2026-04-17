@@ -1,16 +1,3 @@
-/**
- * OSS API — mirrors OssController endpoints.
- *
- * Base prefix is configured via VITE_API_BASE_URL (default: /api/oss).
- * All functions return the unwrapped `data` from R<T>.
- *
- * Chunk bean fields (actual Java):
- *   chunkNumber, filename, path, guid, file(MultipartFile), uploadId
- * ChunkTask bean fields:
- *   filename, path
- * ChunkMerge bean fields:
- *   filename, path, uploadId, guid, chunkTargetList: [{partNumber, etag}]
- */
 import { request, requestRaw } from './http'
 import type {
   ObjectInfo,

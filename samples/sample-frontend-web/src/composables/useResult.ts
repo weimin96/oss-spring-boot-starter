@@ -2,13 +2,6 @@ import { ref } from 'vue'
 
 export type Status = 'idle' | 'loading' | 'success' | 'error'
 
-/**
- * Wraps an async API call with loading / error / result state.
- *
- * Usage:
- *   const { status, result, error, execute } = useResult()
- *   await execute(() => ossApi.query.getObject('key'))
- */
 export function useResult<T = unknown>() {
   const status = ref<Status>('idle')
   const result = ref<T | null>(null)

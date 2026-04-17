@@ -76,7 +76,6 @@ jobs:
           -DrepoToken=$GITHUB_TOKEN
           -DserviceName=github
           -DpullRequest=$PR_NUMBER
-          --file oss-spring-boot3-starter/pom.xml
         env:
           GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
           PR_NUMBER: ${{ github.event.number }}
@@ -90,7 +89,6 @@ jobs:
           -Dlicense.skip=true
           -DrepoToken=$GITHUB_TOKEN
           -DserviceName=github
-          --file oss-spring-boot3-starter/pom.xml
         env:
           GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
 
