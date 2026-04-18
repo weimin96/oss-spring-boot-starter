@@ -430,10 +430,11 @@ public class QueryOperations extends Operations implements OssQueryService {
      */
     @Override
     public ObjectInfo getObjectInfo(String bucketName, String objectName) {
+        String objectKey = normalizeObjectKey(objectName);
         HeadObjectRequest req = HeadObjectRequest.builder()
-                .bucket(bucketName).key(objectName).build();
+                .bucket(bucketName).key(objectKey).build();
         HeadObjectResponse response = handleRequest(() -> client.headObject(req));
-        return buildObjectInfo(objectName, response);
+        return buildObjectInfo(objectKey, response);
     }
 
     // ----------------------------------------------------------------
@@ -508,7 +509,7 @@ public class QueryOperations extends Operations implements OssQueryService {
     @Override
     public InputStream getInputStream(String bucketName, String objectName, String range) {
         GetObjectRequest req = GetObjectRequest.builder()
-                .bucket(bucketName).key(Util.formatPath(objectName)).range(range).build();
+                .bucket(bucketName).key(normalizeObjectKey(objectName)).range(range).build();
         return handleRequest(() ->
                 client.getObject(req, AsyncResponseTransformer.toBytes())
                         .thenApply(rb -> toInputStream(rb.asByteBuffer())));
@@ -808,7 +809,15 @@ public class QueryOperations extends Operations implements OssQueryService {
 
     private GetObjectRequest buildGetRequest(String bucketName, String objectName) {
         return GetObjectRequest.builder()
-                .bucket(bucketName).key(Util.formatPath(objectName)).build();
+                .bucket(bucketName).key(normalizeObjectKey(objectName)).build();
+    }
+
+    private static String normalizeObjectKey(String objectName) {
+        if (objectName == null) {
+            return null;
+        }
+        String objectKey = objectName.replace('\\', '/');
+        return objectKey.startsWith("/") ? objectKey.substring(1) : objectKey;
     }
 
     private static InputStream toInputStream(ByteBuffer buffer) {
@@ -819,8 +828,13 @@ public class QueryOperations extends Operations implements OssQueryService {
 
     private void serveFullContent(OssPreviewContext context, String objectName,
                                   long fileSize) throws IOException {
+        InputStream inputStream = getInputStream(objectName);
+        if (inputStream == null) {
+            context.sendNotFound();
+            return;
+        }
         context.setContentLengthLong(fileSize);
-        try (InputStream in = getInputStream(objectName);
+        try (InputStream in = inputStream;
              OutputStream out = context.getOutputStream()) {
             pipe(in, out, fileSize);
         }
@@ -832,11 +846,16 @@ public class QueryOperations extends Operations implements OssQueryService {
         long start = range[0], end = range[1];
         long contentLength = end - start + 1;
 
+        InputStream inputStream = getInputStream(ossProperties.getBucketName(), objectName, rangeHeader);
+        if (inputStream == null) {
+            context.sendNotFound();
+            return;
+        }
         context.setStatus(206);
         context.setHeader("Content-Length", String.valueOf(contentLength));
         context.setHeader("Content-Range", "bytes " + start + "-" + end + "/" + fileSize);
 
-        try (InputStream in = getInputStream(ossProperties.getBucketName(), objectName, rangeHeader);
+        try (InputStream in = inputStream;
              OutputStream out = context.getOutputStream()) {
             pipe(in, out, contentLength);
         }
@@ -862,5 +881,4 @@ public class QueryOperations extends Operations implements OssQueryService {
         }
     }
 }
-
 
