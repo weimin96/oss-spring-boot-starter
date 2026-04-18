@@ -97,6 +97,7 @@
         <maven-javadoc-plugin.version>3.12.0</maven-javadoc-plugin.version>
         <maven-source-plugin.version>3.4.0</maven-source-plugin.version>
         <maven-surefire-plugin.version>3.5.4</maven-surefire-plugin.version>
+        <flatten-maven-plugin.version>1.7.3</flatten-maven-plugin.version>
         <jacoco-plugin.version>0.8.14</jacoco-plugin.version>
         <testcontainers.version>2.0.4</testcontainers.version>
     </properties>
@@ -323,6 +324,37 @@
             <id>release</id>
             <build>
                 <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>flatten-maven-plugin</artifactId>
+                        <version>${flatten-maven-plugin.version}</version>
+                        <configuration>
+                            <!--
+                                Central Portal 校验的是最终发布 POM，而不是源码仓库里的原始 pom.xml。
+                                当前工程使用 CI Friendly Version 与父 POM 继承，如果不在 deploy 前扁平化，
+                                发布 bundle 会残留 ${revision}、缺失继承元数据与依赖版本，最终被 Central 拒绝。
+                            -->
+                            <updatePomFile>true</updatePomFile>
+                            <flattenMode>ossrh</flattenMode>
+                            <flattenDependencyMode>inherited</flattenDependencyMode>
+                        </configuration>
+                        <executions>
+                            <execution>
+                                <id>flatten-release-pom</id>
+                                <phase>process-resources</phase>
+                                <goals>
+                                    <goal>flatten</goal>
+                                </goals>
+                            </execution>
+                            <execution>
+                                <id>flatten-release-clean</id>
+                                <phase>clean</phase>
+                                <goals>
+                                    <goal>clean</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
                     <plugin>
                         <groupId>org.sonatype.central</groupId>
                         <artifactId>central-publishing-maven-plugin</artifactId>
