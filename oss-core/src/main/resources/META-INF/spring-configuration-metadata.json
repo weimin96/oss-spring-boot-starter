@@ -1,0 +1,143 @@
+{
+  "groups": [
+    {
+      "name": "oss",
+      "type": "com.wiblog.oss.config.OssClientOptions",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "description": "OSS 对象存储客户端配置。Boot 2/3/4 自动装配模块会先绑定各自的外部配置类，再映射为该核心内部选项。"
+    },
+    {
+      "name": "oss.http",
+      "type": "com.wiblog.oss.config.OssClientOptions$Http",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "sourceMethod": "getHttp()",
+      "description": "内置 HTTP 端点配置。仅在显式引入对应 web-starter 或 openapi-starter 时生效。"
+    }
+  ],
+  "properties": [
+    {
+      "name": "oss.enable",
+      "type": "java.lang.Boolean",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "defaultValue": false,
+      "description": "是否启用 OSS 自动装配。设置为 true 后才会创建 OssTemplate。"
+    },
+    {
+      "name": "oss.endpoint",
+      "type": "java.lang.String",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "description": "对象存储服务端点，必须包含协议，例如 http://localhost:9000 或 https://s3.amazonaws.com。启用 OSS 时不能为空。"
+    },
+    {
+      "name": "oss.bucket-name",
+      "type": "java.lang.String",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "description": "默认 Bucket 名称。配置后 OssTemplate 启动时会检查该 Bucket 是否存在；未配置时跳过默认 Bucket 检查。"
+    },
+    {
+      "name": "oss.auto-create-bucket",
+      "type": "java.lang.Boolean",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "defaultValue": false,
+      "description": "默认 Bucket 不存在时是否自动创建。仅在 oss.bucket-name 非空时参与启动检查。"
+    },
+    {
+      "name": "oss.access-key",
+      "type": "java.lang.String",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "description": "访问密钥 ID。启用 OSS 时不能为空。"
+    },
+    {
+      "name": "oss.secret-key",
+      "type": "java.lang.String",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "description": "访问密钥 Secret。启用 OSS 时不能为空。"
+    },
+    {
+      "name": "oss.type",
+      "type": "java.lang.String",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "description": "对象存储类型。用于选择域名拼接策略、兼容删除策略和本地兼容服务的 Path-Style 行为。"
+    },
+    {
+      "name": "oss.max-connections",
+      "type": "java.lang.Integer",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "defaultValue": 50,
+      "description": "最大连接数，最小为 1。该值作为客户端连接容量配置保留，便于后续统一接入底层连接池参数。"
+    },
+    {
+      "name": "oss.connection-timeout",
+      "type": "java.lang.Long",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "defaultValue": 10000,
+      "description": "连接超时时间，单位为毫秒，不能为负数。"
+    },
+    {
+      "name": "oss.throughput-in-gbps",
+      "type": "java.lang.Double",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "defaultValue": 20.0,
+      "description": "S3 CRT 异步客户端目标吞吐量，单位为 Gbps。"
+    },
+    {
+      "name": "oss.part-size-in-mb",
+      "type": "java.lang.Integer",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "defaultValue": 10,
+      "description": "S3 Transfer Manager 分片上传最小分片大小，单位为 MB，最小为 5。"
+    },
+    {
+      "name": "oss.http.enable",
+      "type": "java.lang.Boolean",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions$Http",
+      "defaultValue": false,
+      "description": "是否启用内置 OSS HTTP 端点。仅引入 web-starter 或 openapi-starter 时会注册 /oss/** 相关接口。"
+    },
+    {
+      "name": "oss.http.prefix",
+      "type": "java.lang.String",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions$Http",
+      "defaultValue": "",
+      "description": "内置 HTTP 端点路径前缀，例如 /api。最终接口路径为 ${oss.http.prefix}/oss。"
+    }
+  ],
+  "hints": [
+    {
+      "name": "oss.type",
+      "values": [
+        {
+          "value": "minio",
+          "description": "MinIO 或本地 S3 兼容服务。客户端会强制使用 Path-Style。"
+        },
+        {
+          "value": "cos",
+          "description": "腾讯云 COS，访问域名按 Virtual-Hosted 风格拼接。"
+        },
+        {
+          "value": "obs",
+          "description": "华为云 OBS，访问域名按 Virtual-Hosted 风格拼接。"
+        },
+        {
+          "value": "oss",
+          "description": "阿里云 OSS 的 S3 兼容接入类型。"
+        },
+        {
+          "value": "s3",
+          "description": "Amazon S3。批量删除会优先使用 S3 原生批量删除接口。"
+        }
+      ]
+    },
+    {
+      "name": "oss.endpoint",
+      "providers": [
+        {
+          "name": "handle-as",
+          "parameters": {
+            "target": "java.net.URI"
+          }
+        }
+      ]
+    }
+  ]
+}

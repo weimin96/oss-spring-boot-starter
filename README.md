@@ -1,410 +1,351 @@
-# OSS Spring Boot3 Starter
+# oss-spring-boot-starter
 
 [![Java CI](https://github.com/weimin96/oss-spring-boot-starter/actions/workflows/ci.yml/badge.svg)](https://github.com/weimin96/oss-spring-boot-starter/actions/workflows/ci.yml)
 [![Coverage Status](https://coveralls.io/repos/github/weimin96/oss-spring-boot-starter/badge.svg?branch=main)](https://coveralls.io/github/weimin96/oss-spring-boot-starter?branch=main)
 [![GitHub Release](https://img.shields.io/github/v/release/weimin96/oss-spring-boot-starter)](https://github.com/weimin96/oss-spring-boot-starter/releases/)
 [![Maven Central Version](https://img.shields.io/maven-central/v/io.github.weimin96/oss-spring-boot3-starter)](https://repo1.maven.org/maven2/io/github/weimin96/oss-spring-boot3-starter/)
-[![GitHub repo size](https://img.shields.io/github/repo-size/weimin96/oss-spring-boot-starter)](https://github.com/weimin96/oss-spring-boot-starter/releases/)
 [![License](https://img.shields.io/:license-apache-brightgreen.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-[![Last Commit](https://img.shields.io/github/last-commit/weimin96/oss-spring-boot-starter.svg)](https://github.com/weimin96/oss-spring-boot-starter)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/weimin96/oss-spring-boot-starter.svg)](https://github.com/weimin96/oss-spring-boot-starter)
 
-README: [English](README.md) | [中文](README-zh-CN.md)
+基于 AWS S3 SDK v2 的对象存储 Spring Boot Starter，支持 Spring Boot 2、Spring Boot 3、Spring Boot 4。项目按使用方式拆分为基础
+Java API、内置 REST 接口、OpenAPI 注解元数据三类 Starter。
 
-Wiki: [Wiki](https://github.com/weimin96/oss-spring-boot-starter/wiki)
+![oss-spring-boot-starter 主图](screenshot/oss-spring-boot-starter-main.svg)
 
-Samples: [samples/README.md](samples/README.md)
+示例工程入口：[samples/README.md](samples/README.md)
 
----
+## 演示效果
 
-## Introduction
+### 分片上传
 
-`oss-spring-boot-starter` is a Spring Boot 3 auto-configuration library for S3-compatible object storage. It wraps the **AWS SDK for Java v2** (with CRT-based async client and S3 Transfer Manager) and provides a clean, fluent Java API plus an optional set of ready-to-use REST endpoints.
+![分片上传演示](screenshot/分片上传.gif)
 
-Any S3-compatible service works out of the box:
+### 全部功能
 
-| Provider | Type value |
-|---|---|
-| Amazon S3 | *(leave blank)* |
-| Tencent Cloud COS | `cos` |
-| Alibaba Cloud OSS | `oss` |
-| Huawei Cloud OBS | `obs` |
-| Qiniu Cloud Kodo | `qiniu` |
-| JD Cloud OSS | `jd` |
-| MinIO | `minio` |
+![全部功能演示](screenshot/所有功能.gif)
 
----
+## 能力概览
 
-## Requirements
+### 核心能力
+- **文件操作**：`OssTemplate` 提供统一入口，支持上传、下载、复制、移动、删除
+- **大文件处理**：分片上传、分片下载，完整支持 HTTP Range 断点续传
+- **流式解压**：ZIP 文件流式解压，支持跨 Bucket 和按前缀过滤
+- **预签名 URL**：生成下载/上传预签名，支持临时授权访问
+- **标签管理**：对象标签和 Bucket 标签的 CRUD 操作
 
-- **JDK 21+**
-- **Spring Boot 3.x**
+### 查询能力
+- 多种列表模式：递归列表、层级列举、游标分页懒加载
+- 目录树：完整树形结构、关键字搜索、仅目录树
+- 元数据查询：对象信息、连接测试、Bucket 详情
 
-> For Spring Boot 2.x, use the [`spring2` branch](https://github.com/weimin96/oss-spring-boot-starter/tree/spring2).
+### Bucket 管理
+- ACL 权限控制、版本控制、时间回滚
+- 生命周期规则、CORS 配置、策略管理
+- 服务端加密、公共访问屏蔽
 
----
+### 多端点支持
+- 基础 Java API：直接使用 `OssTemplate`
+- 内置 REST 接口：Web Starter 提供完整 HTTP 端点
+- OpenAPI 元数据：OpenAPI Starter 输出 Swagger 注解
 
-## Quick Start
+### 兼容性与部署
+- 存储类型：MinIO、腾讯云 COS、华为云 OBS、通用 S3 兼容服务
+- Spring Boot 版本：2.x（javax.servlet）、3.x/4.x（jakarta.servlet）
+- 模块化设计：按需引入，避免不必要的依赖
 
-### 1. Add Dependency
+## 选择依赖
 
-**Maven**
+| 使用场景                   | Spring Boot 2                      | Spring Boot 3                      | Spring Boot 4                      |
+|------------------------|------------------------------------|------------------------------------|------------------------------------|
+| 只使用 Java API           | `oss-spring-boot2-starter`         | `oss-spring-boot3-starter`         | `oss-spring-boot4-starter`         |
+| 使用 REST 接口（不带swagger）  | `oss-spring-boot2-web-starter`     | `oss-spring-boot3-web-starter`     | `oss-spring-boot4-web-starter`     |
+| 使用 REST 接口（带swagger）   | `oss-spring-boot2-openapi-starter` | `oss-spring-boot3-openapi-starter` | `oss-spring-boot4-openapi-starter` |
+
+基础 Starter 只创建 `OssTemplate`，不注册 REST 控制器。需要 HTTP 接口时请选择 Web Starter 或 OpenAPI Starter。
+
+OpenAPI Starter 只提供 Swagger 注解元数据，不内置 Swagger UI。宿主应用可以继续使用自己的 springdoc 或其他 OpenAPI 集成。
+
+## 安装
+
+Spring Boot 3 基础 Java API 示例：
+
 ```xml
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-starter</artifactId>
-    <version>${lastVersion}</version>
+    <version>3.0.0</version>
 </dependency>
 ```
 
-**Gradle**
-```gradle
-dependencies {
-    implementation 'io.github.weimin96:oss-spring-boot3-starter:${lastVersion}'
-}
+Spring Boot 3 内置 REST 接口示例：
+
+```xml
+<dependency>
+    <groupId>io.github.weimin96</groupId>
+    <artifactId>oss-spring-boot3-web-starter</artifactId>
+    <version>3.0.0</version>
+</dependency>
 ```
 
-### 2. Configure `application.yml`
+Spring Boot 3 OpenAPI 注解接口示例：
+
+```xml
+<dependency>
+    <groupId>io.github.weimin96</groupId>
+    <artifactId>oss-spring-boot3-openapi-starter</artifactId>
+    <version>3.0.0</version>
+</dependency>
+```
+
+Web Starter 和 OpenAPI Starter 的 Spring Web、Validation 依赖在本项目中按 `provided` 处理。宿主 Web
+应用需要已经引入以下依赖；如果你的应用已经有它们，不需要重复声明。
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-validation</artifactId>
+</dependency>
+```
+
+## 基础配置
 
 ```yaml
 oss:
   enable: true
-  endpoint: https://s3.ap-northeast-1.amazonaws.com   # or your MinIO/COS/OBS endpoint
-  access-key: YOUR_ACCESS_KEY
-  secret-key: YOUR_SECRET_KEY
-  bucket-name: my-bucket
-  type: minio          # omit for AWS S3; set to minio / cos / obs etc.
-  auto-create-bucket: false
+  endpoint: http://127.0.0.1:9000
+  bucket-name: oss-sample
+  auto-create-bucket: true
+  access-key: minioadmin
+  secret-key: minioadmin
+  type: minio
+  max-connections: 50
+  connection-timeout: 10000
   throughput-in-gbps: 20.0
   part-size-in-mb: 10
   http:
-    enable: true       # expose built-in REST endpoints
-    prefix: /api       # optional URL prefix, e.g. /api/oss/object
+    enable: true
+    prefix: /api
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
 ```
 
-### 3. Inject and Use
+只使用基础 Java API 时，可以不配置 `oss.http`，或保持 `oss.http.enable=false`。
+
+## 配置项
+
+| 配置项                      | 类型      | 默认值     | 说明                              |
+|--------------------------|---------|---------|---------------------------------|
+| `oss.enable`             | boolean | `false` | 是否启用自动配置                        |
+| `oss.endpoint`           | String  | 无       | 对象存储服务端点，启用后必填                  |
+| `oss.bucket-name`        | String  | 无       | 默认 Bucket 名称，多数默认 Bucket 操作需要配置 |
+| `oss.auto-create-bucket` | boolean | `false` | 默认 Bucket 不存在时是否自动创建            |
+| `oss.access-key`         | String  | 无       | 访问密钥 ID，启用后必填                   |
+| `oss.secret-key`         | String  | 无       | 访问密钥，启用后必填                      |
+| `oss.type`               | String  | 无       | 存储类型，常用值为 `minio`、`cos`、`obs`   |
+| `oss.max-connections`    | int     | `50`    | 最大连接数配置项                        |
+| `oss.connection-timeout` | long    | `10000` | 连接超时时间，单位毫秒                     |
+| `oss.throughput-in-gbps` | double  | `20.0`  | AWS CRT S3 客户端目标吞吐量             |
+| `oss.part-size-in-mb`    | int     | `10`    | 分片大小，最小值为 5 MB                  |
+| `oss.http.enable`        | boolean | `false` | 是否注册内置 REST 接口                  |
+| `oss.http.prefix`        | String  | 空字符串    | REST 接口路径前缀                     |
+
+## 存储类型
+
+| `oss.type` | 对象存储              | URL 拼接方式                                           |
+|------------|-------------------|----------------------------------------------------|
+| `minio`    | MinIO 或本地 S3 兼容服务 | Path-Style，格式为 `{endpoint}/{bucket}/`              |
+| `cos`      | 腾讯云 COS           | Virtual-Hosted，格式为 `{protocol}://{bucket}.{host}/` |
+| `obs`      | 华为云 OBS           | Virtual-Hosted，格式为 `{protocol}://{bucket}.{host}/` |
+| 其他值或空值     | 通用 S3 兼容服务        | Path-Style 兜底                                      |
+
+底层 S3 客户端目前只在 `oss.type=minio` 时强制 Path-Style 寻址。使用其他 S3 兼容服务时，请先在目标环境验证 endpoint 与
+Bucket 寻址方式。
+
+## Java API 用法
+
+所有操作都从 `OssTemplate` 进入。
+
+| 入口                      | 能力                                        |
+|-------------------------|-------------------------------------------|
+| `ossTemplate.put()`     | 上传文件、创建目录占位、复制、移动、分片上传                    |
+| `ossTemplate.query()`   | 连接测试、对象元数据、列表、树形结构、下载、预览、按前缀流式 ZIP 导出      |
+| `ossTemplate.delete()`  | 单个删除、批量删除、目录递归删除                          |
+| `ossTemplate.unzip()`   | ZIP 流式解压、跨 Bucket 解压、按条目前缀过滤解压            |
+| `ossTemplate.presign()` | 生成 GET/PUT 预签名 URL                        |
+| `ossTemplate.tagging()` | 对象标签和 Bucket 标签                           |
+| `ossTemplate.bucket()`  | Bucket 详情、ACL、版本控制、时间回滚、生命周期、CORS、策略、安全配置 |
+
+上传示例：
 
 ```java
-@Autowired
-private OssTemplate ossTemplate;
+@RestController
+@RequiredArgsConstructor
+public class FileController {
 
-// Upload a file
-ossTemplate.put().putObject("images/", "photo.jpg", new File("/tmp/photo.jpg"));
+    private final OssTemplate ossTemplate;
 
-// Download as InputStream
-InputStream in = ossTemplate.query().getInputStream("images/photo.jpg");
-
-// Generate a pre-signed download URL (1 hour)
-String url = ossTemplate.presign().generateGetPresignedUrl("images/photo.jpg", Duration.ofHours(1));
-
-// Stream-unzip a ZIP directly into OSS — no local disk I/O
-UnzipResult result = ossTemplate.unzip().unzip("archives/data.zip", "extracted/");
+    @PostMapping("/upload")
+    public String upload(@RequestParam("file") MultipartFile file) throws IOException {
+        try (InputStream inputStream = file.getInputStream()) {
+            ObjectInfo objectInfo = ossTemplate.put()
+                    .putObject("uploads/", file.getOriginalFilename(), inputStream);
+            return objectInfo.getUrl();
+        }
+    }
+}
 ```
 
----
-
-## Configuration Reference
-
-| Property | Type | Default | Description |
-|---|---|---|---|
-| `oss.enable` | boolean | `false` | Master switch. Must be `true` to activate. |
-| `oss.endpoint` | String | — | S3-compatible service endpoint URL (**required**). |
-| `oss.access-key` | String | — | Access key ID (**required**). |
-| `oss.secret-key` | String | — | Secret access key (**required**). |
-| `oss.bucket-name` | String | — | Default bucket name. |
-| `oss.auto-create-bucket` | boolean | `false` | Create the bucket automatically if it does not exist. |
-| `oss.type` | String | — | Provider hint: `minio`, `cos`, `obs`, `oss`, `qiniu`, etc. |
-| `oss.max-connections` | int | `50` | Maximum concurrent HTTP connections. |
-| `oss.connection-timeout` | long | `10000` | Connection timeout in milliseconds. |
-| `oss.throughput-in-gbps` | double | `20.0` | Target throughput for the CRT async client (Gbps). |
-| `oss.part-size-in-mb` | int | `10` | Minimum multipart upload part size in MB (S3 minimum is 5 MB). |
-| `oss.http.enable` | boolean | `false` | Enable built-in REST endpoints. |
-| `oss.http.prefix` | String | `""` | URL prefix prepended to all built-in endpoints. |
-
----
-
-## Java API
-
-All operations are accessed via `OssTemplate` using a fluent namespace pattern:
-
-```
-ossTemplate.put()      → PutOperations      (upload, copy, move, multipart)
-ossTemplate.query()    → QueryOperations     (list, tree, download, preview)
-ossTemplate.delete()   → DeleteOperations    (single, batch, folder)
-ossTemplate.unzip()    → StreamUnzipOperations (ZIP streaming decompression)
-ossTemplate.presign()  → PresignOperations   (pre-signed GET / PUT URLs)
-ossTemplate.tagging()  → TaggingOperations   (object & bucket tags)
-ossTemplate.bucket()   → BucketOperations    (versioning, lifecycle, CORS, policy, encryption)
-```
-
-### Upload (`put()`)
+查询与预签名示例：
 
 ```java
-// Upload from InputStream
-ossTemplate.put().putObject("folder/", "file.txt", inputStream);
+ObjectInfo objectInfo = ossTemplate.query().getObjectInfo("uploads/demo.txt");
 
-// Upload from File
-ossTemplate.put().putObjectForKey("images/photo.jpg", new File("/tmp/photo.jpg"));
+boolean exists = ossTemplate.query().checkExist("uploads/demo.txt");
 
-// Create an empty folder placeholder
-ossTemplate.put().mkdirs("folder/subfolder/");
-
-// Upload an entire local directory
-ossTemplate.put().putFolder("remote/path/", new File("/local/dir"), true);
-
-// Copy within the same bucket
-ossTemplate.put().copyFile("src/a.txt", "dst/a.txt");
-
-// Move (copy + delete source)
-ossTemplate.put().move("src/a.txt", "dst/");
-```
-
-### Multipart Upload (`put()`)
-
-```java
-// 1. Initialize
-String uploadId = ossTemplate.put().initTask(chunkTask);
-
-// 2. Upload each part (can be parallel)
-ChunkTarget part = ossTemplate.put().chunk(chunk);
-
-// 3. Complete
-ObjectInfo info = ossTemplate.put().merge(chunkMerge);
-
-// Query already-uploaded parts (for resumable upload)
-List<Part> parts = ossTemplate.put().listParts(bucketName, objectKey, uploadId);
-```
-
-### Query & Download (`query()`)
-
-```java
-// Check existence
-boolean exists = ossTemplate.query().checkExist("images/photo.jpg");
-
-// Get metadata
-ObjectInfo info = ossTemplate.query().getObjectInfo("images/photo.jpg");
-
-// List all objects under a path
-List<ObjectInfo> list = ossTemplate.query().listObjects("images/");
-
-// Next-level listing (like `ls`, non-recursive)
-List<ObjectTreeNode> nodes = ossTemplate.query().listNextLevel("images/");
-
-// Paginated lazy list
-LazyDataList<ObjectInfo> page = ossTemplate.query().lazyList("images/", 100, continuationToken);
-
-// Full directory tree
-ObjectTreeNode tree = ossTemplate.query().getTreeList("images/");
-
-// Search tree by keyword
-ObjectTreeNode result = ossTemplate.query().getTreeListByName("images/", "avatar");
-
-// Read content as String
-String text = ossTemplate.query().getContent("config/app.json");
-
-// Download to local file
-File f = ossTemplate.query().getFile("images/photo.jpg", "/tmp/photo.jpg");
-
-// Download entire folder
-ossTemplate.query().getFolder("images/", "/tmp/images/");
-
-// Serve file to HTTP response (inline preview / attachment download)
-ossTemplate.query().previewObject(request, response, "images/photo.jpg", false);
-ossTemplate.query().previewObject(request, response, "video/demo.mp4", true);
-```
-
-### Delete (`delete()`)
-
-```java
-// Delete single object
-ossTemplate.delete().removeObject("images/photo.jpg");
-
-// Delete all objects under a folder (recursive)
-ossTemplate.delete().removeFolder("tmp/uploads/");
-```
-
-### Stream Unzip (`unzip()`)
-
-Streams a ZIP from S3 and writes each entry back to S3 without touching local disk.
-
-```java
-// Unzip to a target path in the same bucket
-UnzipResult result = ossTemplate.unzip().unzip("archives/data.zip", "extracted/");
-
-// Cross-bucket unzip
-UnzipResult result = ossTemplate.unzip().unzip("src-bucket", "data.zip", "dst-bucket", "out/");
-
-// Partial unzip — only entries whose name starts with "docs/"
-UnzipResult result = ossTemplate.unzip().unzipWithFilter("data.zip", "docs/", "extracted/docs/");
-
-// Custom handler — e.g. pipe entry directly to an HTTP response
-ossTemplate.unzip().unzip("data.zip", (entry, stream) -> {
-    // process stream without closing it
-    Files.copy(stream, Paths.get("/tmp/" + entry.getName()));
-});
-
-System.out.println(result.getSucceededCount()); // number of extracted files
-System.out.println(result.getFailed());         // list of failed entry names
-```
-
-### Pre-signed URLs (`presign()`)
-
-```java
-// Generate a temporary download link (expires in 30 minutes)
 String downloadUrl = ossTemplate.presign()
-    .generateGetPresignedUrl("images/photo.jpg", Duration.ofMinutes(30));
-
-// Generate a client-side direct-upload URL (PUT, 15 minutes)
-String uploadUrl = ossTemplate.presign()
-    .generatePutPresignedUrl("uploads/new.jpg", "image/jpeg", Duration.ofMinutes(15), null);
+        .generateGetPresignedUrl("uploads/demo.txt", Duration.ofMinutes(10));
 ```
 
-### Object Tags (`tagging()`)
+文件夹压缩下载示例：
 
 ```java
-// Set tags (overwrites all existing tags)
-ossTemplate.tagging().setObjectTags("file.jpg", Map.of("env", "prod", "owner", "alice"));
+@GetMapping("/files/folder/download")
+public void downloadFolder(
+        @RequestParam String path,
+        @RequestParam(required = false) String filename,
+        HttpServletResponse response) throws IOException {
+    String zipFilename = (filename == null || filename.trim().isEmpty())
+            ? "folder-download.zip"
+            : (filename.endsWith(".zip") ? filename : filename + ".zip");
 
-// Merge tags (keeps existing, updates/adds specified keys)
-ossTemplate.tagging().mergeObjectTags("file.jpg", Map.of("reviewed", "true"));
-
-// Get tags
-Map<String, String> tags = ossTemplate.tagging().getObjectTags("file.jpg");
-
-// Delete all tags
-ossTemplate.tagging().deleteObjectTags("file.jpg");
-
-// Bucket-level tags
-ossTemplate.tagging().setBucketTags(Map.of("project", "my-app"));
+    response.setContentType("application/zip");
+    response.setHeader("Content-Disposition", "attachment; filename=\"" + zipFilename + "\"");
+    ossTemplate.query().writeFolderAsZip(path, response.getOutputStream());
+}
 ```
 
-### Bucket Management (`bucket()`)
+说明：
 
-```java
-// Versioning
-ossTemplate.bucket().enableVersioning();
-ossTemplate.bucket().suspendVersioning();
-String status = ossTemplate.bucket().getVersioningStatus(); // "Enabled" / "Suspended" / null
+- `path` 表示 S3 prefix，而不是真实文件夹。
+- 目录占位对象不会写入 ZIP，只有 prefix 下的真实对象会按相对路径进入压缩包。
+- 当前缀为空、prefix 下没有真实对象，或对象流读取失败时，接口会显式失败，不返回空 ZIP。
 
-// Lifecycle: auto-delete objects under "tmp/" after 7 days
-ossTemplate.bucket().addExpirationRule("expire-tmp", "tmp/", 7);
-List<LifecycleRule> rules = ossTemplate.bucket().getLifecycleRules();
-ossTemplate.bucket().deleteLifecycleRules();
+更多示例参考：[samples/README.md](samples/README.md) 或 [JavaxOpenApiOssControllerSupport.java](oss-spring-javax-web-support/src/main/java/com/wiblog/oss/controller/support/JavaxOpenApiOssControllerSupport.java)
 
-// CORS: allow all origins (for browser direct upload)
-ossTemplate.bucket().allowAllOriginsCors();
-ossTemplate.bucket().deleteCorsRules();
+前端示例工程已补充“文件夹压缩下载”页面，后端示例工程已补充 `/api/files/folder/download` 自定义控制器用法。
 
-// Bucket policy
-String policy = ossTemplate.bucket().getBucketPolicy();
-ossTemplate.bucket().putBucketPolicy(policyJson);
-ossTemplate.bucket().deleteBucketPolicy();
+## 内置 REST 接口
 
-// Server-side encryption (SSE-S3 / AES-256)
-ossTemplate.bucket().enableServerSideEncryption();
+启用条件：
 
-// Block all public access
-ossTemplate.bucket().blockAllPublicAccess();
-```
+- 引入对应版本的 Web Starter 或 OpenAPI Starter。
+- 宿主应用是 Spring Web 应用。
+- 配置 `oss.enable=true`。
+- 配置 `oss.http.enable=true`。
 
----
+所有路径都以 `${oss.http.prefix}/oss` 为前缀。示例配置 `oss.http.prefix=/api` 时，完整前缀为 `/api/oss`。
 
-## Built-in REST Endpoints
+除预览、单对象下载和文件夹压缩下载接口直接输出二进制流外，其他接口统一返回 `OssResponse`。
 
-Enable with `oss.http.enable: true`. All paths are prefixed by `${oss.http.prefix}/oss`.
+### 分片上传
 
-### File Upload
+| 方法     | 路径                 | 说明        |
+|--------|--------------------|-----------|
+| `POST` | `/multipart/init`  | 初始化分片上传任务 |
+| `POST` | `/multipart/chunk` | 上传单个分片    |
+| `POST` | `/multipart/merge` | 合并分片      |
+| `GET`  | `/multipart/parts` | 查询已上传分片列表 |
 
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/oss/object` | Upload a single file |
-| `POST` | `/oss/folder` | Create a folder placeholder |
-| `POST` | `/oss/multipart/init` | Initialize multipart upload |
-| `POST` | `/oss/multipart/chunk` | Upload a part |
-| `POST` | `/oss/multipart/merge` | Complete multipart upload |
-| `GET` | `/oss/multipart/parts` | List uploaded parts (resumable upload) |
+### 文件上传与删除
 
-### File Query
+| 方法       | 路径         | 说明       |
+|----------|------------|----------|
+| `POST`   | `/object`  | 上传单个文件   |
+| `POST`   | `/folder`  | 创建目录占位对象 |
+| `DELETE` | `/object`  | 删除单个对象   |
+| `DELETE` | `/objects` | 批量删除对象   |
+| `DELETE` | `/folder`  | 递归删除目录   |
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/oss/object` | Get object metadata |
-| `GET` | `/oss/object/exists` | Check if object exists |
-| `GET` | `/oss/object/list` | List all objects under a path |
-| `GET` | `/oss/object/list/next-level` | List next-level entries (non-recursive) |
-| `GET` | `/oss/object/list/lazy` | Paginated object list |
-| `GET` | `/oss/object/tree` | Full directory tree |
-| `GET` | `/oss/object/tree/search` | Search tree by keyword |
-| `GET` | `/oss/object/tree/folder` | Folder-only tree |
-| `GET` | `/oss/buckets` | List all buckets |
-| `GET` | `/oss/connect` | Test OSS connectivity |
+### 文件查询
 
-### File Preview & Download
+| 方法     | 路径                             | 说明                  |
+|--------|--------------------------------|---------------------|
+| `GET`  | `/object`                      | 查询对象元数据             |
+| `GET`  | `/object/exists`               | 检查对象是否存在            |
+| `GET`  | `/object/list`                 | 递归列举对象              |
+| `GET`  | `/object/list/next-level`      | 列举下一层级文件和目录         |
+| `GET`  | `/object/list/lazy`            | 游标分页懒加载列表           |
+| `GET`  | `/object/tree`                 | 获取目录树               |
+| `GET`  | `/object/tree/search`          | 按关键字搜索目录树           |
+| `GET`  | `/object/tree/folder`          | 获取仅包含目录的树           |
+| `GET`  | `/buckets`                     | 列举当前凭证可见的 Bucket    |
+| `GET`  | `/buckets/{bucketName}`        | 查询 Bucket 聚合详情      |
+| `GET`  | `/buckets/{bucketName}/access` | 查询 Bucket ACL       |
+| `PUT`  | `/buckets/{bucketName}/access` | 设置 Bucket ACL       |
+| `POST` | `/buckets/{bucketName}/rewind` | 按时间回滚 Bucket 当前可见状态 |
+| `GET`  | `/connect`                     | 测试默认 Bucket 连通性     |
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/oss/object/preview/**` | Inline preview (supports HTTP Range) |
-| `GET` | `/oss/object/download/**` | Force download as attachment |
+### 预览、下载、复制、移动
 
-### File Operations
+| 方法     | 路径                    | 说明                      |
+|--------|-----------------------|-------------------------|
+| `GET`  | `/object/preview/**`  | 内联预览对象，支持 HTTP Range    |
+| `GET`  | `/object/download/**` | 以附件方式下载对象，支持 HTTP Range |
+| `GET`  | `/folder/download`    | 按 `path` 指定的 prefix 流式压缩下载 ZIP |
+| `POST` | `/object/copy`        | 复制对象                    |
+| `POST` | `/object/move`        | 移动对象到目标目录               |
 
-| Method | Path | Description |
-|---|---|---|
-| `DELETE` | `/oss/object` | Delete a single object |
-| `DELETE` | `/oss/objects` | Batch delete (JSON body: list of keys) |
-| `DELETE` | `/oss/folder` | Recursively delete a folder |
-| `POST` | `/oss/object/copy` | Copy object within the same bucket |
-| `POST` | `/oss/object/move` | Move object to another folder |
+`/folder/download` 参数说明：
 
-### Stream Unzip
+- `path`：必填，表示 S3 prefix。
+- `filename`：可选，自定义 ZIP 文件名；未传时默认使用 prefix 最后一级名称。
 
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/oss/unzip` | Unzip a ZIP object to a target path |
-| `POST` | `/oss/unzip/cross-bucket` | Cross-bucket unzip |
-| `POST` | `/oss/unzip/filter` | Unzip with entry prefix filter |
+该接口不会把目录占位对象写入 ZIP。若 `path` 为空、prefix 下没有真实对象，或对象流读取失败，会直接返回错误响应，不返回空 ZIP。
 
-### Pre-signed URLs
+### 解压与预签名
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/oss/presign/get` | Generate pre-signed download URL |
-| `GET` | `/oss/presign/put` | Generate pre-signed client-upload URL |
+| 方法     | 路径                    | 说明                   |
+|--------|-----------------------|----------------------|
+| `POST` | `/unzip`              | 在默认 Bucket 内流式解压 ZIP |
+| `POST` | `/unzip/cross-bucket` | 跨 Bucket 流式解压 ZIP    |
+| `POST` | `/unzip/filter`       | 按条目前缀过滤解压            |
+| `GET`  | `/presign/get`        | 生成下载预签名 URL          |
+| `GET`  | `/presign/put`        | 生成上传预签名 URL          |
 
-### Object Tags
+### 标签与 Bucket 管理
 
-| Method | Path | Description |
-|---|---|---|
-| `GET` | `/oss/object/tags` | Get object tags |
-| `PUT` | `/oss/object/tags` | Set object tags (overwrite) |
-| `PATCH` | `/oss/object/tags` | Merge/update object tags |
-| `DELETE` | `/oss/object/tags` | Delete all object tags |
+| 方法       | 路径                             | 说明              |
+|----------|--------------------------------|-----------------|
+| `GET`    | `/object/tags`                 | 获取对象标签          |
+| `PUT`    | `/object/tags`                 | 覆盖设置对象标签        |
+| `PATCH`  | `/object/tags`                 | 合并更新对象标签        |
+| `DELETE` | `/object/tags`                 | 删除对象标签          |
+| `POST`   | `/bucket`                      | 创建 Bucket       |
+| `GET`    | `/bucket/versioning`           | 查询版本控制状态        |
+| `PUT`    | `/bucket/versioning/enable`    | 启用版本控制          |
+| `PUT`    | `/bucket/versioning/suspend`   | 挂起版本控制          |
+| `GET`    | `/bucket/lifecycle`            | 查询生命周期规则        |
+| `POST`   | `/bucket/lifecycle/expiration` | 添加过期删除规则        |
+| `DELETE` | `/bucket/lifecycle`            | 删除生命周期规则        |
+| `GET`    | `/bucket/cors`                 | 查询 CORS 配置      |
+| `PUT`    | `/bucket/cors/allow-all`       | 设置允许所有来源的 CORS  |
+| `DELETE` | `/bucket/cors`                 | 删除 CORS 配置      |
+| `GET`    | `/bucket/policy`               | 查询 Bucket 策略    |
+| `PUT`    | `/bucket/policy`               | 设置 Bucket 策略    |
+| `DELETE` | `/bucket/policy`               | 删除 Bucket 策略    |
+| `PUT`    | `/bucket/encryption/enable`    | 启用 SSE-S3 服务端加密 |
+| `PUT`    | `/bucket/public-access/block`  | 开启公共访问屏蔽        |
+| `GET`    | `/bucket/tags`                 | 获取 Bucket 标签    |
+| `PUT`    | `/bucket/tags`                 | 覆盖设置 Bucket 标签  |
+| `DELETE` | `/bucket/tags`                 | 删除 Bucket 标签    |
 
-### Bucket Management
+## 许可证
 
-| Method | Path | Description |
-|---|---|---|
-| `POST` | `/oss/bucket` | Create a bucket |
-| `GET` | `/oss/bucket/versioning` | Get versioning status |
-| `PUT` | `/oss/bucket/versioning/enable` | Enable versioning |
-| `PUT` | `/oss/bucket/versioning/suspend` | Suspend versioning |
-| `GET` | `/oss/bucket/lifecycle` | Get lifecycle rules |
-| `POST` | `/oss/bucket/lifecycle/expiration` | Add expiration rule |
-| `DELETE` | `/oss/bucket/lifecycle` | Delete all lifecycle rules |
-| `GET` | `/oss/bucket/cors` | Get CORS configuration |
-| `PUT` | `/oss/bucket/cors/allow-all` | Allow all origins CORS |
-| `DELETE` | `/oss/bucket/cors` | Delete CORS configuration |
-| `GET` | `/oss/bucket/policy` | Get bucket policy |
-| `PUT` | `/oss/bucket/policy` | Set bucket policy |
-| `DELETE` | `/oss/bucket/policy` | Delete bucket policy |
-| `PUT` | `/oss/bucket/encryption/enable` | Enable SSE-S3 encryption |
-| `PUT` | `/oss/bucket/public-access/block` | Block all public access |
-| `GET` | `/oss/bucket/tags` | Get bucket tags |
-| `PUT` | `/oss/bucket/tags` | Set bucket tags |
-| `DELETE` | `/oss/bucket/tags` | Delete bucket tags |
-
----
-
-## License
-
-[Apache 2.0](https://www.apache.org/licenses/LICENSE-2.0.html)
+[Apache License 2.0](LICENSE)

@@ -1,0 +1,77 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="520" viewBox="0 0 1600 520" role="img" aria-labelledby="title desc">
+  <title id="title">oss-spring-boot-starter 主图</title>
+  <desc id="desc">对象存储 Spring Boot Starter 的能力入口、版本适配和 S3 兼容存储链路</desc>
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f7fbf8"/>
+      <stop offset="0.45" stop-color="#edf7f2"/>
+      <stop offset="1" stop-color="#f6f8fb"/>
+    </linearGradient>
+    <linearGradient id="core" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1f9d73"/>
+      <stop offset="1" stop-color="#226f8f"/>
+    </linearGradient>
+    <linearGradient id="storage" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#f2a23a"/>
+      <stop offset="1" stop-color="#1f9d73"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#173b3d" flood-opacity="0.14"/>
+    </filter>
+    <marker id="arrow" markerWidth="14" markerHeight="14" refX="11" refY="7" orient="auto" markerUnits="strokeWidth">
+      <path d="M2 2 L12 7 L2 12 Z" fill="#2d6f68"/>
+    </marker>
+  </defs>
+  <rect width="1600" height="520" rx="0" fill="url(#background)"/>
+  <g opacity="0.25">
+    <circle cx="136" cy="92" r="38" fill="#1f9d73"/>
+    <circle cx="1464" cy="430" r="48" fill="#226f8f"/>
+    <circle cx="1448" cy="104" r="24" fill="#f2a23a"/>
+    <path d="M80 410 C220 330 290 460 430 380 S650 320 770 400" fill="none" stroke="#1f9d73" stroke-width="4"/>
+    <path d="M980 118 C1120 52 1210 160 1348 92" fill="none" stroke="#226f8f" stroke-width="4"/>
+  </g>
+  <g transform="translate(96 76)">
+    <text x="0" y="0" fill="#183334" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="28" font-weight="700">oss-spring-boot-starter</text>
+    <text x="0" y="66" fill="#102526" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="54" font-weight="800">对象存储接入，从配置到接口</text>
+    <text x="0" y="112" fill="#4d6264" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="24">基于 AWS S3 SDK v2，面向 MinIO、COS、OBS 与通用 S3 兼容服务</text>
+  </g>
+  <g transform="translate(96 238)" filter="url(#shadow)">
+    <rect x="0" y="0" width="360" height="176" rx="8" fill="#ffffff" stroke="#d7e8df"/>
+    <rect x="24" y="24" width="82" height="34" rx="8" fill="#e4f4ec"/>
+    <text x="65" y="47" text-anchor="middle" fill="#147454" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="16" font-weight="700">Java API</text>
+    <text x="24" y="92" fill="#183334" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="26" font-weight="800">OssTemplate</text>
+    <text x="24" y="130" fill="#52666a" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="18">上传、查询、删除、解压</text>
+  </g>
+  <g transform="translate(492 238)" filter="url(#shadow)">
+    <rect x="0" y="0" width="360" height="176" rx="8" fill="#ffffff" stroke="#d8e4ed"/>
+    <rect x="24" y="24" width="92" height="34" rx="8" fill="#e7f1f5"/>
+    <text x="70" y="47" text-anchor="middle" fill="#226f8f" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="16" font-weight="700">REST</text>
+    <text x="24" y="92" fill="#183334" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="26" font-weight="800">内置 HTTP 端点</text>
+    <text x="24" y="130" fill="#52666a" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="18">上传、预览、下载、分片</text>
+  </g>
+  <g transform="translate(888 238)" filter="url(#shadow)">
+    <rect x="0" y="0" width="360" height="176" rx="8" fill="#ffffff" stroke="#f0dfc7"/>
+    <rect x="24" y="24" width="112" height="34" rx="8" fill="#fbf0dc"/>
+    <text x="80" y="47" text-anchor="middle" fill="#9c661d" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="16" font-weight="700">OpenAPI</text>
+    <text x="24" y="92" fill="#183334" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="26" font-weight="800">Swagger 注解元数据</text>
+    <text x="24" y="130" fill="#52666a" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="18">复用宿主应用文档体系</text>
+  </g>
+  <g transform="translate(1284 238)" filter="url(#shadow)">
+    <rect x="0" y="0" width="220" height="176" rx="8" fill="url(#storage)"/>
+    <text x="110" y="66" text-anchor="middle" fill="#ffffff" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="28" font-weight="800">S3 兼容</text>
+    <text x="110" y="108" text-anchor="middle" fill="#ffffff" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="18">MinIO · COS · OBS</text>
+    <text x="110" y="138" text-anchor="middle" fill="#ffffff" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="18">通用对象存储</text>
+  </g>
+  <path d="M456 326 H492" fill="none" stroke="#2d6f68" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M852 326 H888" fill="none" stroke="#2d6f68" stroke-width="4" marker-end="url(#arrow)"/>
+  <path d="M1248 326 H1284" fill="none" stroke="#2d6f68" stroke-width="4" marker-end="url(#arrow)"/>
+  <g transform="translate(96 448)">
+    <rect x="0" y="0" width="120" height="36" rx="8" fill="#e4f4ec"/>
+    <text x="60" y="24" text-anchor="middle" fill="#147454" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="16" font-weight="700">Boot 2</text>
+    <rect x="136" y="0" width="120" height="36" rx="8" fill="#e7f1f5"/>
+    <text x="196" y="24" text-anchor="middle" fill="#226f8f" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="16" font-weight="700">Boot 3</text>
+    <rect x="272" y="0" width="120" height="36" rx="8" fill="#fbf0dc"/>
+    <text x="332" y="24" text-anchor="middle" fill="#9c661d" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="16" font-weight="700">Boot 4</text>
+    <text x="430" y="24" fill="#52666a" font-family="Arial, 'Microsoft YaHei', sans-serif" font-size="18">三套版本适配，统一对象存储能力</text>
+  </g>
+</svg>

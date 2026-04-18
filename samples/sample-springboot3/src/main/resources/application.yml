@@ -1,0 +1,27 @@
+server:
+  port: 8080
+
+oss:
+  # 启用 OSS
+  enable: true
+  # MinIO / S3 兼容存储端点（示例）
+  endpoint: ${OSS_ENDPOINT:http://127.0.0.1:9000}
+  # Bucket 名称
+  bucket-name: ${OSS_BUCKET_NAME:oss-sample}
+  # 不存在时自动创建
+  auto-create-bucket: true
+  # 访问密钥（生产环境请使用配置中心或环境变量）
+  access-key: ${OSS_ACCESS_KEY:minioadmin}
+  secret-key: ${OSS_SECRET_KEY:minioadmin}
+  # 存储类型（minio / cos / obs 等）
+  type: ${OSS_TYPE:minio}
+  # 启用内置 HTTP 端点（/oss/**）
+  http:
+    enable: true
+    prefix: /api
+
+spring:
+  servlet:
+    multipart:
+      max-file-size: 500MB
+      max-request-size: 500MB
