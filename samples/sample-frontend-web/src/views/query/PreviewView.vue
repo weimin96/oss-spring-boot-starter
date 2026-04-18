@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import ApiCard from '@/components/ApiCard.vue'
-import { ossApi } from '@/api/oss'
+import {ref} from 'vue'
+import {ossApi} from '@/api/oss'
 
 // 预览
 const previewKey = ref('demo/example.jpg')
@@ -27,7 +26,7 @@ async function previewFile() {
       </div>
       <div>
         <p class="section-label">预览 objectName</p>
-        <input v-model="previewKey" class="oss-input mb-2" placeholder="demo/example.jpg" />
+        <input v-model="previewKey" class="oss-input mb-2" placeholder="demo/example.jpg"/>
         <button class="btn btn-ghost" @click="previewFile">在新标签页预览</button>
       </div>
     </div>

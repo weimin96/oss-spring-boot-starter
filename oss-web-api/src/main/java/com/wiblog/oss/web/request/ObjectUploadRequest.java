@@ -1,7 +1,7 @@
 package com.wiblog.oss.web.request;
 
-import com.wiblog.oss.web.validation.OssWebRequestValidator;
 import com.wiblog.oss.web.file.OssUploadFile;
+import com.wiblog.oss.web.validation.OssWebRequestValidator;
 import lombok.Data;
 
 import java.io.IOException;

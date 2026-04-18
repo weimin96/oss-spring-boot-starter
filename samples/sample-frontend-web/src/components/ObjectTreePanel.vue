@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import {computed} from 'vue'
 import ObjectTreeBranch from '@/components/ObjectTreeBranch.vue'
-import type { ObjectTreeEntry } from '@/utils/objectExplorer'
+import type {ObjectTreeEntry} from '@/utils/objectExplorer'
 
 const props = withDefaults(defineProps<{
   nodes: ObjectTreeEntry[]
@@ -26,7 +26,7 @@ function countKinds(nodes: ObjectTreeEntry[]): { folders: number; files: number 
     acc.folders += nested.folders
     acc.files += nested.files
     return acc
-  }, { folders: 0, files: 0 })
+  }, {folders: 0, files: 0})
 }
 
 const stats = computed(() => countKinds(props.nodes))
@@ -48,10 +48,10 @@ const stats = computed(() => countKinds(props.nodes))
     <div v-else class="card p-2 max-h-[420px] overflow-auto">
       <div class="space-y-1 text-xs">
         <ObjectTreeBranch
-          v-for="node in nodes"
-          :key="node.key"
-          :node="node"
-          :default-expanded-depth="defaultExpandedDepth"
+            v-for="node in nodes"
+            :key="node.key"
+            :node="node"
+            :default-expanded-depth="defaultExpandedDepth"
         />
       </div>
     </div>

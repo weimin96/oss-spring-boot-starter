@@ -4,12 +4,12 @@
 
 ## 目录结构
 
-| 目录 | 说明 | 技术栈 |
-|------|------|--------|
-| `sample-springboot2` | Spring Boot 2.x 后端示例 | Spring Boot 2.7.x + JDK 8+ |
-| `sample-springboot3` | Spring Boot 3.x 后端示例 | Spring Boot 3.x + JDK 17+ |
-| `sample-springboot4` | Spring Boot 4.x 后端示例 | Spring Boot 4.x + JDK 21+ |
-| `sample-frontend-web` | 前端演示示例 | Vue 3 + Vite + TypeScript + Tailwind CSS v4 |
+| 目录                    | 说明                   | 技术栈                                         |
+|-----------------------|----------------------|---------------------------------------------|
+| `sample-springboot2`  | Spring Boot 2.x 后端示例 | Spring Boot 2.7.x + JDK 8+                  |
+| `sample-springboot3`  | Spring Boot 3.x 后端示例 | Spring Boot 3.x + JDK 17+                   |
+| `sample-springboot4`  | Spring Boot 4.x 后端示例 | Spring Boot 4.x + JDK 21+                   |
+| `sample-frontend-web` | 前端演示示例               | Vue 3 + Vite + TypeScript + Tailwind CSS v4 |
 
 ## 快速运行
 
@@ -26,7 +26,8 @@ cd samples/sample-springboot3
 mvn spring-boot:run
 ```
 
-**默认配置**：示例工程已配置连接本地 MinIO（`localhost:9000`，账号 `minioadmin` / `minioadmin`），并自动创建名为 `oss-sample` 的测试 Bucket。
+**默认配置**：示例工程已配置连接本地 MinIO（`localhost:9000`，账号 `minioadmin` / `minioadmin`），并自动创建名为 `oss-sample`
+的测试 Bucket。
 
 **启动 MinIO（Docker）**：
 
@@ -62,11 +63,13 @@ pnpm dev
 示例工程演示了以下功能：
 
 ### 文件上传
+
 - 单文件上传
 - 创建文件夹
 - 分片上传
 
 ### 文件查询
+
 - 连接测试
 - 文件详情
 - 文件存在检查
@@ -82,28 +85,34 @@ pnpm dev
 - 分片下载（HTTP Range）
 
 ### 文件删除
+
 - 单个删除
 - 批量删除
 - 文件夹删除
 
 ### 复制 / 移动
+
 - 复制文件
 - 移动文件
 
 ### 流式解压
+
 - ZIP 解压
 - 跨 Bucket 解压
 - 过滤解压
 
 ### 预签名 URL
+
 - 下载预签名
 - 上传预签名
 
 ### 标签管理
+
 - 对象标签
 - Bucket 标签
 
 ### Bucket 管理
+
 - 创建 Bucket
 - Bucket 详情
 - Bucket ACL

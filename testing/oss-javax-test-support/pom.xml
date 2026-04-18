@@ -18,6 +18,8 @@
 
     <properties>
         <java.version>8</java.version>
+        <!-- 测试支撑模块只服务于本仓库测试契约复用，不对外发布。 -->
+        <maven.deploy.skip>true</maven.deploy.skip>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <maven.compiler.release>${java.version}</maven.compiler.release>

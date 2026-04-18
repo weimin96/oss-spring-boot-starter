@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import ApiCard from '@/components/ApiCard.vue'
-import { ossApi } from '@/api/oss'
+import {ref} from 'vue'
+import {ossApi} from '@/api/oss'
 
 // 下载
 const downloadKey = ref('demo/example.txt')
@@ -10,6 +9,7 @@ async function downloadFile() {
   const res = await ossApi.query.download(downloadKey.value)
   triggerDownload(res.data as Blob, downloadKey.value.split('/').pop() ?? 'file')
 }
+
 function triggerDownload(blob: Blob, filename: string) {
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -34,7 +34,7 @@ function triggerDownload(blob: Blob, filename: string) {
       </div>
       <div>
         <p class="section-label">下载 objectName</p>
-        <input v-model="downloadKey" class="oss-input mb-2" placeholder="demo/example.txt" />
+        <input v-model="downloadKey" class="oss-input mb-2" placeholder="demo/example.txt"/>
         <button class="btn btn-ghost" @click="downloadFile">触发浏览器下载</button>
       </div>
     </div>

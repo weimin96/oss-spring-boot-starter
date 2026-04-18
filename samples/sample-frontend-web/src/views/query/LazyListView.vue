@@ -1,19 +1,19 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import {computed, ref} from 'vue'
 import ApiCard from '@/components/ApiCard.vue'
 import ObjectListPanel from '@/components/ObjectListPanel.vue'
 import ObjectTreePanel from '@/components/ObjectTreePanel.vue'
 import ResultPanel from '@/components/ResultPanel.vue'
-import { useResult } from '@/composables/useResult'
-import { ossApi } from '@/api/oss'
-import { buildTreeFromObjectInfos, normalizeObjectListItems } from '@/utils/objectExplorer'
-import type { LazyListResult } from '@/types'
+import {useResult} from '@/composables/useResult'
+import {ossApi} from '@/api/oss'
+import {buildTreeFromObjectInfos, normalizeObjectListItems} from '@/utils/objectExplorer'
+import type {LazyListResult} from '@/types'
 
 // 懒加载
 const lazyPath = ref('demo/')
 const lazyMaxKeys = ref(10)
 const lazyToken = ref('')
-const { status: lazyStatus, result: lazyResult, error: lazyError, execute: execLazy } = useResult<LazyListResult>()
+const {status: lazyStatus, result: lazyResult, error: lazyError, execute: execLazy} = useResult<LazyListResult>()
 const lazyRecords = computed(() => lazyResult.value?.records ?? [])
 const lazyListItems = computed(() => normalizeObjectListItems(lazyRecords.value))
 const lazyTreeNodes = computed(() => buildTreeFromObjectInfos(lazyRecords.value, lazyPath.value))
@@ -29,27 +29,27 @@ const lazyTreeNodes = computed(() => buildTreeFromObjectInfos(lazyRecords.value,
       <div class="grid grid-cols-3 gap-3 mb-3">
         <div>
           <p class="section-label">path</p>
-          <input v-model="lazyPath" class="oss-input" placeholder="demo/" />
+          <input v-model="lazyPath" class="oss-input" placeholder="demo/"/>
         </div>
         <div>
           <p class="section-label">maxKeys</p>
-          <input v-model.number="lazyMaxKeys" type="number" class="oss-input" min="1" />
+          <input v-model.number="lazyMaxKeys" type="number" class="oss-input" min="1"/>
         </div>
         <div>
           <p class="section-label">continuationToken（翻页用）</p>
-          <input v-model="lazyToken" class="oss-input" placeholder="（首次留空）" />
+          <input v-model="lazyToken" class="oss-input" placeholder="（首次留空）"/>
         </div>
       </div>
       <button class="btn btn-ghost" :disabled="lazyStatus === 'loading'"
-        @click="execLazy(() => ossApi.query.lazyList(lazyPath, lazyMaxKeys, lazyToken || undefined))">
-        <span v-if="lazyStatus === 'loading'" class="spinner" />加载
+              @click="execLazy(() => ossApi.query.lazyList(lazyPath, lazyMaxKeys, lazyToken || undefined))">
+        <span v-if="lazyStatus === 'loading'" class="spinner"/>加载
       </button>
       <!-- 下一页 token 快捷填入 -->
       <p v-if="lazyResult?.continuationToken" class="mt-2 text-xs text-[var(--color-muted)]">
         下一页 token：
         <code
-          class="text-[var(--color-accent)] cursor-pointer underline"
-          @click="lazyToken = lazyResult?.continuationToken ?? ''"
+            class="text-[var(--color-accent)] cursor-pointer underline"
+            @click="lazyToken = lazyResult?.continuationToken ?? ''"
         >点击填入</code>
       </p>
       <ResultPanel :status="lazyStatus" :result="lazyResult" :error="lazyError">
@@ -71,15 +71,15 @@ const lazyTreeNodes = computed(() => buildTreeFromObjectInfos(lazyRecords.value,
             </div>
           </div>
           <ObjectListPanel
-            title="当前页列表"
-            :items="lazyListItems"
-            empty-text="当前页没有对象"
+              title="当前页列表"
+              :items="lazyListItems"
+              empty-text="当前页没有对象"
           />
           <ObjectTreePanel
-            title="当前页树形视图"
-            :nodes="lazyTreeNodes"
-            empty-text="当前页没有可构建的树形数据"
-            :default-expanded-depth="2"
+              title="当前页树形视图"
+              :nodes="lazyTreeNodes"
+              empty-text="当前页没有可构建的树形数据"
+              :default-expanded-depth="2"
           />
         </template>
       </ResultPanel>

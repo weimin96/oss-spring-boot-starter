@@ -1,15 +1,15 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import {ref} from 'vue'
 import ApiCard from '@/components/ApiCard.vue'
 import ResultPanel from '@/components/ResultPanel.vue'
-import { useResult } from '@/composables/useResult'
-import { ossApi } from '@/api/oss'
+import {useResult} from '@/composables/useResult'
+import {ossApi} from '@/api/oss'
 
 // 上传预签名 URL
 const putObject = ref('demo/upload-via-presign.jpg')
 const putContentType = ref('image/jpeg')
 const putExpiry = ref(3600)
-const { status: putStatus, result: putResult, error: putError, execute: execPut } = useResult()
+const {status: putStatus, result: putResult, error: putError, execute: execPut} = useResult()
 
 // 使用预签名 URL 上传演示
 const presignFile = ref<File | null>(null)
@@ -22,7 +22,7 @@ async function uploadViaPresign() {
   try {
     await fetch(putResult.value as string, {
       method: 'PUT',
-      headers: { 'Content-Type': putContentType.value },
+      headers: {'Content-Type': putContentType.value},
       body: presignFile.value,
     })
     presignUploadStatus.value = 'success'
@@ -48,23 +48,23 @@ function copyUrl(url: unknown) {
       <div class="grid grid-cols-3 gap-3 mb-4">
         <div>
           <p class="section-label">objectName（目标 key）<span class="text-[var(--color-danger)]">*</span></p>
-          <input v-model="putObject" class="oss-input" placeholder="demo/upload-via-presign.jpg" />
+          <input v-model="putObject" class="oss-input" placeholder="demo/upload-via-presign.jpg"/>
         </div>
         <div>
           <p class="section-label">contentType</p>
-          <input v-model="putContentType" class="oss-input" placeholder="image/jpeg" />
+          <input v-model="putContentType" class="oss-input" placeholder="image/jpeg"/>
         </div>
         <div>
           <p class="section-label">有效期（秒）</p>
-          <input v-model.number="putExpiry" type="number" class="oss-input" min="1" />
+          <input v-model.number="putExpiry" type="number" class="oss-input" min="1"/>
         </div>
       </div>
       <button
-        class="btn btn-ghost"
-        :disabled="putStatus === 'loading'"
-        @click="execPut(() => ossApi.presign.putUrl(putObject, putContentType, putExpiry))"
+          class="btn btn-ghost"
+          :disabled="putStatus === 'loading'"
+          @click="execPut(() => ossApi.presign.putUrl(putObject, putContentType, putExpiry))"
       >
-        <span v-if="putStatus === 'loading'" class="spinner" />生成上传链接
+        <span v-if="putStatus === 'loading'" class="spinner"/>生成上传链接
       </button>
 
       <!-- 生成成功后，演示直传 -->
@@ -80,28 +80,28 @@ function copyUrl(url: unknown) {
           </p>
           <div class="flex gap-3 items-center flex-wrap">
             <input
-              type="file"
-              class="oss-input w-auto"
-              @change="(e) => presignFile = (e.target as HTMLInputElement).files?.[0] ?? null"
+                type="file"
+                class="oss-input w-auto"
+                @change="(e) => presignFile = (e.target as HTMLInputElement).files?.[0] ?? null"
             />
             <button
-              class="btn btn-primary"
-              :disabled="!presignFile || presignUploadStatus === 'loading'"
-              @click="uploadViaPresign"
+                class="btn btn-primary"
+                :disabled="!presignFile || presignUploadStatus === 'loading'"
+                @click="uploadViaPresign"
             >
-              <span v-if="presignUploadStatus === 'loading'" class="spinner" />直传到 OSS
+              <span v-if="presignUploadStatus === 'loading'" class="spinner"/>直传到 OSS
             </button>
           </div>
           <p
-            v-if="presignUploadMsg"
-            class="mt-2 text-sm"
-            :class="presignUploadStatus === 'success' ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'"
+              v-if="presignUploadMsg"
+              class="mt-2 text-sm"
+              :class="presignUploadStatus === 'success' ? 'text-[var(--color-success)]' : 'text-[var(--color-danger)]'"
           >
             {{ presignUploadMsg }}
           </p>
         </div>
       </div>
-      <ResultPanel v-if="putStatus === 'error'" :status="putStatus" :result="null" :error="putError" />
+      <ResultPanel v-if="putStatus === 'error'" :status="putStatus" :result="null" :error="putError"/>
     </ApiCard>
   </div>
 </template>

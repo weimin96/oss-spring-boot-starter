@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { formatObjectExt, formatObjectSize, formatObjectTime } from '@/utils/objectExplorer'
-import type { ObjectTreeEntry } from '@/utils/objectExplorer'
+import {computed, ref} from 'vue'
+import type {ObjectTreeEntry} from '@/utils/objectExplorer'
+import {formatObjectExt, formatObjectSize, formatObjectTime} from '@/utils/objectExplorer'
 
 defineOptions({
   name: 'ObjectTreeBranch',
@@ -30,15 +30,15 @@ function syncExpanded(event: Event) {
 
 <template>
   <details
-    v-if="hasChildren"
-    :open="level < defaultExpandedDepth"
-    class="group"
-    @toggle="syncExpanded"
+      v-if="hasChildren"
+      :open="level < defaultExpandedDepth"
+      class="group"
+      @toggle="syncExpanded"
   >
     <summary class="list-none cursor-pointer">
       <div
-        class="flex items-start gap-2 rounded px-2 py-2 hover:bg-[rgba(88,166,255,0.06)]"
-        :style="paddingStyle"
+          class="flex items-start gap-2 rounded px-2 py-2 hover:bg-[rgba(88,166,255,0.06)]"
+          :style="paddingStyle"
       >
         <span class="mt-0.5 w-4 text-center text-[var(--color-muted)]">{{ toggleIcon }}</span>
         <div class="min-w-0 flex-1">
@@ -54,10 +54,10 @@ function syncExpanded(event: Event) {
             <span>大小：{{ formatObjectSize(node.size, node.kind) }}</span>
             <span>时间：{{ formatObjectTime(node.uploadTime) }}</span>
             <a
-              v-if="node.url"
-              :href="node.url"
-              target="_blank"
-              class="text-[var(--color-accent)] hover:underline"
+                v-if="node.url"
+                :href="node.url"
+                target="_blank"
+                class="text-[var(--color-accent)] hover:underline"
             >
               打开链接
             </a>
@@ -67,19 +67,19 @@ function syncExpanded(event: Event) {
     </summary>
     <div class="space-y-1">
       <ObjectTreeBranch
-        v-for="child in node.children"
-        :key="child.key"
-        :node="child"
-        :level="level + 1"
-        :default-expanded-depth="defaultExpandedDepth"
+          v-for="child in node.children"
+          :key="child.key"
+          :node="child"
+          :level="level + 1"
+          :default-expanded-depth="defaultExpandedDepth"
       />
     </div>
   </details>
 
   <div
-    v-else
-    class="flex items-start gap-2 rounded px-2 py-2"
-    :style="paddingStyle"
+      v-else
+      class="flex items-start gap-2 rounded px-2 py-2"
+      :style="paddingStyle"
   >
     <span class="mt-0.5 w-4 text-center text-[var(--color-muted)]">•</span>
     <div class="min-w-0 flex-1">
@@ -95,10 +95,10 @@ function syncExpanded(event: Event) {
         <span>大小：{{ formatObjectSize(node.size, node.kind) }}</span>
         <span>时间：{{ formatObjectTime(node.uploadTime) }}</span>
         <a
-          v-if="node.url"
-          :href="node.url"
-          target="_blank"
-          class="text-[var(--color-accent)] hover:underline"
+            v-if="node.url"
+            :href="node.url"
+            target="_blank"
+            class="text-[var(--color-accent)] hover:underline"
         >
           打开链接
         </a>

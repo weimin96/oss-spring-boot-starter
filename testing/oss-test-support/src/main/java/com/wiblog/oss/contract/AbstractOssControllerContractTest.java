@@ -1,29 +1,9 @@
 package com.wiblog.oss.contract;
 
-import com.wiblog.oss.bean.BucketAccessInfo;
-import com.wiblog.oss.bean.BucketDetailInfo;
-import com.wiblog.oss.bean.BucketInfo;
-import com.wiblog.oss.bean.BucketRewindResult;
-import com.wiblog.oss.bean.CorsRuleInfo;
-import com.wiblog.oss.bean.LazyDataList;
-import com.wiblog.oss.bean.LifecycleRuleInfo;
-import com.wiblog.oss.bean.ObjectInfo;
-import com.wiblog.oss.bean.ObjectTreeNode;
-import com.wiblog.oss.bean.UnzipResult;
-import com.wiblog.oss.bean.chunk.ChunkMerge;
-import com.wiblog.oss.bean.chunk.ChunkPartInfo;
-import com.wiblog.oss.bean.chunk.ChunkTarget;
-import com.wiblog.oss.bean.chunk.ChunkTask;
-import com.wiblog.oss.bean.chunk.ChunkUploadCommand;
+import com.wiblog.oss.bean.*;
+import com.wiblog.oss.bean.chunk.*;
 import com.wiblog.oss.resp.OssResponse;
-import com.wiblog.oss.service.BucketOperations;
-import com.wiblog.oss.service.DeleteOperations;
-import com.wiblog.oss.service.OssTemplate;
-import com.wiblog.oss.service.PresignOperations;
-import com.wiblog.oss.service.PutOperations;
-import com.wiblog.oss.service.QueryOperations;
-import com.wiblog.oss.service.StreamUnzipOperations;
-import com.wiblog.oss.service.TaggingOperations;
+import com.wiblog.oss.service.*;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -48,9 +28,7 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.*;
 
 /**
  * OSS 控制器契约测试。

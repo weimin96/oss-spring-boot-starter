@@ -1,10 +1,6 @@
 package com.wiblog.oss.service;
 
-import com.wiblog.oss.bean.BucketAccessInfo;
-import com.wiblog.oss.bean.BucketDetailInfo;
-import com.wiblog.oss.bean.BucketRewindResult;
-import com.wiblog.oss.bean.CorsRuleInfo;
-import com.wiblog.oss.bean.LifecycleRuleInfo;
+import com.wiblog.oss.bean.*;
 
 import java.util.List;
 

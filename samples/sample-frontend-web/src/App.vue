@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { useRoute } from 'vue-router'
-import { navGroups } from '@/router'
+import {computed} from 'vue'
+import {useRoute} from 'vue-router'
+import {navGroups} from '@/router'
 
 const route = useRoute()
 
@@ -38,11 +38,11 @@ const currentLabel = computed(() => {
             {{ group.icon }} {{ group.label }}
           </p>
           <router-link
-            v-for="r in group.routes"
-            :key="r.name"
-            :to="r.path"
-            class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all"
-            :class="route.name === r.name
+              v-for="r in group.routes"
+              :key="r.name"
+              :to="r.path"
+              class="flex items-center gap-2 px-3 py-1.5 rounded-md text-sm transition-all"
+              :class="route.name === r.name
               ? 'bg-[rgba(88,166,255,0.1)] text-[var(--color-accent)]'
               : 'text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)]'"
           >
@@ -54,9 +54,9 @@ const currentLabel = computed(() => {
       <!-- Footer -->
       <div class="px-4 py-3 border-t border-[var(--color-border)]">
         <a
-          href="https://github.com/weimin96/oss-spring-boot-starter"
-          target="_blank"
-          class="text-[10px] text-[var(--color-muted)] hover:text-[var(--color-accent)] transition-colors"
+            href="https://github.com/weimin96/oss-spring-boot-starter"
+            target="_blank"
+            class="text-[10px] text-[var(--color-muted)] hover:text-[var(--color-accent)] transition-colors"
         >
           GitHub →
         </a>
@@ -75,7 +75,7 @@ const currentLabel = computed(() => {
         <div class="max-w-3xl">
           <router-view v-slot="{ Component }">
             <transition name="fade" mode="out-in">
-              <component :is="Component" />
+              <component :is="Component"/>
             </transition>
           </router-view>
         </div>

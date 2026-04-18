@@ -1,17 +1,22 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import {computed, ref} from 'vue'
 import ApiCard from '@/components/ApiCard.vue'
 import ObjectTreePanel from '@/components/ObjectTreePanel.vue'
 import ResultPanel from '@/components/ResultPanel.vue'
-import { useResult } from '@/composables/useResult'
-import { ossApi } from '@/api/oss'
-import { normalizeTreeRoot } from '@/utils/objectExplorer'
-import type { ObjectTreeNode } from '@/types'
+import {useResult} from '@/composables/useResult'
+import {ossApi} from '@/api/oss'
+import {normalizeTreeRoot} from '@/utils/objectExplorer'
+import type {ObjectTreeNode} from '@/types'
 
 // 关键字搜索树（带空结果处理）
 const searchPath = ref('demo/')
 const searchKeyword = ref('')
-const { status: searchStatus, result: searchResult, error: searchError, execute: execSearch } = useResult<ObjectTreeNode | null>()
+const {
+  status: searchStatus,
+  result: searchResult,
+  error: searchError,
+  execute: execSearch
+} = useResult<ObjectTreeNode | null>()
 const searchNodes = computed(() => normalizeTreeRoot(searchResult.value))
 </script>
 
@@ -25,23 +30,24 @@ const searchNodes = computed(() => normalizeTreeRoot(searchResult.value))
       <div class="grid grid-cols-2 gap-3 mb-3">
         <div>
           <p class="section-label">path</p>
-          <input v-model="searchPath" class="oss-input" placeholder="demo/" />
+          <input v-model="searchPath" class="oss-input" placeholder="demo/"/>
         </div>
         <div>
           <p class="section-label">keyword</p>
-          <input v-model="searchKeyword" class="oss-input" placeholder="输入搜索关键字" />
+          <input v-model="searchKeyword" class="oss-input" placeholder="输入搜索关键字"/>
         </div>
       </div>
-      <button class="btn btn-ghost" :disabled="searchStatus === 'loading'" @click="execSearch(() => ossApi.query.searchTree(searchPath, searchKeyword))">
-        <span v-if="searchStatus === 'loading'" class="spinner" />搜索
+      <button class="btn btn-ghost" :disabled="searchStatus === 'loading'"
+              @click="execSearch(() => ossApi.query.searchTree(searchPath, searchKeyword))">
+        <span v-if="searchStatus === 'loading'" class="spinner"/>搜索
       </button>
       <ResultPanel :status="searchStatus" :result="searchResult" :error="searchError">
         <template #success>
           <ObjectTreePanel
-            title="过滤后的目录树"
-            :nodes="searchNodes"
-            empty-text="没有匹配结果"
-            :default-expanded-depth="2"
+              title="过滤后的目录树"
+              :nodes="searchNodes"
+              empty-text="没有匹配结果"
+              :default-expanded-depth="2"
           />
         </template>
       </ResultPanel>
