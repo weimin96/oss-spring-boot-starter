@@ -21,8 +21,19 @@ import java.util.List;
 @AllArgsConstructor
 @Accessors(chain = true)
 public class LazyDataList<T> {
+    /**
+     * 保留本次查询的最大返回条数配置，便于调用方理解懒加载结果的分页窗口大小。
+     */
     private long maxKeys;
+
+    /**
+     * 续传标记显式暴露给调用方，是为了让后续分页请求不依赖底层 SDK 的分页对象。
+     */
     private String continuationToken;
+
+    /**
+     * 记录当前页已聚合的数据；允许延迟初始化以减少空结果场景下的对象分配。
+     */
     private List<T> records;
 
     /**

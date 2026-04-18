@@ -20,6 +20,9 @@ import java.util.List;
 @Accessors(chain = true)
 public class ObjectTreeNode extends ObjectInfo {
 
+    /**
+     * 目录树节点仍直接携带上传时间，避免树形接口还要回查平铺对象结果补齐时间列。
+     */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date uploadTime;
 
@@ -27,6 +30,10 @@ public class ObjectTreeNode extends ObjectInfo {
      * 之所以保留字符串而非枚举，是为了兼容现有返回协议，避免调用方联动调整。
      */
     private String type;
+
+    /**
+     * 子节点按需初始化，目的是区分“尚未展开”与“已展开但为空目录”两种状态。
+     */
     private List<ObjectTreeNode> children;
 
     /**

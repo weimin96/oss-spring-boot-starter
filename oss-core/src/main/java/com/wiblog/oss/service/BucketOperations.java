@@ -88,6 +88,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param bucketName Bucket 名称
      * @return 版本控制状态；未配置时返回 {@code null}
      */
+    @Override
     public String getVersioningStatus(String bucketName) {
         GetBucketVersioningResponse resp = handleRequest(() ->
                 client.getBucketVersioning(GetBucketVersioningRequest.builder().bucket(bucketName).build()));
@@ -106,6 +107,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param bucketName Bucket 名称
      * @return Bucket 详情
      */
+    @Override
     public BucketDetailInfo getBucketDetail(String bucketName) {
         ensureBucketAccessible(bucketName);
         BucketStatistics statistics = collectBucketStatistics(bucketName);
@@ -126,6 +128,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param bucketName Bucket 名称
      * @return ACL 信息；底层不支持时会返回 `supported=false`
      */
+    @Override
     public BucketAccessInfo getBucketAccess(String bucketName) {
         ensureBucketAccessible(bucketName);
         return queryBucketAccessInfo(bucketName);
@@ -141,6 +144,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param acl        S3 canned ACL，例如 `private`、`public-read`
      * @return 设置后的 ACL 信息
      */
+    @Override
     public BucketAccessInfo setBucketAccess(String bucketName, String acl) {
         ensureBucketAccessible(bucketName);
         BucketCannedACL bucketCannedACL = parseBucketCannedAcl(acl);
@@ -168,6 +172,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param targetTime 目标时间点，必须是 ISO-8601 UTC 时间
      * @return 回滚结果统计
      */
+    @Override
     public BucketRewindResult rewindBucket(String bucketName, String targetTime) {
         Instant targetInstant = parseTargetTime(targetTime);
         String versioningStatus = getVersioningStatus(bucketName);
@@ -247,6 +252,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      *
      * @return 生命周期规则列表
      */
+    @Override
     public List<LifecycleRuleInfo> getLifecycleRules() {
         return getLifecycleRules(ossProperties.getBucketName());
     }
@@ -257,6 +263,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param bucketName Bucket 名称
      * @return 生命周期规则列表
      */
+    @Override
     public List<LifecycleRuleInfo> getLifecycleRules(String bucketName) {
         return listLifecycleRuleModels(bucketName).stream()
                 .map(this::toLifecycleRuleInfo)
@@ -266,6 +273,7 @@ public class BucketOperations extends Operations implements OssBucketService {
     /**
      * 删除默认 Bucket 的全部生命周期规则。
      */
+    @Override
     public void deleteLifecycleRules() {
         deleteLifecycleRules(ossProperties.getBucketName());
     }
@@ -275,6 +283,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      *
      * @param bucketName Bucket 名称
      */
+    @Override
     public void deleteLifecycleRules(String bucketName) {
         requireSuccessfulRequest(() -> client.deleteBucketLifecycle(
                         DeleteBucketLifecycleRequest.builder().bucket(bucketName).build()),
@@ -290,6 +299,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param prefix         规则作用前缀
      * @param expirationDays 过期天数
      */
+    @Override
     public void addExpirationRule(String ruleId, String prefix, int expirationDays) {
         addExpirationRule(ossProperties.getBucketName(), ruleId, prefix, expirationDays);
     }
@@ -302,6 +312,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param prefix         规则作用前缀
      * @param expirationDays 过期天数
      */
+    @Override
     public void addExpirationRule(String bucketName, String ruleId, String prefix, int expirationDays) {
         LifecycleRule rule = LifecycleRule.builder()
                 .id(ruleId)
@@ -349,6 +360,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      *
      * @return CORS 规则列表
      */
+    @Override
     public List<CorsRuleInfo> getCorsRules() {
         return getCorsRules(ossProperties.getBucketName());
     }
@@ -359,6 +371,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param bucketName Bucket 名称
      * @return CORS 规则列表
      */
+    @Override
     public List<CorsRuleInfo> getCorsRules(String bucketName) {
         return listCorsRuleModels(bucketName).stream()
                 .map(this::toCorsRuleInfo)
@@ -368,6 +381,7 @@ public class BucketOperations extends Operations implements OssBucketService {
     /**
      * 为默认 Bucket 设置“允许所有来源”的 CORS 规则。
      */
+    @Override
     public void allowAllOriginsCors() {
         allowAllOriginsCors(ossProperties.getBucketName());
     }
@@ -377,6 +391,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      *
      * @param bucketName Bucket 名称
      */
+    @Override
     public void allowAllOriginsCors(String bucketName) {
         CORSRule rule = CORSRule.builder()
                 .allowedOrigins("*")
@@ -391,6 +406,7 @@ public class BucketOperations extends Operations implements OssBucketService {
     /**
      * 删除默认 Bucket 的 CORS 规则。
      */
+    @Override
     public void deleteCorsRules() {
         deleteCorsRules(ossProperties.getBucketName());
     }
@@ -400,6 +416,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      *
      * @param bucketName Bucket 名称
      */
+    @Override
     public void deleteCorsRules(String bucketName) {
         requireSuccessfulRequest(() -> client.deleteBucketCors(
                         DeleteBucketCorsRequest.builder().bucket(bucketName).build()),
@@ -412,6 +429,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      *
      * @return 策略 JSON；未配置时返回 {@code null}
      */
+    @Override
     public String getBucketPolicy() {
         return getBucketPolicy(ossProperties.getBucketName());
     }
@@ -422,6 +440,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param bucketName Bucket 名称
      * @return 策略 JSON；未配置时返回 {@code null}
      */
+    @Override
     public String getBucketPolicy(String bucketName) {
         GetBucketPolicyResponse resp = handleRequest(() ->
                 client.getBucketPolicy(GetBucketPolicyRequest.builder().bucket(bucketName).build()));
@@ -433,6 +452,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      *
      * @param policyJson 策略 JSON
      */
+    @Override
     public void putBucketPolicy(String policyJson) {
         putBucketPolicy(ossProperties.getBucketName(), policyJson);
     }
@@ -443,6 +463,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      * @param bucketName Bucket 名称
      * @param policyJson 策略 JSON
      */
+    @Override
     public void putBucketPolicy(String bucketName, String policyJson) {
         handleRequest(() -> client.putBucketPolicy(
                 PutBucketPolicyRequest.builder().bucket(bucketName).policy(policyJson).build()));
@@ -452,6 +473,7 @@ public class BucketOperations extends Operations implements OssBucketService {
     /**
      * 删除默认 Bucket 的访问策略。
      */
+    @Override
     public void deleteBucketPolicy() {
         deleteBucketPolicy(ossProperties.getBucketName());
     }
@@ -461,6 +483,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      *
      * @param bucketName Bucket 名称
      */
+    @Override
     public void deleteBucketPolicy(String bucketName) {
         handleRequest(() -> client.deleteBucketPolicy(
                 DeleteBucketPolicyRequest.builder().bucket(bucketName).build()));
@@ -470,6 +493,7 @@ public class BucketOperations extends Operations implements OssBucketService {
     /**
      * 为默认 Bucket 开启公网访问屏蔽。
      */
+    @Override
     public void blockAllPublicAccess() {
         blockAllPublicAccess(ossProperties.getBucketName());
     }
@@ -479,6 +503,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      *
      * @param bucketName Bucket 名称
      */
+    @Override
     public void blockAllPublicAccess(String bucketName) {
         PublicAccessBlockConfiguration config = PublicAccessBlockConfiguration.builder()
                 .blockPublicAcls(true)
@@ -519,6 +544,7 @@ public class BucketOperations extends Operations implements OssBucketService {
     /**
      * 为默认 Bucket 启用服务端加密。
      */
+    @Override
     public void enableServerSideEncryption() {
         enableServerSideEncryption(ossProperties.getBucketName());
     }
@@ -528,6 +554,7 @@ public class BucketOperations extends Operations implements OssBucketService {
      *
      * @param bucketName Bucket 名称
      */
+    @Override
     public void enableServerSideEncryption(String bucketName) {
         ServerSideEncryptionRule rule = ServerSideEncryptionRule.builder()
                 .applyServerSideEncryptionByDefault(
