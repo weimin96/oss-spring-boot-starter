@@ -45,6 +45,10 @@
         </dependency>
         <dependency>
             <groupId>io.github.weimin96</groupId>
+            <artifactId>oss-spring-jakarta-web-support</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>io.github.weimin96</groupId>
             <artifactId>oss-openapi</artifactId>
         </dependency>
 
@@ -75,6 +79,11 @@
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>io.github.weimin96</groupId>
+            <artifactId>oss-jakarta-test-support</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
