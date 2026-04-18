@@ -33,6 +33,7 @@ export const navGroups: NavGroup[] = [
             {name: 'list-buckets', label: '列举 Bucket', path: '/query/buckets'},
             {name: 'preview', label: '预览文件', path: '/query/preview'},
             {name: 'download', label: '下载文件', path: '/query/download'},
+            {name: 'folder-download', label: '文件夹压缩下载', path: '/query/folder-download'},
             {name: 'range-download', label: '分片下载', path: '/query/range'},
         ],
     },
@@ -118,6 +119,7 @@ const routes: RouteRecordRaw[] = [
     {path: '/query/buckets', name: 'list-buckets', component: () => import('@/views/query/ListBucketsView.vue')},
     {path: '/query/preview', name: 'preview', component: () => import('@/views/query/PreviewView.vue')},
     {path: '/query/download', name: 'download', component: () => import('@/views/query/DownloadView.vue')},
+    {path: '/query/folder-download', name: 'folder-download', component: () => import('@/views/query/FolderDownloadView.vue')},
     {path: '/query/range', name: 'range-download', component: () => import('@/views/query/RangeDownloadView.vue')},
 
     {path: '/delete/object', name: 'delete-object', component: () => import('@/views/delete/DeleteObjectView.vue')},

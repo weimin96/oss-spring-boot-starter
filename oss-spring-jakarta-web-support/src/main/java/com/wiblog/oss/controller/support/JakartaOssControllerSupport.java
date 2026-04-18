@@ -3,9 +3,11 @@ package com.wiblog.oss.controller.support;
 import com.wiblog.oss.bean.*;
 import com.wiblog.oss.bean.chunk.*;
 import com.wiblog.oss.controller.OssHttpEndpoint;
+import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.resp.OssResponse;
 import com.wiblog.oss.service.JakartaOssPreviewContext;
 import com.wiblog.oss.service.OssTemplate;
+import com.wiblog.oss.util.Util;
 import com.wiblog.oss.web.adapter.SpringMultipartUploadFile;
 import com.wiblog.oss.web.request.ObjectUploadRequest;
 import jakarta.servlet.http.HttpServletRequest;
@@ -22,8 +24,11 @@ import org.springframework.web.servlet.HandlerMapping;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -299,6 +304,27 @@ public abstract class JakartaOssControllerSupport implements OssHttpEndpoint {
         ossTemplate.query().previewObject(
                 new JakartaOssPreviewContext(request, response),
                 extractObjectName(request), true);
+    }
+
+    /**
+     * HTTP 端点：按前缀列举对象并流式输出 ZIP。
+     *
+     * <p>S3 不存在真实文件夹，因此这里的 path 表示 prefix。
+     * 控制器只负责响应头和失败响应适配，ZIP 构建逻辑全部下沉到 core 读侧服务。</p>
+     */
+    @GetMapping("/folder/download")
+    public void downloadFolderAsZip(
+            @NotBlank @RequestParam String path,
+            @RequestParam(required = false) String filename,
+            HttpServletResponse response) throws IOException {
+        String zipFilename = resolveZipFilename(path, filename);
+        try {
+            response.setContentType("application/zip");
+            response.setHeader("Content-Disposition", buildAttachmentHeader(zipFilename));
+            ossTemplate.query().writeFolderAsZip(path, response.getOutputStream());
+        } catch (Exception e) {
+            writeFolderZipFailure(response, e);
+        }
     }
 
     // ================================================================
@@ -627,5 +653,72 @@ public abstract class JakartaOssControllerSupport implements OssHttpEndpoint {
         String pattern = (String) request.getAttribute(HandlerMapping.BEST_MATCHING_PATTERN_ATTRIBUTE);
         return antPathMatcher.extractPathWithinPattern(pattern, path);
     }
-}
 
+    private String resolveZipFilename(String path, String filename) {
+        String normalizedName = Util.isBlank(filename)
+                ? Util.getFilename(trimTrailingSlash(path))
+                : filename.trim();
+        if (Util.isBlank(normalizedName)) {
+            normalizedName = "folder-download";
+        }
+        return normalizedName.toLowerCase(Locale.ROOT).endsWith(".zip")
+                ? normalizedName
+                : normalizedName + ".zip";
+    }
+
+    private String buildAttachmentHeader(String filename) throws IOException {
+        String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8.name())
+                .replace("+", "%20");
+        return "attachment; filename=\"" + encodedFilename + "\"; filename*=UTF-8''" + encodedFilename;
+    }
+
+    /**
+     * 该端点输出的是二进制 ZIP，不适合再交给统一 JSON 异常处理器。
+     * 如果压缩流程在响应提交前失败，这里直接回写明确的 HTTP 状态和纯文本消息。
+     */
+    private void writeFolderZipFailure(HttpServletResponse response, Exception exception) throws IOException {
+        if (response.isCommitted()) {
+            if (exception instanceof IOException) {
+                throw (IOException) exception;
+            }
+            if (exception instanceof RuntimeException) {
+                throw (RuntimeException) exception;
+            }
+            throw new IOException(exception);
+        }
+        response.reset();
+        response.setCharacterEncoding(StandardCharsets.UTF_8.name());
+        response.setContentType("text/plain;charset=UTF-8");
+        response.setStatus(resolveFailureStatus(exception));
+        response.getOutputStream().write(resolveFailureMessage(exception).getBytes(StandardCharsets.UTF_8));
+        response.getOutputStream().flush();
+    }
+
+    private int resolveFailureStatus(Exception exception) {
+        if (!(exception instanceof OssException)) {
+            return 500;
+        }
+        OssException ossException = (OssException) exception;
+        if ("INVALID_PATH".equals(ossException.getCode())) {
+            return 400;
+        }
+        if ("OBJECT_NOT_FOUND".equals(ossException.getCode())) {
+            return 404;
+        }
+        return 500;
+    }
+
+    private String resolveFailureMessage(Exception exception) {
+        return exception instanceof OssException
+                ? exception.getMessage()
+                : "文件夹压缩下载失败";
+    }
+
+    private String trimTrailingSlash(String path) {
+        if (path == null) {
+            return null;
+        }
+        String normalizedPath = path.replace('\\', '/');
+        return normalizedPath.endsWith("/") ? normalizedPath.substring(0, normalizedPath.length() - 1) : normalizedPath;
+    }
+}

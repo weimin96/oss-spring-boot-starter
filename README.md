@@ -291,64 +291,6 @@ String downloadUrl = ossTemplate.presign()
 | `PUT`    | `/bucket/tags`                 | 覆盖设置 Bucket 标签  |
 | `DELETE` | `/bucket/tags`                 | 删除 Bucket 标签    |
 
-## 运行示例工程
-
-启动本地 MinIO：
-
-```powershell
-docker run -d --name minio -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin minio/minio server /data --console-address ":9001"
-```
-
-运行 Spring Boot 3 示例：
-
-```powershell
-Set-Location samples\sample-springboot3
-mvn spring-boot:run
-```
-
-示例默认配置：
-
-- 应用端口：`8080`
-- MinIO 端点：`http://127.0.0.1:9000`
-- MinIO 控制台：`http://127.0.0.1:9001`
-- 默认 Bucket：`oss-sample`
-- REST 前缀：`/api/oss`
-
-验证连通性：
-
-```powershell
-Invoke-RestMethod -Method Get -Uri 'http://localhost:8080/api/oss/connect'
-```
-
-## 从源码构建
-
-```powershell
-# 编译全部模块
-mvn compile
-
-# 执行全部测试
-mvn test
-
-# 只测试 Spring Boot 3 Web Starter 及其依赖
-mvn -pl oss-spring-boot3-web-starter -am test
-
-# 安装到本地 Maven 仓库
-mvn install
-```
-
-集成测试和示例运行依赖可访问的对象存储服务。默认示例按本地 MinIO 配置。
-
-## 使用注意事项
-
-- `oss.enable=true` 是所有自动配置的总开关。
-- `oss.http.enable=true` 只在 Web Starter 或 OpenAPI Starter 中注册 HTTP 控制器。
-- `bucket-name` 是默认 Bucket 名称；如果使用默认 Bucket 操作，建议显式配置。
-- `auto-create-bucket=true` 会在默认 Bucket 不存在时尝试创建 Bucket。
-- 分片大小不能小于 5 MB。
-- 预览和下载接口支持 HTTP Range，适合视频、音频等大文件场景。
-- Bucket ACL、公共访问屏蔽、加密、生命周期等能力取决于底层对象存储是否实现对应 S3 API。
-- 生产环境不要把访问密钥明文写入代码仓库，建议使用环境变量、配置中心或密钥管理系统。
-
 ## 许可证
 
 [Apache License 2.0](LICENSE)

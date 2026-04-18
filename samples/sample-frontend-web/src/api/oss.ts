@@ -181,6 +181,15 @@ export const ossApi = {
         download: (objectName: string) =>
             requestRaw({method: 'GET', url: `/object/download/${objectName}`, responseType: 'blob'}),
 
+        /** GET /folder/download — 按路径前缀流式压缩下载 ZIP */
+        downloadFolder: (path: string, filename?: string) =>
+            requestRaw({
+                method: 'GET',
+                url: '/folder/download',
+                responseType: 'blob',
+                params: {path, filename},
+            }),
+
         /**
          * GET /object/download/** — 分片下载（Range 请求）
          * @param objectName 对象 key

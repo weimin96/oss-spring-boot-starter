@@ -228,6 +228,16 @@ public abstract class JakartaOpenApiOssControllerSupport extends JakartaOssContr
     }
 
     @Override
+    @Operation(summary = "按路径前缀压缩下载 ZIP")
+    @GetMapping("/folder/download")
+    public void downloadFolderAsZip(
+            @RequestParam String path,
+            @RequestParam(required = false) String filename,
+            HttpServletResponse response) throws IOException {
+        super.downloadFolderAsZip(path, filename, response);
+    }
+
+    @Override
     @Operation(summary = "复制文件")
     @PostMapping("/object/copy")
     public OssResponse<Void> copyObject(

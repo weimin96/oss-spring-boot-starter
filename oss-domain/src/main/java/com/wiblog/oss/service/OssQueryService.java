@@ -8,6 +8,7 @@ import com.wiblog.oss.bean.ObjectTreeNode;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.List;
 
 /**
@@ -69,6 +70,19 @@ public interface OssQueryService {
     void getFolder(String objectName, String localFilePath);
 
     void getFolder(String bucketName, String objectName, String localFilePath);
+
+    /**
+     * 按前缀列举默认 Bucket 下的真实对象，并流式写成 ZIP。
+     *
+     * <p>S3 没有真实文件夹概念，因此 path 表示 prefix。
+     * 这里直接暴露 {@link OutputStream}，是为了让 Web 端点、自定义控制器和非 HTTP 场景都能复用同一条读链路。</p>
+     */
+    void writeFolderAsZip(String path, OutputStream outputStream) throws IOException;
+
+    /**
+     * 按前缀列举指定 Bucket 下的真实对象，并流式写成 ZIP。
+     */
+    void writeFolderAsZip(String bucketName, String path, OutputStream outputStream) throws IOException;
 
     void previewObject(OssPreviewContext context, String objectName, boolean download) throws IOException;
 

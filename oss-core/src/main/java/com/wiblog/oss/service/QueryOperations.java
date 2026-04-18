@@ -5,8 +5,10 @@ import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
 import com.wiblog.oss.config.OssClientOptions;
+import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
@@ -20,6 +22,8 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * 查询操作类（核心逻辑，不依赖任何 Servlet API）
@@ -585,6 +589,56 @@ public class QueryOperations extends Operations implements OssQueryService {
         }
     }
 
+    /**
+     * 将默认 Bucket 下某个前缀对应的对象集合流式写成 ZIP。
+     *
+     * <p>S3 没有真实文件夹概念，因此这里把 path 视为 prefix，
+     * 先列举真实对象，再按相对路径写入 ZIP，避免返回一个空归档伪装成成功结果。</p>
+     *
+     * @param path         对象前缀
+     * @param outputStream ZIP 输出目标
+     */
+    @Override
+    public void writeFolderAsZip(String path, OutputStream outputStream) throws IOException {
+        writeFolderAsZip(ossProperties.getBucketName(), path, outputStream);
+    }
+
+    /**
+     * 将指定 Bucket 下某个前缀对应的对象集合流式写成 ZIP。
+     *
+     * <p>该能力只负责对象枚举和 ZIP 写出，不关心 HTTP 响应头；
+     * Web 层可以复用这条读链路，把 ZIP 写到 Servlet 输出流，也可以在自定义业务中写到任意输出目标。</p>
+     *
+     * @param bucketName   Bucket 名称
+     * @param path         对象前缀
+     * @param outputStream ZIP 输出目标
+     */
+    @Override
+    public void writeFolderAsZip(String bucketName, String path, OutputStream outputStream) throws IOException {
+        FolderZipExportPlan exportPlan = prepareFolderZipExportPlan(bucketName, path);
+        ZipOutputStream zipOutputStream = null;
+        try {
+            for (S3Object object : exportPlan.getObjects()) {
+                try (InputStream inputStream = openObjectStreamForZip(exportPlan.getBucketName(), object.key())) {
+                    if (zipOutputStream == null) {
+                        zipOutputStream = new ZipOutputStream(
+                                new NonClosingOutputStream(outputStream), StandardCharsets.UTF_8);
+                    }
+                    writeObjectAsZipEntry(exportPlan.getPrefix(), object, inputStream, zipOutputStream);
+                } catch (IOException e) {
+                    throw new OssException("OBJECT_READ_FAILED", "读取对象失败：" + object.key(), e);
+                }
+            }
+            if (zipOutputStream != null) {
+                zipOutputStream.finish();
+            }
+        } finally {
+            if (zipOutputStream != null) {
+                zipOutputStream.close();
+            }
+        }
+    }
+
     // ----------------------------------------------------------------
     // 预览/下载核心逻辑（不依赖 Servlet API，由 context 抽象适配）
     // ----------------------------------------------------------------
@@ -826,6 +880,91 @@ public class QueryOperations extends Operations implements OssQueryService {
         return new ByteArrayInputStream(bytes);
     }
 
+    /**
+     * ZIP 导出在开始写出之前先做对象枚举和目录占位过滤，
+     * 这样能把“前缀为空”或“没有真实对象”收敛成明确异常，而不是生成一个空 ZIP 误导调用方。
+     */
+    private FolderZipExportPlan prepareFolderZipExportPlan(String bucketName, String path) {
+        String prefix = formatZipPrefix(path);
+        List<S3Object> objects = listObject(bucketName, prefix, null).stream()
+                .filter(object -> isRealFolderObject(object, prefix))
+                .collect(Collectors.toList());
+        if (objects.isEmpty()) {
+            throw new OssException("OBJECT_NOT_FOUND", "未找到前缀下的对象：" + prefix);
+        }
+        return new FolderZipExportPlan(bucketName, prefix, objects);
+    }
+
+    private String formatZipPrefix(String path) {
+        if (Util.isBlank(path) || "/".equals(path)) {
+            throw new OssException("INVALID_PATH", "文件夹前缀不能为空");
+        }
+        String prefix = Util.formatPath(path);
+        if (Util.isBlank(prefix)) {
+            throw new OssException("INVALID_PATH", "文件夹前缀不能为空");
+        }
+        return prefix;
+    }
+
+    private boolean isRealFolderObject(S3Object object, String prefix) {
+        if (object == null || Util.isBlank(object.key())) {
+            return false;
+        }
+        String key = object.key();
+        if (!key.startsWith(prefix)) {
+            return false;
+        }
+        return !key.endsWith("/");
+    }
+
+    /**
+     * 先成功打开对象流，再创建 ZIP 条目，
+     * 是为了把“对象不存在 / 无法读取”尽量暴露在写出第一批 ZIP 字节之前，便于上层返回明确错误响应。
+     */
+    private void writeObjectAsZipEntry(String prefix, S3Object object,
+                                       InputStream inputStream, ZipOutputStream zipOutputStream) throws IOException {
+        String entryName = buildZipEntryName(object.key(), prefix);
+        boolean entryOpened = false;
+        try {
+            ZipEntry entry = new ZipEntry(entryName);
+            if (object.lastModified() != null) {
+                entry.setTime(object.lastModified().toEpochMilli());
+            }
+            zipOutputStream.putNextEntry(entry);
+            entryOpened = true;
+            pipe(inputStream, zipOutputStream);
+        } finally {
+            if (entryOpened) {
+                zipOutputStream.closeEntry();
+            }
+        }
+    }
+
+    private String buildZipEntryName(String objectKey, String prefix) {
+        String entryName = objectKey.startsWith(prefix)
+                ? objectKey.substring(prefix.length())
+                : objectKey;
+        if (Util.isBlank(entryName) || entryName.endsWith("/")) {
+            throw new OssException("INVALID_ZIP_ENTRY", "对象无法转换为 ZIP 条目：" + objectKey);
+        }
+        return entryName;
+    }
+
+    private InputStream openObjectStreamForZip(String bucketName, String objectKey) {
+        try {
+            ResponseInputStream<GetObjectResponse> responseInputStream = executeRequestStrict(() ->
+                    client.getObject(buildGetRequest(bucketName, objectKey), AsyncResponseTransformer.toBlockingInputStream()));
+            if (responseInputStream == null) {
+                throw OssException.objectNotFound(objectKey);
+            }
+            return responseInputStream;
+        } catch (NoSuchKeyException e) {
+            throw OssException.objectNotFound(objectKey);
+        } catch (S3Exception e) {
+            throw new OssException("OBJECT_READ_FAILED", "读取对象失败：" + objectKey, e);
+        }
+    }
+
     private void serveFullContent(OssPreviewContext context, String objectName,
                                   long fileSize) throws IOException {
         InputStream inputStream = getInputStream(objectName);
@@ -880,5 +1019,53 @@ public class QueryOperations extends Operations implements OssQueryService {
             remaining -= read;
         }
     }
-}
 
+    private static void pipe(InputStream in, OutputStream out) throws IOException {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        int read;
+        while ((read = in.read(buffer)) != -1) {
+            out.write(buffer, 0, read);
+        }
+    }
+
+    /**
+     * 关闭 ZIP 流时只允许结束归档，不应该把外部传入的真实输出流一并关闭；
+     * 否则自定义调用方或 Servlet 容器无法继续控制响应生命周期。
+     */
+    private static final class NonClosingOutputStream extends FilterOutputStream {
+
+        private NonClosingOutputStream(OutputStream out) {
+            super(out);
+        }
+
+        @Override
+        public void close() throws IOException {
+            flush();
+        }
+    }
+
+    private static final class FolderZipExportPlan {
+
+        private final String bucketName;
+        private final String prefix;
+        private final List<S3Object> objects;
+
+        private FolderZipExportPlan(String bucketName, String prefix, List<S3Object> objects) {
+            this.bucketName = bucketName;
+            this.prefix = prefix;
+            this.objects = objects;
+        }
+
+        private String getBucketName() {
+            return bucketName;
+        }
+
+        private String getPrefix() {
+            return prefix;
+        }
+
+        private List<S3Object> getObjects() {
+            return objects;
+        }
+    }
+}
