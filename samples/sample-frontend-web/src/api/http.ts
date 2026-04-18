@@ -18,6 +18,13 @@ http.interceptors.response.use(
         // 把后端统一响应里的 msg 透传给前端页面，
         // 这样参数校验失败时能直接展示服务端返回的领域错误消息。
         if (axios.isAxiosError(err)) {
+            const responseData = err.response?.data
+            if (responseData instanceof Blob) {
+                return responseData.text().then((text) => {
+                    const message = text && text.trim() ? text : err.message
+                    return Promise.reject(new Error(message))
+                })
+            }
             const body = err.response?.data as Partial<R<unknown>> | undefined
             if (body?.msg) {
                 return Promise.reject(new Error(body.msg))

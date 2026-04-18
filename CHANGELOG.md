@@ -6,6 +6,67 @@
 
 ## 特性
 
+### 模块化拆分
+- 基础 Java API：`oss-spring-boot2/3/4-starter`
+- Web Starter（内置 REST 接口，不含 Swagger）：`oss-spring-boot2/3/4-web-starter`
+- OpenAPI Starter（REST 接口含 Swagger 注解）：`oss-spring-boot2/3/4-openapi-starter`
+- 测试支持模块：`oss-test-support`
+
+### Spring Boot 多版本支持
+- 新增 Spring Boot 4 支持
+- Spring Boot 2 使用 `javax.servlet`
+- Spring Boot 3 和 Spring Boot 4 使用 `jakarta.servlet`
+
+### 文件操作能力
+- 普通文件上传、文件夹上传
+- 大文件分片上传、分片合并、查询已上传分片
+- 大文件分片下载、普通下载，支持 HTTP Range
+- 文件预览，支持 HTTP Range
+- 文件复制、移动
+- 文件删除、批量删除、文件夹递归删除
+- 文件是否存在检查
+- 对象元数据查询
+
+### 文件查询能力
+- 文件列表递归查询
+- 下一层级文件列举
+- 游标分页懒加载列表
+- 目录树获取
+- 目录树关键字搜索
+- 仅目录树获取
+- 连接测试
+
+### 流式解压
+- ZIP 流式解压
+- 跨 Bucket 流式解压
+- 按条目前缀过滤解压
+
+### 预签名 URL
+- 生成下载预签名 URL
+- 生成上传预签名 URL
+
+### 标签管理
+- 对象标签：获取、覆盖设置、合并更新、删除
+- Bucket 标签：获取、覆盖设置、删除
+
+### Bucket 管理
+- Bucket 列举
+- Bucket 详情聚合查询
+- Bucket ACL 查询与设置
+- 版本控制：查询、启用、挂起
+- 时间回滚：按时间回滚 Bucket 可见状态
+- 生命周期管理：查询、添加过期规则、删除规则
+- CORS 配置：查询、设置允许所有来源、删除
+- 策略管理：查询、设置、删除
+- 加密：启用 SSE-S3 服务端加密
+- 公共访问：开启公共访问屏蔽
+
+### 存储类型支持
+- MinIO
+- 腾讯云 COS
+- 华为云 OBS
+- 通用 S3 兼容服务
+
 ## [v2.1.8]
 
 ## 特性

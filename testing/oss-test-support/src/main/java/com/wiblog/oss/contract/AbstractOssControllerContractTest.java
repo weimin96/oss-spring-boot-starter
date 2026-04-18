@@ -15,6 +15,7 @@ import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.HandlerMapping;
 
+import java.io.OutputStream;
 import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -264,6 +265,18 @@ public abstract class AbstractOssControllerContractTest<T> {
         }
 
         @Test
+        @DisplayName("文件夹压缩下载接口应设置 ZIP 响应头并委派给 QueryOperations")
+        void folderDownloadDelegatesWithZipHeaders() throws Exception {
+            MockHttpServletResponse response = new MockHttpServletResponse();
+
+            invokeServletEndpointWithParameterCount("downloadFolderAsZip", 3, "demo/archive/", "bundle", response);
+
+            verify(queryOperations).writeFolderAsZip(eq("demo/archive/"), any(OutputStream.class));
+            assertThat(response.getContentType()).isEqualTo("application/zip");
+            assertThat(response.getHeader("Content-Disposition")).contains("bundle.zip");
+        }
+
+        @Test
         @DisplayName("复制、移动与预签名接口应正确委派")
         void copyMoveAndPresignDelegate() throws Exception {
             when(presignOperations.generateGetPresignedUrl("demo/file.txt", Duration.ofSeconds(60)))
@@ -434,14 +447,18 @@ public abstract class AbstractOssControllerContractTest<T> {
     }
 
     private void invokeServletEndpoint(String methodName, Object... arguments) throws Exception {
-        invokeControllerMethod(findServletEndpoint(methodName), arguments);
+        invokeControllerMethod(findServletEndpoint(methodName, arguments.length), arguments);
     }
 
-    private Method findServletEndpoint(String methodName) throws NoSuchMethodException {
+    private void invokeServletEndpointWithParameterCount(String methodName, int parameterCount, Object... arguments) throws Exception {
+        invokeControllerMethod(findServletEndpoint(methodName, parameterCount), arguments);
+    }
+
+    private Method findServletEndpoint(String methodName, int parameterCount) throws NoSuchMethodException {
         Method[] methods = controller.getClass().getMethods();
         for (int i = 0; i < methods.length; i++) {
             Method method = methods[i];
-            if (method.getName().equals(methodName) && method.getParameterTypes().length == 2) {
+            if (method.getName().equals(methodName) && method.getParameterTypes().length == parameterCount) {
                 return method;
             }
         }
