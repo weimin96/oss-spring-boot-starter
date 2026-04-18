@@ -6,11 +6,20 @@ on:
       - '*'
     branches:
       - 'main'
-      - 'spring3'
+      - 'dev'
+    # 文档不影响 Java 运行时代码与自动配置契约，纯文档变更不需要拉起 MinIO 执行全量 CI。
+    paths-ignore:
+      - '**/*.md'
+      - 'screenshot/**'
+      - '.github/ISSUE_TEMPLATE/**'
   pull_request:
     branches:
       - 'main'
-      - 'spring3'
+      - 'dev'
+    paths-ignore:
+      - '**/*.md'
+      - 'screenshot/**'
+      - '.github/ISSUE_TEMPLATE/**'
 
 permissions:
   contents: read
