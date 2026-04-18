@@ -4,46 +4,37 @@
 [![Coverage Status](https://coveralls.io/repos/github/weimin96/oss-spring-boot-starter/badge.svg?branch=main)](https://coveralls.io/github/weimin96/oss-spring-boot-starter?branch=main)
 [![GitHub Release](https://img.shields.io/github/v/release/weimin96/oss-spring-boot-starter)](https://github.com/weimin96/oss-spring-boot-starter/releases/)
 [![Maven Central Version](https://img.shields.io/maven-central/v/io.github.weimin96/oss-spring-boot3-starter)](https://repo1.maven.org/maven2/io/github/weimin96/oss-spring-boot3-starter/)
-[![GitHub repo size](https://img.shields.io/github/repo-size/weimin96/oss-spring-boot-starter)](https://github.com/weimin96/oss-spring-boot-starter/releases/)
 [![License](https://img.shields.io/:license-apache-brightgreen.svg)](https://www.apache.org/licenses/LICENSE-2.0.html)
-[![Last Commit](https://img.shields.io/github/last-commit/weimin96/oss-spring-boot-starter.svg)](https://github.com/weimin96/oss-spring-boot-starter)
-[![GitHub commit activity](https://img.shields.io/github/commit-activity/m/weimin96/oss-spring-boot-starter.svg)](https://github.com/weimin96/oss-spring-boot-starter)
 
-基于 AWS S3 SDK v2 的对象存储 Spring Boot Starter，支持 **Spring Boot 2.x / 3.x / 4.x** 多版本。
+基于 AWS S3 SDK v2 的对象存储 Spring Boot Starter，支持 Spring Boot 2、Spring Boot 3、Spring Boot 4。项目按使用方式拆分为基础 Java API、内置 REST 接口、OpenAPI 注解元数据三类 Starter。
 
-示例入口：[samples/README.md](samples/README.md)
+示例工程入口：[samples/README.md](samples/README.md)
 
-## 简介
+## 能力概览
 
-所有兼容 S3 协议的存储服务均可直接使用：
+- 使用 `OssTemplate` 访问上传、查询、删除、流式解压、预签名 URL、标签、Bucket 管理能力。
+- 支持 MinIO、腾讯云 COS、华为云 OBS 以及通用 S3 兼容服务。
+- 可按需启用内置 REST 接口，路径统一挂载在 `${oss.http.prefix}/oss`。
+- 可按需启用带 Swagger 注解元数据的控制器，便于接入宿主应用已有的 OpenAPI 工具链。
+- Spring Boot 2 使用 `javax.servlet`，Spring Boot 3 和 Spring Boot 4 使用 `jakarta.servlet`。
 
-| 云厂商 | type 值 |
-|---|---|
-| Amazon S3 | *(留空)* |
-| 腾讯云 COS | `cos` |
-| 阿里云 OSS | `oss` |
-| 华为云 OBS | `obs` |
-| 七牛云 Kodo | `qiniu` |
-| 京东云 OSS | `jd` |
-| MinIO | `minio` |
+## 选择依赖
 
-## 快速开始
+当前源码版本为 `3.0.0`。
 
-**1. 引入依赖**
+| 使用场景 | Spring Boot 2 | Spring Boot 3 | Spring Boot 4 |
+|----------|---------------|---------------|---------------|
+| 只使用 Java API | `oss-spring-boot2-starter` | `oss-spring-boot3-starter` | `oss-spring-boot4-starter` |
+| 使用内置 REST 接口 | `oss-spring-boot2-web-starter` | `oss-spring-boot3-web-starter` | `oss-spring-boot4-web-starter` |
+| 使用带 OpenAPI 注解的 REST 接口 | `oss-spring-boot2-openapi-starter` | `oss-spring-boot3-openapi-starter` | `oss-spring-boot4-openapi-starter` |
 
-Spring Boot 2.x
+基础 Starter 只创建 `OssTemplate`，不注册 REST 控制器。需要 HTTP 接口时请选择 Web Starter 或 OpenAPI Starter。
 
+OpenAPI Starter 只提供 Swagger 注解元数据，不内置 Swagger UI。宿主应用可以继续使用自己的 springdoc 或其他 OpenAPI 集成。
 
+## 安装
 
-```xml
-<dependency>
-    <groupId>io.github.weimin96</groupId>
-    <artifactId>oss-spring-boot2-starter</artifactId>
-    <version>3.0.0</version>
-</dependency>
-```
-
-Spring Boot 3.x
+Spring Boot 3 基础 Java API 示例：
 
 ```xml
 <dependency>
@@ -53,43 +44,111 @@ Spring Boot 3.x
 </dependency>
 ```
 
-Spring Boot 4.x
+Spring Boot 3 内置 REST 接口示例：
 
 ```xml
 <dependency>
     <groupId>io.github.weimin96</groupId>
-    <artifactId>oss-spring-boot4-starter</artifactId>
+    <artifactId>oss-spring-boot3-web-starter</artifactId>
     <version>3.0.0</version>
 </dependency>
 ```
 
-**2. 配置 `application.yml`**
+Spring Boot 3 OpenAPI 注解接口示例：
+
+```xml
+<dependency>
+    <groupId>io.github.weimin96</groupId>
+    <artifactId>oss-spring-boot3-openapi-starter</artifactId>
+    <version>3.0.0</version>
+</dependency>
+```
+
+Web Starter 和 OpenAPI Starter 的 Spring Web、Validation 依赖在本项目中按 `provided` 处理。宿主 Web 应用需要已经引入以下依赖；如果你的应用已经有它们，不需要重复声明。
+
+```xml
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-web</artifactId>
+</dependency>
+<dependency>
+    <groupId>org.springframework.boot</groupId>
+    <artifactId>spring-boot-starter-validation</artifactId>
+</dependency>
+```
+
+## 基础配置
 
 ```yaml
 oss:
   enable: true
-  endpoint: http://localhost:9000
-  bucket-name: my-bucket
+  endpoint: http://127.0.0.1:9000
+  bucket-name: oss-sample
   auto-create-bucket: true
   access-key: minioadmin
   secret-key: minioadmin
   type: minio
+  max-connections: 50
+  connection-timeout: 10000
   throughput-in-gbps: 20.0
   part-size-in-mb: 10
-  # 启用内置 REST 端点（可选）
   http:
     enable: true
     prefix: /api
 
-# 配置文件上传限制大小
 spring:
   servlet:
     multipart:
-      max-file-size: 2GB # 根据需求自行配置
-      max-request-size: 2GB # 根据需求自行配置
+      max-file-size: 500MB
+      max-request-size: 500MB
 ```
 
-**3. 注入使用**
+只使用基础 Java API 时，可以不配置 `oss.http`，或保持 `oss.http.enable=false`。
+
+## 配置项
+
+| 配置项 | 类型 | 默认值 | 说明 |
+|--------|------|--------|------|
+| `oss.enable` | boolean | `false` | 是否启用自动配置 |
+| `oss.endpoint` | String | 无 | 对象存储服务端点，启用后必填 |
+| `oss.bucket-name` | String | 无 | 默认 Bucket 名称，多数默认 Bucket 操作需要配置 |
+| `oss.auto-create-bucket` | boolean | `false` | 默认 Bucket 不存在时是否自动创建 |
+| `oss.access-key` | String | 无 | 访问密钥 ID，启用后必填 |
+| `oss.secret-key` | String | 无 | 访问密钥，启用后必填 |
+| `oss.type` | String | 无 | 存储类型，常用值为 `minio`、`cos`、`obs` |
+| `oss.max-connections` | int | `50` | 最大连接数配置项 |
+| `oss.connection-timeout` | long | `10000` | 连接超时时间，单位毫秒 |
+| `oss.throughput-in-gbps` | double | `20.0` | AWS CRT S3 客户端目标吞吐量 |
+| `oss.part-size-in-mb` | int | `10` | 分片大小，最小值为 5 MB |
+| `oss.http.enable` | boolean | `false` | 是否注册内置 REST 接口 |
+| `oss.http.prefix` | String | 空字符串 | REST 接口路径前缀 |
+
+## 存储类型
+
+| `oss.type` | 对象存储 | URL 拼接方式 |
+|------------|----------|--------------|
+| `minio` | MinIO 或本地 S3 兼容服务 | Path-Style，格式为 `{endpoint}/{bucket}/` |
+| `cos` | 腾讯云 COS | Virtual-Hosted，格式为 `{protocol}://{bucket}.{host}/` |
+| `obs` | 华为云 OBS | Virtual-Hosted，格式为 `{protocol}://{bucket}.{host}/` |
+| 其他值或空值 | 通用 S3 兼容服务 | Path-Style 兜底 |
+
+底层 S3 客户端目前只在 `oss.type=minio` 时强制 Path-Style 寻址。使用其他 S3 兼容服务时，请先在目标环境验证 endpoint 与 Bucket 寻址方式。
+
+## Java API 用法
+
+所有操作都从 `OssTemplate` 进入。
+
+| 入口 | 能力 |
+|------|------|
+| `ossTemplate.put()` | 上传文件、创建目录占位、复制、移动、分片上传 |
+| `ossTemplate.query()` | 连接测试、对象元数据、列表、树形结构、下载、预览 |
+| `ossTemplate.delete()` | 单个删除、批量删除、目录递归删除 |
+| `ossTemplate.unzip()` | ZIP 流式解压、跨 Bucket 解压、按条目前缀过滤解压 |
+| `ossTemplate.presign()` | 生成 GET/PUT 预签名 URL |
+| `ossTemplate.tagging()` | 对象标签和 Bucket 标签 |
+| `ossTemplate.bucket()` | Bucket 详情、ACL、版本控制、时间回滚、生命周期、CORS、策略、安全配置 |
+
+上传示例：
 
 ```java
 @RestController
@@ -100,195 +159,181 @@ public class FileController {
 
     @PostMapping("/upload")
     public String upload(@RequestParam("file") MultipartFile file) throws IOException {
-        ObjectInfo info = ossTemplate.put().putObject(
-                "uploads/", file.getOriginalFilename(), file.getInputStream());
-        return info.getUrl();
+        try (InputStream inputStream = file.getInputStream()) {
+            ObjectInfo objectInfo = ossTemplate.put()
+                    .putObject("uploads/", file.getOriginalFilename(), inputStream);
+            return objectInfo.getUrl();
+        }
     }
 }
 ```
 
----
+查询与预签名示例：
 
-## 配置参数
+```java
+ObjectInfo objectInfo = ossTemplate.query().getObjectInfo("uploads/demo.txt");
 
-| 配置项 | 类型 | 默认值 | 说明 |
-|--------|------|--------|------|
-| `oss.enable` | boolean | `false` | 是否启用 OSS |
-| `oss.endpoint` | String | — | 存储服务端点（**必填**） |
-| `oss.bucket-name` | String | — | 默认 Bucket 名称 |
-| `oss.auto-create-bucket` | boolean | `false` | Bucket 不存在时自动创建 |
-| `oss.access-key` | String | — | Access Key（**必填**） |
-| `oss.secret-key` | String | — | Secret Key（**必填**） |
-| `oss.type` | String | — | 存储类型：`minio` / `cos` / `obs` / `oss` / `s3` |
-| `oss.max-connections` | int | `50` | 最大连接数 |
-| `oss.connection-timeout` | long | `10000` | 连接超时（毫秒） |
-| `oss.throughput-in-gbps` | double | `20.0` | 目标吞吐量（Gbps） |
-| `oss.part-size-in-mb` | int | `10` | 分片上传分片大小（MB，最小 5） |
-| `oss.http.enable` | boolean | `false` | 启用内置 REST 端点 |
-| `oss.http.prefix` | String | `""` | REST 端点路径前缀 |
+boolean exists = ossTemplate.query().checkExist("uploads/demo.txt");
 
----
+String downloadUrl = ossTemplate.presign()
+        .generateGetPresignedUrl("uploads/demo.txt", Duration.ofMinutes(10));
+```
 
-## 内置 REST API（`oss.http.enable=true` 时可用）
+## 内置 REST 接口
+
+启用条件：
+
+- 引入对应版本的 Web Starter 或 OpenAPI Starter。
+- 宿主应用是 Spring Web 应用。
+- 配置 `oss.enable=true`。
+- 配置 `oss.http.enable=true`。
+
+所有路径都以 `${oss.http.prefix}/oss` 为前缀。示例配置 `oss.http.prefix=/api` 时，完整前缀为 `/api/oss`。
+
+除预览和下载接口直接输出文件流外，其他接口统一返回 `OssResponse`。
+
+### 分片上传
 
 | 方法 | 路径 | 说明 |
 |------|------|------|
-| POST | `/oss/object` | 上传文件 |
-| DELETE | `/oss/object` | 删除单个文件 |
-| DELETE | `/oss/objects` | 批量删除文件 |
-| GET | `/oss/object` | 获取文件元数据 |
-| GET | `/oss/object/list` | 列举目录下所有对象 |
-| GET | `/oss/object/list/next-level` | 列举下一层级 |
-| GET | `/oss/object/list/lazy` | 懒加载分页列表 |
-| GET | `/oss/object/tree` | 获取目录树 |
-| GET | `/oss/object/preview/**` | 在线预览文件（支持 Range） |
-| GET | `/oss/object/download/**` | 下载文件 |
-| POST | `/oss/multipart/init` | 初始化分片上传 |
-| POST | `/oss/multipart/chunk` | 上传分片 |
-| POST | `/oss/multipart/merge` | 合并分片 |
-| GET | `/oss/presign/get` | 生成下载预签名 URL |
-| GET | `/oss/presign/put` | 生成上传预签名 URL |
-| POST | `/oss/unzip` | 流式解压 ZIP 到 OSS |
-| GET/PUT/DELETE | `/oss/object/tags` | 对象标签管理 |
-| GET/PUT/DELETE | `/oss/bucket/versioning` | Bucket 版本控制 |
-| GET/DELETE | `/oss/bucket/lifecycle` | 生命周期规则 |
-| GET/DELETE | `/oss/bucket/cors` | CORS 配置 |
+| `POST` | `/multipart/init` | 初始化分片上传任务 |
+| `POST` | `/multipart/chunk` | 上传单个分片 |
+| `POST` | `/multipart/merge` | 合并分片 |
+| `GET` | `/multipart/parts` | 查询已上传分片列表 |
 
----
-
-## 支持的存储类型
-
-| 类型值 | 存储服务 | 域名策略 |
-|--------|----------|----------|
-| `minio` | MinIO | 路径风格（Path Style） |
-| `cos` | 腾讯云 COS | 虚拟主机风格 |
-| `obs` | 华为云 OBS | 虚拟主机风格 |
-| `oss` | 阿里云 OSS | 虚拟主机风格 |
-| `s3` | Amazon S3 | 虚拟主机风格 |
-| 其他/不填 | 通用 S3 兼容 | 路径风格 |
-
----
-
-## 版本对应关系
-
-| Starter 版本 | Spring Boot | Java | Servlet API |
-|-------------|-------------|------|-------------|
-| `oss-spring-boot2-starter` | 2.3 ~ 2.7.x | 8+ | `javax.servlet` |
-| `oss-spring-boot3-starter` | 3.0 ~ 3.x | 17+ | `jakarta.servlet` |
-| `oss-spring-boot4-starter` | 4.0+ | 21+ | `jakarta.servlet` |
-
----
-
-## Java API
-
-所有操作通过 `OssTemplate` 以命名空间模式访问：
-
-```
-ossTemplate.put()      → PutOperations           上传、复制、移动、分片上传
-ossTemplate.query()    → QueryOperations          列举、树形、下载、预览
-ossTemplate.delete()   → DeleteOperations         单个、批量、文件夹删除
-ossTemplate.unzip()    → StreamUnzipOperations    ZIP 流式解压
-ossTemplate.presign()  → PresignOperations        预签名 GET / PUT URL
-ossTemplate.tagging()  → TaggingOperations        对象与 Bucket 标签管理
-ossTemplate.bucket()   → BucketOperations         版本控制、生命周期、CORS、策略、加密
-```
-
-## 内置 REST 端点
-
-配置 `oss.http.enable: true` 后自动开启。所有路径以 `${oss.http.prefix}/oss` 为前缀。
-
-### 文件上传
+### 文件上传与删除
 
 | 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/oss/object` | 上传单个文件 |
-| `POST` | `/oss/folder` | 创建文件夹占位符 |
-| `POST` | `/oss/multipart/init` | 初始化分片上传，返回 uploadId |
-| `POST` | `/oss/multipart/chunk` | 上传单个分片 |
-| `POST` | `/oss/multipart/merge` | 合并分片，完成上传 |
-| `GET` | `/oss/multipart/parts` | 查询已上传分片列表（断点续传） |
+|------|------|------|
+| `POST` | `/object` | 上传单个文件 |
+| `POST` | `/folder` | 创建目录占位对象 |
+| `DELETE` | `/object` | 删除单个对象 |
+| `DELETE` | `/objects` | 批量删除对象 |
+| `DELETE` | `/folder` | 递归删除目录 |
 
 ### 文件查询
 
 | 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET` | `/oss/object` | 获取对象元数据 |
-| `GET` | `/oss/object/exists` | 检查对象是否存在 |
-| `GET` | `/oss/object/list` | 列举路径下所有对象（递归） |
-| `GET` | `/oss/object/list/next-level` | 列举下一层级文件和文件夹 |
-| `GET` | `/oss/object/list/lazy` | 分页懒加载列表 |
-| `GET` | `/oss/object/tree` | 获取完整目录树 |
-| `GET` | `/oss/object/tree/search` | 按关键字搜索目录树 |
-| `GET` | `/oss/object/tree/folder` | 仅返回文件夹节点的树 |
-| `GET` | `/oss/buckets` | 列举所有 Bucket |
-| `GET` | `/oss/connect` | 测试 OSS 连接状态 |
+|------|------|------|
+| `GET` | `/object` | 查询对象元数据 |
+| `GET` | `/object/exists` | 检查对象是否存在 |
+| `GET` | `/object/list` | 递归列举对象 |
+| `GET` | `/object/list/next-level` | 列举下一层级文件和目录 |
+| `GET` | `/object/list/lazy` | 游标分页懒加载列表 |
+| `GET` | `/object/tree` | 获取目录树 |
+| `GET` | `/object/tree/search` | 按关键字搜索目录树 |
+| `GET` | `/object/tree/folder` | 获取仅包含目录的树 |
+| `GET` | `/buckets` | 列举当前凭证可见的 Bucket |
+| `GET` | `/buckets/{bucketName}` | 查询 Bucket 聚合详情 |
+| `GET` | `/buckets/{bucketName}/access` | 查询 Bucket ACL |
+| `PUT` | `/buckets/{bucketName}/access` | 设置 Bucket ACL |
+| `POST` | `/buckets/{bucketName}/rewind` | 按时间回滚 Bucket 当前可见状态 |
+| `GET` | `/connect` | 测试默认 Bucket 连通性 |
 
-### 文件预览与下载
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET` | `/oss/object/preview/**` | 内联预览（支持 HTTP Range，适合视频/音频） |
-| `GET` | `/oss/object/download/**` | 强制下载（Content-Disposition: attachment） |
-
-### 文件操作
+### 预览、下载、复制、移动
 
 | 方法 | 路径 | 说明 |
-|---|---|---|
-| `DELETE` | `/oss/object` | 删除单个对象 |
-| `DELETE` | `/oss/objects` | 批量删除（请求体：key 列表） |
-| `DELETE` | `/oss/folder` | 递归删除文件夹 |
-| `POST` | `/oss/object/copy` | 同 Bucket 内复制文件 |
-| `POST` | `/oss/object/move` | 移动文件到指定目录 |
+|------|------|------|
+| `GET` | `/object/preview/**` | 内联预览对象，支持 HTTP Range |
+| `GET` | `/object/download/**` | 以附件方式下载对象，支持 HTTP Range |
+| `POST` | `/object/copy` | 复制对象 |
+| `POST` | `/object/move` | 移动对象到目标目录 |
 
-### 流式解压
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/oss/unzip` | 解压 ZIP 对象到目标路径 |
-| `POST` | `/oss/unzip/cross-bucket` | 跨 Bucket 解压 |
-| `POST` | `/oss/unzip/filter` | 按条目前缀过滤解压 |
-
-### 预签名 URL
+### 解压与预签名
 
 | 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET` | `/oss/presign/get` | 生成预签名下载链接 |
-| `GET` | `/oss/presign/put` | 生成预签名客户端直传链接 |
+|------|------|------|
+| `POST` | `/unzip` | 在默认 Bucket 内流式解压 ZIP |
+| `POST` | `/unzip/cross-bucket` | 跨 Bucket 流式解压 ZIP |
+| `POST` | `/unzip/filter` | 按条目前缀过滤解压 |
+| `GET` | `/presign/get` | 生成下载预签名 URL |
+| `GET` | `/presign/put` | 生成上传预签名 URL |
 
-### 对象标签
-
-| 方法 | 路径 | 说明 |
-|---|---|---|
-| `GET` | `/oss/object/tags` | 获取对象标签 |
-| `PUT` | `/oss/object/tags` | 设置对象标签（覆盖） |
-| `PATCH` | `/oss/object/tags` | 合并/更新对象标签 |
-| `DELETE` | `/oss/object/tags` | 删除对象所有标签 |
-
-### Bucket 管理
+### 标签与 Bucket 管理
 
 | 方法 | 路径 | 说明 |
-|---|---|---|
-| `POST` | `/oss/bucket` | 创建 Bucket |
-| `GET` | `/oss/bucket/versioning` | 获取版本控制状态 |
-| `PUT` | `/oss/bucket/versioning/enable` | 启用版本控制 |
-| `PUT` | `/oss/bucket/versioning/suspend` | 挂起版本控制 |
-| `GET` | `/oss/bucket/lifecycle` | 获取生命周期规则 |
-| `POST` | `/oss/bucket/lifecycle/expiration` | 添加过期删除规则 |
-| `DELETE` | `/oss/bucket/lifecycle` | 删除所有生命周期规则 |
-| `GET` | `/oss/bucket/cors` | 获取 CORS 配置 |
-| `PUT` | `/oss/bucket/cors/allow-all` | 设置允许所有来源的 CORS |
-| `DELETE` | `/oss/bucket/cors` | 删除 CORS 配置 |
-| `GET` | `/oss/bucket/policy` | 获取 Bucket 访问策略 |
-| `PUT` | `/oss/bucket/policy` | 设置 Bucket 访问策略 |
-| `DELETE` | `/oss/bucket/policy` | 删除 Bucket 访问策略 |
-| `PUT` | `/oss/bucket/encryption/enable` | 启用 SSE-S3 服务端加密 |
-| `PUT` | `/oss/bucket/public-access/block` | 屏蔽所有公共访问 |
-| `GET` | `/oss/bucket/tags` | 获取 Bucket 标签 |
-| `PUT` | `/oss/bucket/tags` | 设置 Bucket 标签 |
-| `DELETE` | `/oss/bucket/tags` | 删除 Bucket 所有标签 |
+|------|------|------|
+| `GET` | `/object/tags` | 获取对象标签 |
+| `PUT` | `/object/tags` | 覆盖设置对象标签 |
+| `PATCH` | `/object/tags` | 合并更新对象标签 |
+| `DELETE` | `/object/tags` | 删除对象标签 |
+| `POST` | `/bucket` | 创建 Bucket |
+| `GET` | `/bucket/versioning` | 查询版本控制状态 |
+| `PUT` | `/bucket/versioning/enable` | 启用版本控制 |
+| `PUT` | `/bucket/versioning/suspend` | 挂起版本控制 |
+| `GET` | `/bucket/lifecycle` | 查询生命周期规则 |
+| `POST` | `/bucket/lifecycle/expiration` | 添加过期删除规则 |
+| `DELETE` | `/bucket/lifecycle` | 删除生命周期规则 |
+| `GET` | `/bucket/cors` | 查询 CORS 配置 |
+| `PUT` | `/bucket/cors/allow-all` | 设置允许所有来源的 CORS |
+| `DELETE` | `/bucket/cors` | 删除 CORS 配置 |
+| `GET` | `/bucket/policy` | 查询 Bucket 策略 |
+| `PUT` | `/bucket/policy` | 设置 Bucket 策略 |
+| `DELETE` | `/bucket/policy` | 删除 Bucket 策略 |
+| `PUT` | `/bucket/encryption/enable` | 启用 SSE-S3 服务端加密 |
+| `PUT` | `/bucket/public-access/block` | 开启公共访问屏蔽 |
+| `GET` | `/bucket/tags` | 获取 Bucket 标签 |
+| `PUT` | `/bucket/tags` | 覆盖设置 Bucket 标签 |
+| `DELETE` | `/bucket/tags` | 删除 Bucket 标签 |
 
----
+## 运行示例工程
 
-## License
+启动本地 MinIO：
+
+```powershell
+docker run -d --name minio -p 9000:9000 -p 9001:9001 -e MINIO_ROOT_USER=minioadmin -e MINIO_ROOT_PASSWORD=minioadmin minio/minio server /data --console-address ":9001"
+```
+
+运行 Spring Boot 3 示例：
+
+```powershell
+Set-Location samples\sample-springboot3
+mvn spring-boot:run
+```
+
+示例默认配置：
+
+- 应用端口：`8080`
+- MinIO 端点：`http://127.0.0.1:9000`
+- MinIO 控制台：`http://127.0.0.1:9001`
+- 默认 Bucket：`oss-sample`
+- REST 前缀：`/api/oss`
+
+验证连通性：
+
+```powershell
+Invoke-RestMethod -Method Get -Uri 'http://localhost:8080/api/oss/connect'
+```
+
+## 从源码构建
+
+```powershell
+# 编译全部模块
+mvn compile
+
+# 执行全部测试
+mvn test
+
+# 只测试 Spring Boot 3 Web Starter 及其依赖
+mvn -pl oss-spring-boot3-web-starter -am test
+
+# 安装到本地 Maven 仓库
+mvn install
+```
+
+集成测试和示例运行依赖可访问的对象存储服务。默认示例按本地 MinIO 配置。
+
+## 使用注意事项
+
+- `oss.enable=true` 是所有自动配置的总开关。
+- `oss.http.enable=true` 只在 Web Starter 或 OpenAPI Starter 中注册 HTTP 控制器。
+- `bucket-name` 是默认 Bucket 名称；如果使用默认 Bucket 操作，建议显式配置。
+- `auto-create-bucket=true` 会在默认 Bucket 不存在时尝试创建 Bucket。
+- 分片大小不能小于 5 MB。
+- 预览和下载接口支持 HTTP Range，适合视频、音频等大文件场景。
+- Bucket ACL、公共访问屏蔽、加密、生命周期等能力取决于底层对象存储是否实现对应 S3 API。
+- 生产环境不要把访问密钥明文写入代码仓库，建议使用环境变量、配置中心或密钥管理系统。
+
+## 许可证
 
 [Apache License 2.0](LICENSE)

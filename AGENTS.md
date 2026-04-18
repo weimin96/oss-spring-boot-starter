@@ -1,115 +1,168 @@
 # AGENTS.md
 
-## Project Overview
+## 项目定位
 
-基于 AWS S3 SDK v2 的对象存储 Spring Boot Starter，支持 **Spring Boot 2.x / 3.x / 4.x** 多版本。
+这是一个基于 AWS S3 SDK v2 的对象存储 Spring Boot Starter，面向 S3 兼容对象存储提供 Java API、内置 HTTP 端点和 OpenAPI 注解元数据三类接入方式。
 
-## Build Commands
+当前代码同时维护 Spring Boot 2、Spring Boot 3、Spring Boot 4 三套适配。修改时必须先确认变更属于核心能力、Web 适配、OpenAPI 元数据还是示例工程，避免跨模块误改。
 
-```bash
+## 模块边界
+
+| 模块 | 职责 | 兼容基线 |
+|------|------|----------|
+| `oss-domain` | 领域模型、异常类型、服务端口、域名策略 | Java 8 |
+| `oss-web-api` | Web 请求、响应、上传文件抽象和参数校验契约 | Java 8 |
+| `oss-openapi` | 内置 HTTP 端点的 OpenAPI 公共注解契约 | Java 8 |
+| `oss-core` | `OssTemplate`、AWS S3 客户端、核心操作实现 | Java 8 |
+| `oss-spring-boot2-autoconfigure` | Spring Boot 2 配置绑定与 `OssTemplate` 自动装配 | Java 8，`javax.validation` |
+| `oss-spring-boot3-autoconfigure` | Spring Boot 3 配置绑定与 `OssTemplate` 自动装配 | Java 17，`jakarta.validation` |
+| `oss-spring-boot4-autoconfigure` | Spring Boot 4 配置绑定与 `OssTemplate` 自动装配 | Java 21，`jakarta.validation` |
+| `oss-spring-boot*-starter` | 聚合基础 Java API 自动装配能力 | 对应 Spring Boot 版本 |
+| `oss-spring-boot*-web-starter` | 提供内置 REST 接口和统一异常处理 | 对应 Spring Boot 版本 |
+| `oss-spring-boot*-openapi-starter` | 提供带 Swagger 注解元数据的 REST 控制器 | 对应 Spring Boot 版本 |
+| `samples/sample-springboot*` | 对应版本的后端示例 | 对应 Spring Boot 版本 |
+| `samples/sample-frontend-web` | 前端演示工程 | Vue 3、Vite、TypeScript |
+
+## 核心模型
+
+| 对象 | 角色 | 约束 |
+|------|------|------|
+| `OssClientOptions` | 核心层内部客户端选项 | 不依赖 Spring Boot 配置绑定模型 |
+| `OssProperties2/3/4` | 各 Spring Boot 版本的外部配置绑定对象 | 只在对应 autoconfigure 模块内使用 |
+| `OssTemplate` | 统一门面入口 | 构造时启动客户端，销毁时调用 `stop()` |
+| `OssPutService` | 上传、目录、复制、移动、分片上传端口 | 默认 Bucket 与指定 Bucket 重载并存 |
+| `OssQueryService` | 查询、树形列表、下载、预览端口 | 预览通过 `OssPreviewContext` 隔离 Servlet API |
+| `OssDeleteService` | 单对象、批量、目录删除端口 | 失败路径必须显式处理 |
+| `OssUnzipService` | ZIP 流式解压端口 | 支持默认 Bucket、跨 Bucket 和条目前缀过滤 |
+| `OssPresignService` | GET/PUT 预签名 URL 端口 | 过期时间使用 `Duration` |
+| `OssTaggingService` | 对象标签与 Bucket 标签端口 | 覆盖、合并、删除语义需区分清楚 |
+| `OssBucketService` | Bucket 版本控制、ACL、回滚、生命周期、CORS、策略、安全配置端口 | 部分能力取决于对象存储实现是否支持 |
+
+## 自动配置规则
+
+基础自动配置只在 `oss.enable=true` 时创建 `OssTemplate`。
+
+Web 自动配置只在以下条件同时满足时注册 REST 控制器和异常处理器：
+
+- `oss.enable=true`
+- `oss.http.enable=true`
+- 当前应用是 Web 应用
+- 容器中不存在其他 `OssHttpEndpoint`
+
+OpenAPI 自动配置会在普通 Web 自动配置之前执行，并通过 `OssHttpEndpoint` 抢占默认控制器装配。它只增加 Swagger 注解元数据，不内置 Swagger UI。
+
+Spring Boot 2 使用 `META-INF/spring.factories` 注册自动配置。Spring Boot 3 和 Spring Boot 4 使用 `META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports` 注册自动配置。
+
+## 域名策略
+
+`DomainStrategyFactory` 当前按顺序选择域名策略：
+
+| `oss.type` | URL 拼接策略 |
+|------------|--------------|
+| `cos` | Virtual-Hosted，格式为 `{protocol}://{bucket}.{host}/` |
+| `obs` | Virtual-Hosted，格式为 `{protocol}://{bucket}.{host}/` |
+| `minio` | Path-Style，格式为 `{endpoint}/{bucket}/` |
+| 其他值或空值 | Path-Style 兜底 |
+
+底层 S3 客户端目前仅在 `oss.type=minio` 时显式开启 `forcePathStyle`。调整其他厂商策略时，需要同时评估客户端寻址方式和对外 URL 拼接方式，不能只改其中一处。
+
+## 构建命令
+
+所有本地命令默认在 Windows PowerShell 中执行。
+
+```powershell
 # 编译整个项目
 mvn compile
 
-# 运行测试
+# 运行全部测试，提交前或大范围修改后再执行
 mvn test
 
-# 运行单个测试类
-mvn test -Dtest=ClassName
+# 只测试指定模块及其依赖
+mvn -pl oss-spring-boot3-web-starter -am test
 
-# 编译特定模块（oss-core 使用 Java 8 编译）
-mvn compile -Dmaven.compiler.source=1.8 -Dmaven.compiler.target=1.8 -pl oss-core
+# 只测试指定测试类
+mvn -pl oss-spring-boot3-web-starter -Dtest=OssController3UnitTest test
 
-# 安装到本地仓库
+# 安装到本地 Maven 仓库
 mvn install
 
-# 跳过测试
+# 跳过测试安装
 mvn install -DskipTests
 
-# 执行集成测试（需要 MinIO 等）
-mvn verify
+# 发布构件打包验证
+mvn -DskipTests -Prelease package
 ```
 
-## Module Structure
+不要频繁执行全量测试。优先根据改动范围选择模块级测试，跨模块公共契约、自动配置、发布配置变更后再执行全量测试。
 
+## 命令与编码约束
+
+- 文件统一使用 UTF-8 编码，不能使用 BOM。
+- 文档、注释和说明使用中文，专有名词除外。
+- 本地命令必须按 Windows PowerShell 语义编写。
+- 禁止使用 Windows 的 NUL 重定向写法。
+- Windows PowerShell 没有 `/dev/null` 设备路径；本地需要丢弃输出时使用 `Out-Null` 或 `$null = ...`。只有在 GitHub Actions 的 Linux shell 中，才允许使用 `>/dev/null`。
+- 不要引入 Linux-only 语法作为默认本地命令。
+
+## Java 兼容性
+
+`oss-domain`、`oss-web-api`、`oss-openapi`、`oss-core` 和 Spring Boot 2 相关模块必须保持 Java 8 兼容，禁止使用以下写法：
+
+| 禁止写法 | 替代方案 |
+|----------|----------|
+| `List.of()`、`Set.of()`、`Map.of()` | `Collections.unmodifiableList(Arrays.asList(...))` 或显式集合构造 |
+| `instanceof Type value` | 传统 `instanceof` 后强制类型转换 |
+| `InputStream.readAllBytes()` | 使用显式缓冲区读取 |
+| `stream().toList()` | `stream().collect(Collectors.toList())` |
+
+Spring Boot 3 模块以 Java 17 为基线。Spring Boot 4 模块以 Java 21 为基线。不要把高版本语言特性下沉到 Java 8 模块。
+
+## 开发规则
+
+- 先建模，再实现。改动前明确核心对象、状态、约束和失败路径。
+- 命名使用对象存储领域语言，避免 `temp`、`foo`、无语义缩写等名称。
+- 注释只解释设计原因、约束和权衡，不重复代码表面行为。
+- 每个函数只表达一个抽象层次。
+- 优先组合，不为了形式引入继承、设计模式或额外抽象。
+- 所有失败路径必须显式处理，不能吞异常，不能静默失败。
+- Web 层只做 HTTP 适配、参数转换和响应包装，核心逻辑必须留在 `oss-core` 或领域端口后面。
+- Spring Boot 版本差异只能留在对应适配模块，不能泄漏到核心模块。
+
+## REST 接口边界
+
+内置 REST 接口由 `oss-spring-boot*-web-starter` 或 `oss-spring-boot*-openapi-starter` 提供，基础 Starter 不提供控制器。
+
+控制器统一挂载在 `${oss.http.prefix:}/oss` 下。预览和下载接口直接写入响应流，不使用 `OssResponse` 包装；其他接口使用 `OssResponse` 返回。
+
+Boot2 Web 适配使用 `javax.servlet`。Boot3 和 Boot4 Web 适配使用 `jakarta.servlet`。
+
+## 验证策略
+
+文档变更至少执行以下轻量验证：
+
+```powershell
+mvn -DskipTests compile
 ```
-oss-spring-boot-starter/
-├── oss-core/                   # 核心模块（Java 8 兼容，无 Spring 依赖）
-├── oss-spring-boot2-starter/   # Spring Boot 2.x 适配（javax.servlet）
-├── oss-spring-boot3-starter/   # Spring Boot 3.x 适配（jakarta.servlet）
-├── oss-spring-boot4-starter/   # Spring Boot 4.x 适配（jakarta.servlet）
-└── samples/                    # 示例项目
-    ├── sample-springboot2/
-    ├── sample-springboot3/
-    ├── sample-springboot4/
-    └── sample-frontend-web/    # 前端示例（Vue 3 + Vite + TypeScript）
+
+如果修改了自动配置、控制器或公共端口，至少执行受影响模块测试：
+
+```powershell
+mvn -pl oss-spring-boot3-web-starter -am test
 ```
 
-## Architecture
+如果修改了 Java 8 公共模块，必须确认 Java 8 兼容语法未被破坏，并优先执行：
 
-**核心入口**: `OssTemplate`（门面模式）
-
-| 方法 | 返回类型 | 功能 |
-|------|----------|------|
-| `put()` | `PutOperations` | 上传、复制、移动、分片上传 |
-| `query()` | `QueryOperations` | 列举、树形、下载、预览 |
-| `delete()` | `DeleteOperations` | 单个、批量、文件夹删除 |
-| `unzip()` | `StreamUnzipOperations` | ZIP 流式解压 |
-| `presign()` | `PresignOperations` | 预签名 URL |
-| `tagging()` | `TaggingOperations` | 标签管理 |
-| `bucket()` | `BucketOperations` | 版本控制、生命周期、CORS |
-
-**基类**: `Operations` - 提供模板方法、策略模式、统一异常处理
-
-**策略模式**: `DomainStrategyFactory` + `DomainStrategy` 实现类，处理不同 OSS 的域名格式：
-- `VirtualHostedDomainStrategy` - 虚拟主机风格（阿里云 COS、华为云 OBS 等）
-- `PathStyleDomainStrategy` - 路径风格（MinIO、通用 S3）
-
-## Package Structure
-
-核心包路径：`com.wiblog.oss`
-
-```
-com.wiblog.oss/
-├── bean/           # 数据模型（ObjectInfo、OssProperties 等）
-├── service/        # 核心服务（OssTemplate 及各 Operations）
-│   └── strategy/   # 策略模式实现
-├── resp/           # 响应封装
-├── exception/      # 自定义异常
-└── util/           # 工具类
+```powershell
+mvn -pl "oss-domain,oss-web-api,oss-openapi,oss-core" -am test
 ```
 
-## JDK 8 Compatibility
+集成测试依赖 MinIO。需要本地验证时，先启动 MinIO，再运行相关模块测试。不要把需要外部服务的验证写成无前置条件的默认步骤。
 
-`oss-core` 模块必须保持 JDK 8 兼容，修改时禁止使用：
-- `List.of()`, `Set.of()`, `Map.of()` → 使用 `Collections.unmodifiableList(Arrays.asList())`
-- `instanceof Type var` 模式匹配 → 使用强制类型转换
-- `InputStream.readAllBytes()` → 使用自定义工具方法
-- `.toList()` → 使用 `.collect(Collectors.toList())`
+## 发布与持续集成
 
-## Spring Boot Version Support
+GitHub Actions 当前包含：
 
-| Starter | Spring Boot | Java | Servlet API |
-|---------|-------------|------|-------------|
-| `oss-spring-boot2-starter` | 2.3 ~ 2.7.x | 8+ | `javax.servlet` |
-| `oss-spring-boot3-starter` | 3.0 ~ 3.x | 17+ | `jakarta.servlet` |
-| `oss-spring-boot4-starter` | 4.0+ | 21+ | `jakarta.servlet` |
+- `ci.yml`：使用 JDK 21，在 Linux 环境启动 MinIO，并执行 `mvn -B clean test`。
+- `deploy.yml`：标签或手动触发发布，执行 release profile 并部署到 Maven Central。
 
-## Supported OSS Types
-
-| type 值 | 存储服务 | 域名策略 |
-|---------|----------|----------|
-| `minio` | MinIO | 路径风格 |
-| `cos` | 腾讯云 COS | 虚拟主机风格 |
-| `obs` | 华为云 OBS | 虚拟主机风格 |
-| `oss` | 阿里云 OSS | 虚拟主机风格 |
-| `s3` | Amazon S3 | 虚拟主机风格 |
-
-## Built-in REST API
-
-配置 `oss.http.enable: true` 启用，提供完整的文件管理 REST 接口。所有路径以 `${oss.http.prefix}/oss` 为前缀。
-
-## CI/CD
-
-GitHub Actions 工作流：
-- `ci.yml` - 单元测试与集成测试
-- `deploy.yml` - 发布到 Maven Central
+CI 文件里的 shell 是 GitHub 托管环境语义，不代表本地默认命令语义。写用户文档和本地说明时仍以 Windows PowerShell 为准。
