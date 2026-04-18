@@ -6,20 +6,27 @@
 
 当前代码同时维护 Spring Boot 2、Spring Boot 3、Spring Boot 4 三套适配。修改时必须先确认变更属于核心能力、Web 适配、OpenAPI 元数据还是示例工程，避免跨模块误改。
 
+测试支撑模块统一收敛在 `testing/` 目录下，但它们继续继承根工程 `pom.xml`。`testing/pom.xml` 只承担 Reactor 聚合职责，不承载额外依赖管理。
+
 ## 模块边界
 
 | 模块 | 职责 | 兼容基线 |
 |------|------|----------|
 | `oss-domain` | 领域模型、异常类型、服务端口、域名策略 | Java 8 |
 | `oss-web-api` | Web 请求、响应、上传文件抽象和参数校验契约 | Java 8 |
-| `oss-openapi` | 内置 HTTP 端点的 OpenAPI 公共注解契约 | Java 8 |
 | `oss-core` | `OssTemplate`、AWS S3 客户端、核心操作实现 | Java 8 |
+| `oss-spring-javax-web-support` | Boot2 共用的 `javax` Web 控制器、异常处理、预览上下文和 OpenAPI 控制器支持实现 | Java 8，`javax.servlet` |
+| `oss-spring-jakarta-web-support` | Boot3/4 共用的 `jakarta` Web 控制器、异常处理、预览上下文和 OpenAPI 控制器支持实现 | Java 17，`jakarta.servlet` |
 | `oss-spring-boot2-autoconfigure` | Spring Boot 2 配置绑定与 `OssTemplate` 自动装配 | Java 8，`javax.validation` |
 | `oss-spring-boot3-autoconfigure` | Spring Boot 3 配置绑定与 `OssTemplate` 自动装配 | Java 17，`jakarta.validation` |
 | `oss-spring-boot4-autoconfigure` | Spring Boot 4 配置绑定与 `OssTemplate` 自动装配 | Java 21，`jakarta.validation` |
 | `oss-spring-boot*-starter` | 聚合基础 Java API 自动装配能力 | 对应 Spring Boot 版本 |
 | `oss-spring-boot*-web-starter` | 提供内置 REST 接口和统一异常处理 | 对应 Spring Boot 版本 |
 | `oss-spring-boot*-openapi-starter` | 提供带 Swagger 注解元数据的 REST 控制器 | 对应 Spring Boot 版本 |
+| `testing` | 测试支撑聚合模块，仅负责归并测试模块目录结构 | `pom` |
+| `oss-test-support` | 公共测试属性、控制器契约、自动配置契约和断言辅助 | Java 8 |
+| `oss-javax-test-support` | Boot2 / `javax` 测试契约入口 | Java 8 |
+| `oss-jakarta-test-support` | Boot3/4 / `jakarta` 测试契约入口 | Java 17 |
 | `samples/sample-springboot*` | 对应版本的后端示例 | 对应 Spring Boot 版本 |
 | `samples/sample-frontend-web` | 前端演示工程 | Vue 3、Vite、TypeScript |
 
@@ -106,7 +113,7 @@ mvn -DskipTests -Prelease package
 
 ## Java 兼容性
 
-`oss-domain`、`oss-web-api`、`oss-openapi`、`oss-core` 和 Spring Boot 2 相关模块必须保持 Java 8 兼容，禁止使用以下写法：
+`oss-domain`、`oss-web-api`、`oss-core`、`oss-spring-javax-web-support`、`oss-test-support`、`oss-javax-test-support` 和 Spring Boot 2 相关模块必须保持 Java 8 兼容，禁止使用以下写法：
 
 | 禁止写法 | 替代方案 |
 |----------|----------|
@@ -153,7 +160,7 @@ mvn -pl oss-spring-boot3-web-starter -am test
 如果修改了 Java 8 公共模块，必须确认 Java 8 兼容语法未被破坏，并优先执行：
 
 ```powershell
-mvn -pl "oss-domain,oss-web-api,oss-openapi,oss-core" -am test
+mvn -pl "oss-domain,oss-web-api,oss-core" -am test
 ```
 
 集成测试依赖 MinIO。需要本地验证时，先启动 MinIO，再运行相关模块测试。不要把需要外部服务的验证写成无前置条件的默认步骤。

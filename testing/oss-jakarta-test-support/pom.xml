@@ -8,16 +8,16 @@
         <groupId>io.github.weimin96</groupId>
         <artifactId>oss-spring-boot-starter-parent</artifactId>
         <version>${revision}</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
-    <artifactId>oss-javax-test-support</artifactId>
+    <artifactId>oss-jakarta-test-support</artifactId>
     <packaging>jar</packaging>
-    <name>oss-javax-test-support</name>
-    <description>Boot2 / javax 测试契约支持模块。</description>
+    <name>oss-jakarta-test-support</name>
+    <description>Boot3 / Boot4 的 jakarta 测试契约支持模块。</description>
 
     <properties>
-        <java.version>8</java.version>
+        <java.version>17</java.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <maven.compiler.release>${java.version}</maven.compiler.release>
@@ -28,7 +28,7 @@
             <dependency>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-dependencies</artifactId>
-                <version>${spring-boot2.version}</version>
+                <version>${spring-boot3.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -42,15 +42,23 @@
         </dependency>
         <dependency>
             <groupId>io.github.weimin96</groupId>
-            <artifactId>oss-spring-javax-web-support</artifactId>
+            <artifactId>oss-spring-jakarta-web-support</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-test</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-test</artifactId>
         </dependency>
         <dependency>
-            <groupId>javax.validation</groupId>
-            <artifactId>validation-api</artifactId>
+            <groupId>jakarta.servlet</groupId>
+            <artifactId>jakarta.servlet-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>jakarta.validation</groupId>
+            <artifactId>jakarta.validation-api</artifactId>
         </dependency>
         <dependency>
             <groupId>org.junit.jupiter</groupId>
