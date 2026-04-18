@@ -3,7 +3,6 @@ package com.wiblog.oss.config;
 import com.wiblog.oss.config.handler.OssGlobalExceptionHandler2;
 import com.wiblog.oss.controller.OpenApiOssController2;
 import com.wiblog.oss.controller.OssHttpEndpoint;
-import com.wiblog.oss.openapi.CommonOssOpenApiOperations;
 import com.wiblog.oss.service.OssTemplate;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -11,9 +10,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
-import org.springframework.web.multipart.MultipartFile;
 
+import javax.validation.ConstraintViolation;
+import javax.validation.Validation;
+import javax.validation.Validator;
 import java.lang.reflect.Method;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
@@ -39,17 +41,30 @@ class OssOpenApiAutoConfiguration2Test {
     @Test
     @DisplayName("文档控制器应暴露 Swagger 元数据")
     void documentedControllerCarriesOpenApiAnnotations() throws NoSuchMethodException {
-        Tag tag = CommonOssOpenApiOperations.class.getAnnotation(Tag.class);
-        Method uploadObjectMethod = OpenApiOssController2.class.getMethod(
-                "uploadObject",
-                MultipartFile.class, String.class, String.class);
-        Operation operation = uploadObjectMethod.getAnnotation(Operation.class);
+        Tag tag = OpenApiOssController2.class.getAnnotation(Tag.class);
+        Method listObjectsMethod = OpenApiOssController2.class.getMethod("listObjects", String.class);
+        Operation operation = listObjectsMethod.getAnnotation(Operation.class);
 
-        assertThat(CommonOssOpenApiOperations.class.isAssignableFrom(OpenApiOssController2.class)).isTrue();
         assertThat(tag).isNotNull();
         assertThat(tag.name()).isEqualTo("OSS 对象存储接口");
         assertThat(operation).isNotNull();
-        assertThat(operation.summary()).isEqualTo("上传文件");
+        assertThat(operation.summary()).isEqualTo("列举指定路径下所有对象");
+    }
+
+    @Test
+    @DisplayName("文档控制器应继承父类参数约束")
+    void documentedControllerInheritsMethodValidationConstraints() throws NoSuchMethodException {
+        Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
+        OpenApiOssController2 controller = new OpenApiOssController2(mock(OssTemplate.class));
+        Method listObjectsMethod = OpenApiOssController2.class.getMethod("listObjects", String.class);
+
+        Set<ConstraintViolation<OpenApiOssController2>> blankViolations = validator.forExecutables()
+                .validateParameters(controller, listObjectsMethod, new Object[]{" "});
+        Set<ConstraintViolation<OpenApiOssController2>> validViolations = validator.forExecutables()
+                .validateParameters(controller, listObjectsMethod, new Object[]{"demo"});
+
+        assertThat(blankViolations).hasSize(1);
+        assertThat(validViolations).isEmpty();
     }
 
     @Test
