@@ -19,7 +19,7 @@
 
 ## 快速启动
 
-```bash
+```powershell
 # 1. 进入目录
 cd samples/sample-frontend-web
 
@@ -45,6 +45,26 @@ npm run dev
 ```env
 # 后端 OSS 接口地址
 VITE_API_BASE_URL=http://127.0.0.1:8080
+
+# GitHub Pages 部署到仓库子路径时使用，日常本地开发通常保持默认 /
+VITE_BASE_PATH=/
+```
+
+## GitHub Pages 发布
+
+仓库新增了 [pages.yml](../../.github/workflows/pages.yml) 工作流，会在 `main` 分支更新前端 sample 或相关文档时自动构建并发布
+`samples/sample-frontend-web`。
+
+发布约束如下：
+
+- 页面资源基路径由 `actions/configure-pages` 生成的 `BASE_URL` 注入 `Vite`，适配仓库子路径部署。
+- 默认后端根地址来自仓库变量 `SAMPLE_FRONTEND_API_BASE_URL`。
+- 如果仓库变量未配置，页面仍会正常打开，但请求会回退到同源 `/api/oss`。由于 GitHub Pages 只提供静态资源，通常需要在页面左下角手动输入演示后端根地址。
+
+建议在仓库 `Settings -> Secrets and variables -> Actions -> Variables` 中新增：
+
+```text
+SAMPLE_FRONTEND_API_BASE_URL=https://你的演示后端域名
 ```
 
 ---
