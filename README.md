@@ -32,6 +32,16 @@
 
 OpenAPI Starter 只提供 Swagger 注解元数据，不内置 Swagger UI。宿主应用可以继续使用自己的 springdoc 或其他 OpenAPI 集成。
 
+Maven Central 会发布 17 个运行时模块以满足传递依赖解析，但应用侧通常只需要直接声明上表中的 9 个版本化 Starter 之一。
+
+## 用户该直接选哪个模块
+
+- 你的应用只想注入 `OssTemplate`，并由自己编写 Controller、服务封装和鉴权逻辑：选择对应版本的 `oss-spring-boot2/3/4-starter`
+- 你的应用希望直接复用内置 `/oss/**` HTTP 端点，但不需要 Swagger 或 OpenAPI 注解元数据：选择对应版本的 `oss-spring-boot2/3/4-web-starter`
+- 你的应用既要复用内置 `/oss/**` HTTP 端点，也要让 springdoc、Knife4j 或其他 OpenAPI 工具直接扫描到接口注解：选择对应版本的 `oss-spring-boot2/3/4-openapi-starter`
+- 只需要声明一种入口 Starter；`web-starter` 已经传递依赖基础 `starter`，`openapi-starter` 已经传递依赖 `web-starter`
+- 不要直接声明 `oss-domain`、`oss-web-api`、`oss-core`、`oss-spring-boot*-autoconfigure`、`oss-spring-javax-web-support`、`oss-spring-jakarta-web-support`；这些模块是运行时支撑与版本适配层，面向 Starter 组合，不是应用侧的直接入口
+
 ## 安装
 
 Spring Boot 3 基础 Java API 示例：

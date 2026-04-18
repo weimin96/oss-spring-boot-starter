@@ -329,8 +329,27 @@
                         <version>0.10.0</version>
                         <extensions>true</extensions>
                         <configuration>
+                            <!--
+                                发布白名单固定为根父 POM 与以下 17 个运行时模块：
+                                oss-domain、oss-web-api、oss-core、
+                                oss-spring-javax-web-support、oss-spring-jakarta-web-support、
+                                oss-spring-boot2/3/4-autoconfigure、
+                                oss-spring-boot2/3/4-starter、
+                                oss-spring-boot2/3/4-web-starter、
+                                oss-spring-boot2/3/4-openapi-starter。
+                                testing/* 与 samples/* 只参与本地构建和回归验证，不能进入 Central 发布 bundle。
+                            -->
                             <publishingServerId>central</publishingServerId>
                             <autoPublish>true</autoPublish>
+                            <excludeArtifacts>
+                                <artifact>oss-testing</artifact>
+                                <artifact>oss-test-support</artifact>
+                                <artifact>oss-javax-test-support</artifact>
+                                <artifact>oss-jakarta-test-support</artifact>
+                                <artifact>sample-springboot2</artifact>
+                                <artifact>sample-springboot3</artifact>
+                                <artifact>sample-springboot4</artifact>
+                            </excludeArtifacts>
                         </configuration>
                     </plugin>
                     <plugin>
