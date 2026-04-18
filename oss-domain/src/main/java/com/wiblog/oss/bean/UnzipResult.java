@@ -13,8 +13,19 @@ import java.util.List;
 @Data
 @Builder
 public class UnzipResult {
+    /**
+     * 成功列表保留完整对象信息，是为了让调用方无需再次查询就能拿到解压产物元数据。
+     */
     private List<ObjectInfo> succeeded;
+
+    /**
+     * 失败列表只保留条目标识，目的是降低错误结果体体积并便于问题定位。
+     */
     private List<String> failed;
+
+    /**
+     * 目标路径单独返回，避免调用方在跨目录解压场景下自行推断落点目录。
+     */
     private String targetPath;
 
     /**

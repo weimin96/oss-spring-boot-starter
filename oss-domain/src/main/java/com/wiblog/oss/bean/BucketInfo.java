@@ -23,8 +23,14 @@ import java.util.Date;
 @AllArgsConstructor
 @Accessors(chain = true)
 public class BucketInfo {
+    /**
+     * 保留 Bucket 名称字段，是为了让列表结果脱离底层 SDK 模型后仍具备稳定主标识。
+     */
     private String name;
 
+    /**
+     * 统一输出创建时间格式，避免调用方自行处理时区和序列化差异。
+     */
     @JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss")
     private Date creationDate;
 }

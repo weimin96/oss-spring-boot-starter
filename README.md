@@ -21,31 +21,15 @@ Java API、内置 REST 接口、OpenAPI 注解元数据三类 Starter。
 
 ## 选择依赖
 
-当前源码版本为 `3.0.0`。
-
-| 使用场景                    | Spring Boot 2                      | Spring Boot 3                      | Spring Boot 4                      |
-|-------------------------|------------------------------------|------------------------------------|------------------------------------|
-| 只使用 Java API            | `oss-spring-boot2-starter`         | `oss-spring-boot3-starter`         | `oss-spring-boot4-starter`         |
-| 使用内置 REST 接口            | `oss-spring-boot2-web-starter`     | `oss-spring-boot3-web-starter`     | `oss-spring-boot4-web-starter`     |
-| 使用带 OpenAPI 注解的 REST 接口 | `oss-spring-boot2-openapi-starter` | `oss-spring-boot3-openapi-starter` | `oss-spring-boot4-openapi-starter` |
+| 使用场景                   | Spring Boot 2                      | Spring Boot 3                      | Spring Boot 4                      |
+|------------------------|------------------------------------|------------------------------------|------------------------------------|
+| 只使用 Java API           | `oss-spring-boot2-starter`         | `oss-spring-boot3-starter`         | `oss-spring-boot4-starter`         |
+| 使用 REST 接口（不带swagger）  | `oss-spring-boot2-web-starter`     | `oss-spring-boot3-web-starter`     | `oss-spring-boot4-web-starter`     |
+| 使用 REST 接口（带swagger）   | `oss-spring-boot2-openapi-starter` | `oss-spring-boot3-openapi-starter` | `oss-spring-boot4-openapi-starter` |
 
 基础 Starter 只创建 `OssTemplate`，不注册 REST 控制器。需要 HTTP 接口时请选择 Web Starter 或 OpenAPI Starter。
 
 OpenAPI Starter 只提供 Swagger 注解元数据，不内置 Swagger UI。宿主应用可以继续使用自己的 springdoc 或其他 OpenAPI 集成。
-
-Maven Central 会发布 17 个运行时模块以满足传递依赖解析，但应用侧通常只需要直接声明上表中的 9 个版本化 Starter 之一。
-
-## 用户该直接选哪个模块
-
-- 你的应用只想注入 `OssTemplate`，并由自己编写 Controller、服务封装和鉴权逻辑：选择对应版本的
-  `oss-spring-boot2/3/4-starter`
-- 你的应用希望直接复用内置 `/oss/**` HTTP 端点，但不需要 Swagger 或 OpenAPI 注解元数据：选择对应版本的
-  `oss-spring-boot2/3/4-web-starter`
-- 你的应用既要复用内置 `/oss/**` HTTP 端点，也要让 springdoc、Knife4j 或其他 OpenAPI 工具直接扫描到接口注解：选择对应版本的
-  `oss-spring-boot2/3/4-openapi-starter`
-- 只需要声明一种入口 Starter；`web-starter` 已经传递依赖基础 `starter`，`openapi-starter` 已经传递依赖 `web-starter`
-- 不要直接声明 `oss-domain`、`oss-web-api`、`oss-core`、`oss-spring-boot*-autoconfigure`、`oss-spring-javax-web-support`、
-  `oss-spring-jakarta-web-support`；这些模块是运行时支撑与版本适配层，面向 Starter 组合，不是应用侧的直接入口
 
 ## 安装
 
@@ -195,6 +179,8 @@ boolean exists = ossTemplate.query().checkExist("uploads/demo.txt");
 String downloadUrl = ossTemplate.presign()
         .generateGetPresignedUrl("uploads/demo.txt", Duration.ofMinutes(10));
 ```
+
+更多示例参考：[samples/README.md](samples/README.md) 或 [JavaxOpenApiOssControllerSupport.java](oss-spring-javax-web-support/src/main/java/com/wiblog/oss/controller/support/JavaxOpenApiOssControllerSupport.java)
 
 ## 内置 REST 接口
 
