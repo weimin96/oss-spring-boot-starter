@@ -33,6 +33,7 @@ class BeanTest extends AbstractServiceDynamicPropertyTest {
                     .name("file.txt")
                     .uri("upload/file.txt")
                     .url("http://host/bucket/upload/file.txt")
+                    .type("file")
                     .size(1024L)
                     .ext("txt")
                     .uploadTime(now)
@@ -41,6 +42,7 @@ class BeanTest extends AbstractServiceDynamicPropertyTest {
             assertThat(info.getName()).isEqualTo("file.txt");
             assertThat(info.getUri()).isEqualTo("upload/file.txt");
             assertThat(info.getUrl()).isEqualTo("http://host/bucket/upload/file.txt");
+            assertThat(info.getType()).isEqualTo("file");
             assertThat(info.getSize()).isEqualTo(1024L);
             assertThat(info.getExt()).isEqualTo("txt");
             assertThat(info.getUploadTime()).isEqualTo(now);
@@ -51,9 +53,11 @@ class BeanTest extends AbstractServiceDynamicPropertyTest {
         void chainedSetters() {
             ObjectInfo info = new ObjectInfo()
                     .setName("a.jpg")
+                    .setType("file")
                     .setSize(500L);
 
             assertThat(info.getName()).isEqualTo("a.jpg");
+            assertThat(info.getType()).isEqualTo("file");
             assertThat(info.getSize()).isEqualTo(500L);
         }
     }

@@ -6,6 +6,8 @@ import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
@@ -178,7 +180,9 @@ public class OssTemplate {
                 .forcePathStyle(shouldForcePathStyle())
                 .targetThroughputInGbps(ossProperties.getThroughputInGbps())
                 .minimumPartSizeInBytes((long) ossProperties.getPartSizeInMb() * 1024 * 1024)
-                .checksumValidationEnabled(false)
+                // 仅在协议明确要求时启用校验，避免旧开关废弃后改变 MinIO 等兼容实现的交互行为。
+                .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
+                .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
                 .build();
     }
 

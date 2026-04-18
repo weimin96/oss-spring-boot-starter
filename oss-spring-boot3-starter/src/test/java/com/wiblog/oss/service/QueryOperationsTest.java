@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -47,18 +48,43 @@ class QueryOperationsTest extends AbstractServiceDynamicPropertyTest {
     @DisplayName("列表、下一层目录与树形结构应反映真实对象")
     void listAndTree() {
         String directory = newTestDirectory();
+        String directoryWithTrailingSlash = directory + "/";
         putTextObject(directory, "root.txt", "root");
         putTextObject(directory + "/nested", "child.txt", "child");
 
         List<ObjectInfo> objects = ossTemplate.query().listObjects(directory);
         List<ObjectTreeNode> nextLevel = ossTemplate.query().listNextLevel(directory);
-        ObjectTreeNode tree = ossTemplate.query().getTreeList(directory);
+        List<ObjectTreeNode> folderTree = ossTemplate.query().getFolderTreeList(directoryWithTrailingSlash);
+        ObjectTreeNode tree = ossTemplate.query().getTreeList(directoryWithTrailingSlash);
 
         assertThat(objects).extracting(ObjectInfo::getUri)
                 .contains(directory + "/root.txt", directory + "/nested/child.txt");
         assertThat(nextLevel).extracting(ObjectTreeNode::getType)
                 .contains("file", "folder");
-        assertThat(tree.getChildren()).isNotEmpty();
+        assertThat(folderTree).singleElement().satisfies(folder -> {
+            assertThat(folder.getName()).isEqualTo("nested");
+            assertThat(folder.getType()).isEqualTo("folder");
+            assertThat(folder.getUri()).isEqualTo(directory + "/nested");
+            assertThat(folder.getUrl()).endsWith(directory + "/nested");
+            assertThat(folder.getUri()).doesNotContain("//");
+            assertThat(folder.getUrl()).doesNotContain(directory + "//");
+        });
+        assertThat(tree.getUri()).isEqualTo(directory);
+        assertThat(tree.getUrl()).endsWith(directory);
+        assertThat(tree.getChildren()).hasSize(2);
+        assertThat(tree.getChildren()).filteredOn(node -> "folder".equals(node.getType()))
+                .singleElement()
+                .satisfies(folder -> {
+                    ObjectTreeNode folderNode = (ObjectTreeNode) folder;
+                    assertThat(folderNode.getName()).isEqualTo("nested");
+                    assertThat(folderNode.getUri()).isEqualTo(directory + "/nested");
+                    assertThat(folderNode.getUrl()).endsWith(directory + "/nested");
+                    assertThat(folderNode.getChildren()).singleElement().satisfies(file -> {
+                        assertThat(file.getType()).isEqualTo("file");
+                        assertThat(file.getUri()).isEqualTo(directory + "/nested/child.txt");
+                        assertThat(file.getUrl()).endsWith(directory + "/nested/child.txt");
+                    });
+                });
     }
 
     @Test
@@ -73,6 +99,13 @@ class QueryOperationsTest extends AbstractServiceDynamicPropertyTest {
         LazyDataList<ObjectInfo> secondPage = ossTemplate.query().lazyList(directory, 1, firstPage.getContinuationToken());
 
         assertThat(firstPage.getRecords()).isNotEmpty();
+        assertThat(firstPage.getRecords()).extracting(ObjectInfo::getType)
+                .contains("folder", "file");
+        assertThat(firstPage.getRecords().stream()
+                .filter(item -> "folder".equals(item.getType()))
+                .map(ObjectInfo::getUri)
+                .collect(Collectors.toList()))
+                .contains(directory + "/sub");
         assertThat(firstPage.getMaxKeys()).isEqualTo(1);
         assertThat(secondPage.getRecords()).isNotNull();
     }
