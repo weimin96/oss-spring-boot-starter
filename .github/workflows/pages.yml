@@ -28,7 +28,8 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Configure GitHub Pages
-        uses: actions/configure-pages@v5
+        id: pages
+        uses: actions/configure-pages@v6
 
       - name: Setup Node.js
         uses: actions/setup-node@v6
@@ -45,9 +46,12 @@ jobs:
         working-directory: samples/sample-frontend-web
         env:
           VITE_API_BASE_URL: ${{ vars.SAMPLE_FRONTEND_API_BASE_URL }}
+          # 仓库页部署必须显式把子路径传给 Vite；
+          # configure-pages 暴露的是 step output `base_path`，而不是 shell 变量 `$BASE_URL`。
+          VITE_BASE_PATH: ${{ steps.pages.outputs.base_path }}
         run: |
-          echo "GitHub Pages 基路径: $BASE_URL"
-          VITE_BASE_PATH="$BASE_URL" npm run build
+          echo "GitHub Pages 基路径: $VITE_BASE_PATH"
+          npm run build
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v5
@@ -63,4 +67,4 @@ jobs:
     steps:
       - name: Deploy to GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
