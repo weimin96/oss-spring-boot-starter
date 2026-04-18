@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - 'main'
-      - 'dev'
     paths:
       - '.github/workflows/pages.yml'
       - 'samples/sample-frontend-web/**'
@@ -22,7 +21,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  build-page:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -55,7 +54,7 @@ jobs:
         with:
           path: samples/sample-frontend-web/dist
 
-  deploy:
+  deploy-page:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
