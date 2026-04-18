@@ -21,6 +21,7 @@
 - 普通文件上传、文件夹上传
 - 大文件分片上传、分片合并、查询已上传分片
 - 大文件分片下载、普通下载，支持 HTTP Range
+- 流式压缩下载 ZIP，支持文件夹下载场景
 - 文件预览，支持 HTTP Range
 - 文件复制、移动
 - 文件删除、批量删除、文件夹递归删除
@@ -40,6 +41,17 @@
 - ZIP 流式解压
 - 跨 Bucket 流式解压
 - 按条目前缀过滤解压
+
+### 文件夹压缩下载边界
+- Java API 新增 `OssQueryService.writeFolderAsZip(...)`
+- 内置 REST 接口新增 `GET /oss/folder/download?path=...&filename=...`
+- `path` 语义为 S3 prefix，不依赖真实文件夹
+- 目录占位对象不会写入 ZIP，真实对象按相对路径进入压缩包
+- `path` 为空、prefix 下没有真实对象，或对象流打开失败时显式返回错误，不返回空 ZIP
+
+### 示例工程
+- 后端 sample 新增 `/api/files/folder/download` 用法示例
+- 前端 sample 新增“文件夹压缩下载”页面
 
 ### 预签名 URL
 - 生成下载预签名 URL
