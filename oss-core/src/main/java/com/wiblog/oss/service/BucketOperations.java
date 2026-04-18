@@ -642,10 +642,19 @@ public class BucketOperations extends Operations {
     }
 
     private String resolveLifecyclePrefix(LifecycleRule rule) {
-        if (rule.filter() != null && rule.filter().prefix() != null) {
-            return rule.filter().prefix();
+        LifecycleRuleFilter filter = rule.filter();
+        if (filter != null && filter.prefix() != null) {
+            return filter.prefix();
         }
-        return rule.prefix();
+        if (filter != null && filter.and() != null && filter.and().prefix() != null) {
+            return filter.and().prefix();
+        }
+        return resolveLegacyLifecyclePrefix(rule);
+    }
+
+    private String resolveLegacyLifecyclePrefix(LifecycleRule rule) {
+        // 旧版规则可能只有 Prefix 元素；这里通过字段级读取保留兼容性，同时避开已过时访问器。
+        return rule.getValueForField("Prefix", String.class).orElse(null);
     }
 
     private CorsRuleInfo toCorsRuleInfo(CORSRule rule) {
@@ -836,8 +845,8 @@ public class BucketOperations extends Operations {
                         .sourceBucket(bucketName)
                         .sourceKey(targetState.getKey())
                         .sourceVersionId(targetState.getVersionId())
-                        .bucket(bucketName)
-                        .key(targetState.getKey())
+                        .destinationBucket(bucketName)
+                        .destinationKey(targetState.getKey())
                         .build()),
                 "BUCKET_REWIND_RESTORE_FAILED",
                 "回滚时恢复历史版本失败：" + targetState.getKey());

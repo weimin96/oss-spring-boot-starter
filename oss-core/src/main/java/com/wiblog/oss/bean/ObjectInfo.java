@@ -1,6 +1,7 @@
 package com.wiblog.oss.bean;
 
 import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -32,6 +33,10 @@ public class ObjectInfo {
 
     @Schema(description = "对象访问地址")
     protected String url;
+
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(description = "对象类型，folder 表示目录，file 表示文件")
+    protected String type;
 
     @Schema(description = "文件大小，单位为字节")
     protected long size;

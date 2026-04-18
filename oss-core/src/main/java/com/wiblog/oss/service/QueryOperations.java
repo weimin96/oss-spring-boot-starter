@@ -239,7 +239,7 @@ public class QueryOperations extends Operations {
         ListObjectsV2Response response = client.listObjectsV2(builder.build()).join();
         response.contents().stream()
                 .filter(e -> e.size() > 0)
-                .map(e -> buildObjectInfo(e.key(), Date.from(e.lastModified()), e.size()))
+                .map(e -> buildObjectInfo(e.key(), Date.from(e.lastModified()), e.size()).setType("file"))
                 .forEach(resultList::add);
 
         resultList.setMaxKeys(maxKeys);
@@ -351,7 +351,11 @@ public class QueryOperations extends Operations {
                         .filter(seen::add)
                         .map(this::buildTreeNode)
                         .map(node -> ObjectInfo.builder()
-                                .uri(node.getUri()).url(node.getUrl()).name(node.getName()).build())
+                                .uri(node.getUri())
+                                .url(node.getUrl())
+                                .name(node.getName())
+                                .type(node.getType())
+                                .build())
                         .forEach(resultList::add)
         ).join();
         return resultList;
@@ -667,24 +671,24 @@ public class QueryOperations extends Operations {
             // 无命中时返回空，避免把查询路径误表达成真实存在的目录节点。
             return null;
         }
-        String rootName = extractRootName(objectName);
-        ObjectTreeNode root = new ObjectTreeNode(rootName, objectName,
-                getDomain() + objectName, null, "folder", 0, null);
+        String normalizedRootUri = trimTrailingSlash(objectName);
+        String rootName = extractRootName(normalizedRootUri);
+        ObjectTreeNode root = new ObjectTreeNode(rootName, normalizedRootUri,
+                getDomain() + normalizedRootUri, null, "folder", 0, null);
         for (S3Object obj : objects) {
-            String remaining = obj.key().startsWith(objectName + "/")
-                    ? obj.key().substring(objectName.length() + 1) : obj.key();
+            String remaining = subtractRootPrefix(obj.key(), objectName);
             addNode(root, remaining, obj);
         }
         return root;
     }
 
     private ObjectTreeNode buildFolderTree(List<S3Object> objects, String objectName) {
-        String rootName = extractRootName(objectName);
-        ObjectTreeNode root = new ObjectTreeNode(rootName, objectName,
-                getDomain() + objectName, null, "folder", 0, null);
+        String normalizedRootUri = trimTrailingSlash(objectName);
+        String rootName = extractRootName(normalizedRootUri);
+        ObjectTreeNode root = new ObjectTreeNode(rootName, normalizedRootUri,
+                getDomain() + normalizedRootUri, null, "folder", 0, null);
         for (S3Object obj : objects) {
-            String remaining = obj.key().startsWith(objectName + "/")
-                    ? obj.key().substring(objectName.length() + 1) : obj.key();
+            String remaining = subtractRootPrefix(obj.key(), objectName);
             addFolderNode(root, remaining);
         }
         return root;
@@ -734,12 +738,34 @@ public class QueryOperations extends Operations {
                 }
             }
         }
-        String uri = Util.isBlank(parent.getUri())
-                ? folderName : parent.getUri() + "/" + folderName;
+        String uri = appendFolderUri(parent.getUri(), folderName);
         ObjectTreeNode folder = new ObjectTreeNode(folderName, uri,
                 getDomain() + uri, null, "folder", 0, null);
         parent.addChild(folder);
         return folder;
+    }
+
+    private static String subtractRootPrefix(String key, String rootPath) {
+        String normalizedRoot = trimTrailingSlash(rootPath);
+        if (Util.isBlank(normalizedRoot)) {
+            return key;
+        }
+        String prefix = normalizedRoot + "/";
+        return key.startsWith(prefix) ? key.substring(prefix.length()) : key;
+    }
+
+    private static String appendFolderUri(String parentUri, String folderName) {
+        String normalizedParentUri = trimTrailingSlash(parentUri);
+        return Util.isBlank(normalizedParentUri)
+                ? folderName
+                : normalizedParentUri + "/" + folderName;
+    }
+
+    /**
+     * 文件夹树中的目录节点对外暴露为语义路径，不应保留仅用于 S3 前缀查询的尾部 `/`。
+     */
+    private static String trimTrailingSlash(String path) {
+        return path != null && path.endsWith("/") ? path.substring(0, path.length() - 1) : path;
     }
 
     // ----------------------------------------------------------------
