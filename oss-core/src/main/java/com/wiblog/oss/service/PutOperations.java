@@ -1,11 +1,12 @@
 package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.ObjectInfo;
-import com.wiblog.oss.bean.OssProperties;
-import com.wiblog.oss.bean.chunk.Chunk;
+import com.wiblog.oss.bean.chunk.ChunkPartInfo;
 import com.wiblog.oss.bean.chunk.ChunkMerge;
 import com.wiblog.oss.bean.chunk.ChunkTarget;
 import com.wiblog.oss.bean.chunk.ChunkTask;
+import com.wiblog.oss.bean.chunk.ChunkUploadCommand;
+import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
@@ -33,7 +34,7 @@ import java.util.stream.Collectors;
  * @author panwm
  */
 @Slf4j
-public class PutOperations extends Operations {
+public class PutOperations extends Operations implements OssPutService {
 
     /**
      * 创建上传操作门面。
@@ -42,7 +43,7 @@ public class PutOperations extends Operations {
      * @param client          S3 异步客户端
      * @param transferManager 传输管理器
      */
-    public PutOperations(OssProperties ossProperties, S3AsyncClient client, S3TransferManager transferManager) {
+    public PutOperations(OssClientOptions ossProperties, S3AsyncClient client, S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
 
@@ -53,11 +54,12 @@ public class PutOperations extends Operations {
     /**
      * 创建一个 Bucket；若已存在则跳过。
      *
-     * <p>这里采用“存在即幂等成功”的语义，
+     * <p>这里采用”存在即幂等成功”的语义，
      * 目的是让启动阶段的自动建桶和业务侧显式建桶都可以安全重复调用。</p>
      *
      * @param bucketName 待创建的 Bucket 名称
      */
+    @Override
     public void createBucket(String bucketName) {
         if (!bucketExists(bucketName)) {
             CreateBucketRequest req = CreateBucketRequest.builder().bucket(bucketName).build();
@@ -87,6 +89,7 @@ public class PutOperations extends Operations {
      * @param in       文件输入流
      * @return 上传后的对象信息
      */
+    @Override
     public ObjectInfo putObject(String path, String filename, InputStream in) {
         return putObject(ossProperties.getBucketName(), path, filename, in);
     }
@@ -100,6 +103,7 @@ public class PutOperations extends Operations {
      * @param in         文件输入流
      * @return 上传后的对象信息
      */
+    @Override
     public ObjectInfo putObject(String bucketName, String path, String filename, InputStream in) {
         return putObjectForKey(bucketName, formatPath(path) + filename, in);
     }
@@ -111,6 +115,7 @@ public class PutOperations extends Operations {
      * @param stream     文件输入流
      * @return 上传后的对象信息
      */
+    @Override
     public ObjectInfo putObjectForKey(String objectName, InputStream stream) {
         return putObjectForKey(ossProperties.getBucketName(), objectName, stream);
     }
@@ -126,6 +131,7 @@ public class PutOperations extends Operations {
      * @param stream     文件输入流
      * @return 上传后的对象信息
      */
+    @Override
     public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
         objectName = formatPath(objectName);
         // 先缓冲，获得精确长度
@@ -159,6 +165,7 @@ public class PutOperations extends Operations {
      * @param file     本地文件
      * @return 上传后的对象信息
      */
+    @Override
     public ObjectInfo putObject(String path, String filename, File file) {
         return putObject(ossProperties.getBucketName(), path, filename, file);
     }
@@ -172,6 +179,7 @@ public class PutOperations extends Operations {
      * @param file       本地文件
      * @return 上传后的对象信息
      */
+    @Override
     public ObjectInfo putObject(String bucketName, String path, String filename, File file) {
         return putObjectForKey(bucketName, formatPath(path) + filename, file);
     }
@@ -183,6 +191,7 @@ public class PutOperations extends Operations {
      * @param file       本地文件
      * @return 上传后的对象信息
      */
+    @Override
     public ObjectInfo putObjectForKey(String objectName, File file) {
         return putObjectForKey(ossProperties.getBucketName(), objectName, file);
     }
@@ -195,6 +204,7 @@ public class PutOperations extends Operations {
      * @param file       本地文件
      * @return 上传后的对象信息
      */
+    @Override
     public ObjectInfo putObjectForKey(String bucketName, String objectName, File file) {
         objectName = formatPath(objectName);
         PutObjectRequest putReq = PutObjectRequest.builder()
@@ -217,6 +227,7 @@ public class PutOperations extends Operations {
      * @param path 目录前缀
      * @return 创建后的目录对象信息
      */
+    @Override
     public ObjectInfo mkdirs(String path) {
         return mkdirs(ossProperties.getBucketName(), path);
     }
@@ -230,6 +241,7 @@ public class PutOperations extends Operations {
      * @param path       目录前缀
      * @return 创建后的目录对象信息
      */
+    @Override
     public ObjectInfo mkdirs(String bucketName, String path) {
         PutObjectRequest req = PutObjectRequest.builder()
                 .bucket(bucketName).key(formatPath(path)).build();
@@ -243,6 +255,7 @@ public class PutOperations extends Operations {
      * @param path   目标目录前缀
      * @param folder 本地目录
      */
+    @Override
     public void putFolder(String path, File folder) {
         putFolder(path, folder, true);
     }
@@ -254,6 +267,7 @@ public class PutOperations extends Operations {
      * @param folder              本地目录
      * @param isIncludeFolderName 是否把本地目录名拼入目标前缀
      */
+    @Override
     public void putFolder(String path, File folder, boolean isIncludeFolderName) {
         putFolder(ossProperties.getBucketName(), path, folder, isIncludeFolderName);
     }
@@ -269,6 +283,7 @@ public class PutOperations extends Operations {
      * @param folder              本地目录
      * @param isIncludeFolderName 是否把本地目录名拼入目标前缀
      */
+    @Override
     public void putFolder(String bucketName, String path, File folder, boolean isIncludeFolderName) {
         if (!folder.exists() || !folder.isDirectory()) {
             throw new IllegalArgumentException("目录不存在: " + folder.getPath());
@@ -293,6 +308,7 @@ public class PutOperations extends Operations {
      * @param sourceKey 源对象 key
      * @param destKey   目标对象 key
      */
+    @Override
     public void copyFile(String sourceKey, String destKey) {
         copyFile(ossProperties.getBucketName(), ossProperties.getBucketName(), sourceKey, destKey);
     }
@@ -305,6 +321,7 @@ public class PutOperations extends Operations {
      * @param sourceKey    源对象 key
      * @param destKey      目标对象 key
      */
+    @Override
     public void copyFile(String sourceBucket, String destBucket, String sourceKey, String destKey) {
         CopyObjectRequest req = CopyObjectRequest.builder()
                 .sourceBucket(sourceBucket).sourceKey(formatPath(sourceKey))
@@ -319,6 +336,7 @@ public class PutOperations extends Operations {
      * @param sourceObjectName     源对象 key
      * @param destinationDirectory 目标目录
      */
+    @Override
     public void move(String sourceObjectName, String destinationDirectory) {
         move(ossProperties.getBucketName(), sourceObjectName, destinationDirectory);
     }
@@ -326,12 +344,13 @@ public class PutOperations extends Operations {
     /**
      * 在指定 Bucket 内移动对象到目标目录。
      *
-     * <p>对象存储不支持真正的 rename，这里通过“复制到新位置再删除旧对象”来实现移动语义。</p>
+     * <p>对象存储不支持真正的 rename，这里通过”复制到新位置再删除旧对象”来实现移动语义。</p>
      *
      * @param bucketName           Bucket 名称
      * @param sourceObjectName     源对象 key
      * @param destinationDirectory 目标目录
      */
+    @Override
     public void move(String bucketName, String sourceObjectName, String destinationDirectory) {
         String filename = Util.getFilename(sourceObjectName);
         String destKey = Util.formatPath(destinationDirectory) + filename;
@@ -349,6 +368,7 @@ public class PutOperations extends Operations {
      * @param chunkTask 分片任务定义
      * @return S3 分片上传任务 ID
      */
+    @Override
     public String initTask(ChunkTask chunkTask) {
         String objectName = formatPath(chunkTask.getPath()) + chunkTask.getFilename();
         CreateMultipartUploadResponse resp = client.createMultipartUpload(b -> b
@@ -362,16 +382,17 @@ public class PutOperations extends Operations {
      * @param chunk 分片内容和分片元数据
      * @return 分片号与 ETag 信息
      */
-    public ChunkTarget chunk(Chunk chunk) {
+    @Override
+    public ChunkTarget chunk(ChunkUploadCommand chunk) {
         UploadPartRequest req = UploadPartRequest.builder()
                 .bucket(ossProperties.getBucketName())
                 .key(formatPath(chunk.getPath()) + chunk.getFilename())
                 .uploadId(chunk.getUploadId())
                 .partNumber(chunk.getChunkNumber())
-                .contentLength(chunk.getFile().getSize())
+                .contentLength(chunk.getContentLength())
                 .build();
         try {
-            ByteBuffer buf = ByteBuffer.wrap(chunk.getFile().getBytes());
+            ByteBuffer buf = ByteBuffer.wrap(chunk.getFileBytes());
             String etag = client.uploadPart(req, AsyncRequestBody.fromByteBuffer(buf)).join().eTag();
             ChunkTarget target = new ChunkTarget();
             target.setEtag(etag.replace("\"", ""));
@@ -392,6 +413,7 @@ public class PutOperations extends Operations {
      * @param chunkMerge 分片合并请求
      * @return 合并后的对象信息
      */
+    @Override
     public ObjectInfo merge(ChunkMerge chunkMerge) {
         String objectName = formatPath(chunkMerge.getPath()) + chunkMerge.getFilename();
         // 处理 null 或空列表的情况
@@ -426,11 +448,20 @@ public class PutOperations extends Operations {
      * @param uploadId   分片上传任务 ID
      * @return 已上传分片列表
      */
-    public List<Part> listParts(String bucketName, String objectName, String uploadId) {
+    @Override
+    public List<ChunkPartInfo> listParts(String bucketName, String objectName, String uploadId) {
         ListPartsRequest req = ListPartsRequest.builder()
                 .bucket(bucketName).key(objectName).uploadId(uploadId)
                 .maxParts(Integer.MAX_VALUE).build();
-        return client.listParts(req).join().parts();
+        return client.listParts(req).join().parts().stream()
+                .map(part -> {
+                    ChunkPartInfo info = new ChunkPartInfo();
+                    info.setPartNumber(part.partNumber());
+                    info.setEtag(part.eTag());
+                    info.setSize(part.size());
+                    return info;
+                })
+                .collect(Collectors.toList());
     }
 
     // ----------------------------------------------------------------
@@ -454,3 +485,5 @@ public class PutOperations extends Operations {
         }
     }
 }
+
+

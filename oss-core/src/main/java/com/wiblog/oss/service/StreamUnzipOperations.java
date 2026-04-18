@@ -1,7 +1,7 @@
 package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.ObjectInfo;
-import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.bean.UnzipResult;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
@@ -28,7 +28,7 @@ import java.util.zip.ZipInputStream;
  * @author panwm
  */
 @Slf4j
-public class StreamUnzipOperations extends Operations {
+public class StreamUnzipOperations extends Operations implements OssUnzipService {
 
     /**
      * 流式读取缓冲区大小。
@@ -49,7 +49,7 @@ public class StreamUnzipOperations extends Operations {
      * @param client          S3 异步客户端
      * @param transferManager 传输管理器
      */
-    public StreamUnzipOperations(OssProperties ossProperties, S3AsyncClient client,
+    public StreamUnzipOperations(OssClientOptions ossProperties, S3AsyncClient client,
                                  S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
@@ -61,6 +61,7 @@ public class StreamUnzipOperations extends Operations {
      * @param targetPath   目标目录前缀
      * @return 解压结果
      */
+    @Override
     public UnzipResult unzip(String zipObjectKey, String targetPath) {
         return unzip(ossProperties.getBucketName(), zipObjectKey, ossProperties.getBucketName(), targetPath);
     }
@@ -77,6 +78,7 @@ public class StreamUnzipOperations extends Operations {
      * @param targetPath   目标目录前缀
      * @return 解压结果
      */
+    @Override
     public UnzipResult unzip(String sourceBucket, String zipObjectKey,
                              String targetBucket, String targetPath) {
         String normalizedTargetPath = Util.formatPath(targetPath);
@@ -129,6 +131,7 @@ public class StreamUnzipOperations extends Operations {
      * @param handler      条目处理器
      * @return 处理结果
      */
+    @Override
     public UnzipResult unzip(String zipObjectKey, UnzipEntryHandler handler) {
         return unzip(ossProperties.getBucketName(), zipObjectKey, handler);
     }
@@ -136,7 +139,7 @@ public class StreamUnzipOperations extends Operations {
     /**
      * 在指定 Bucket 内按自定义处理器消费 ZIP 条目。
      *
-     * <p>该重载适用于“读取 ZIP 条目后不直接上传，而是交由业务方自定义处理”的场景，
+     * <p>该重载适用于”读取 ZIP 条目后不直接上传，而是交由业务方自定义处理”的场景，
      * 例如筛选、转码或二次写入其他系统。</p>
      *
      * @param bucketName   Bucket 名称
@@ -144,6 +147,7 @@ public class StreamUnzipOperations extends Operations {
      * @param handler      条目处理器
      * @return 处理结果
      */
+    @Override
     public UnzipResult unzip(String bucketName, String zipObjectKey, UnzipEntryHandler handler) {
         log.info("Stream unzip with custom handler: [{}/{}]", bucketName, zipObjectKey);
 
@@ -196,6 +200,7 @@ public class StreamUnzipOperations extends Operations {
      * @param targetPath   目标目录前缀
      * @return 解压结果
      */
+    @Override
     public UnzipResult unzipWithFilter(String zipObjectKey, String entryPrefix, String targetPath) {
         return unzipWithFilter(ossProperties.getBucketName(), zipObjectKey,
                 ossProperties.getBucketName(), entryPrefix, targetPath);
@@ -204,8 +209,8 @@ public class StreamUnzipOperations extends Operations {
     /**
      * 过滤解压必须只记录真正命中过滤条件且成功上传的条目。
      * <p>
-     * 这里不再复用“自定义 handler 解压”分支，因为那个分支会把每个非目录条目都计入 succeeded，
-     * 无法区分“被过滤跳过”和“实际已解压”。
+     * 这里不再复用”自定义 handler 解压”分支，因为那个分支会把每个非目录条目都计入 succeeded，
+     * 无法区分”被过滤跳过”和”实际已解压”。
      *
      * @param sourceBucket 源 Bucket
      * @param zipObjectKey ZIP 对象 key
@@ -214,6 +219,7 @@ public class StreamUnzipOperations extends Operations {
      * @param targetPath   目标目录前缀
      * @return 解压结果
      */
+    @Override
     public UnzipResult unzipWithFilter(String sourceBucket, String zipObjectKey,
                                        String targetBucket, String entryPrefix, String targetPath) {
         final String prefix = entryPrefix == null ? "" : entryPrefix;
@@ -338,3 +344,5 @@ public class StreamUnzipOperations extends Operations {
         }
     }
 }
+
+

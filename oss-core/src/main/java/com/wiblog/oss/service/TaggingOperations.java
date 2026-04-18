@@ -1,6 +1,6 @@
 package com.wiblog.oss.service;
 
-import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
  * @author panwm
  */
 @Slf4j
-public class TaggingOperations extends Operations {
+public class TaggingOperations extends Operations implements OssTaggingService {
 
     /**
      * 创建标签操作门面。
@@ -28,7 +28,7 @@ public class TaggingOperations extends Operations {
      * @param client          S3 异步客户端
      * @param transferManager 传输管理器
      */
-    public TaggingOperations(OssProperties ossProperties, S3AsyncClient client,
+    public TaggingOperations(OssClientOptions ossProperties, S3AsyncClient client,
                              S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
@@ -39,6 +39,7 @@ public class TaggingOperations extends Operations {
      * @param objectName 对象 key
      * @return 标签键值对
      */
+    @Override
     public Map<String, String> getObjectTags(String objectName) {
         return getObjectTags(ossProperties.getBucketName(), objectName);
     }
@@ -50,6 +51,7 @@ public class TaggingOperations extends Operations {
      * @param objectName 对象 key
      * @return 标签键值对
      */
+    @Override
     public Map<String, String> getObjectTags(String bucketName, String objectName) {
         String normalizedObjectKey = normalizeObjectKey(objectName);
         GetObjectTaggingRequest req = GetObjectTaggingRequest.builder()
@@ -70,6 +72,7 @@ public class TaggingOperations extends Operations {
      * @param objectName 对象 key
      * @param tags       目标标签集合
      */
+    @Override
     public void setObjectTags(String objectName, Map<String, String> tags) {
         setObjectTags(ossProperties.getBucketName(), objectName, tags);
     }
@@ -77,13 +80,14 @@ public class TaggingOperations extends Operations {
     /**
      * 覆盖设置指定 Bucket 下对象的标签。
      *
-     * <p>该方法采取“整体覆盖”语义，
+     * <p>该方法采取”整体覆盖”语义，
      * 目的是与 S3 `PutObjectTagging` 的原生行为保持一致，避免误导调用方以为是增量更新。</p>
      *
      * @param bucketName Bucket 名称
      * @param objectName 对象 key
      * @param tags       目标标签集合
      */
+    @Override
     public void setObjectTags(String bucketName, String objectName, Map<String, String> tags) {
         String normalizedObjectKey = normalizeObjectKey(objectName);
         List<Tag> tagList = tags.entrySet().stream()
@@ -107,6 +111,7 @@ public class TaggingOperations extends Operations {
      * @param objectName 对象 key
      * @param tags       需要合并的新标签
      */
+    @Override
     public void mergeObjectTags(String objectName, Map<String, String> tags) {
         mergeObjectTags(ossProperties.getBucketName(), objectName, tags);
     }
@@ -118,6 +123,7 @@ public class TaggingOperations extends Operations {
      * @param objectName 对象 key
      * @param tags       需要合并的新标签
      */
+    @Override
     public void mergeObjectTags(String bucketName, String objectName, Map<String, String> tags) {
         Map<String, String> mergedTags = new HashMap<String, String>(getObjectTags(bucketName, objectName));
         mergedTags.putAll(tags);
@@ -129,6 +135,7 @@ public class TaggingOperations extends Operations {
      *
      * @param objectName 对象 key
      */
+    @Override
     public void deleteObjectTags(String objectName) {
         deleteObjectTags(ossProperties.getBucketName(), objectName);
     }
@@ -139,6 +146,7 @@ public class TaggingOperations extends Operations {
      * @param bucketName Bucket 名称
      * @param objectName 对象 key
      */
+    @Override
     public void deleteObjectTags(String bucketName, String objectName) {
         String normalizedObjectKey = normalizeObjectKey(objectName);
         DeleteObjectTaggingRequest req = DeleteObjectTaggingRequest.builder()
@@ -156,6 +164,7 @@ public class TaggingOperations extends Operations {
      *
      * @return 标签键值对
      */
+    @Override
     public Map<String, String> getBucketTags() {
         return getBucketTags(ossProperties.getBucketName());
     }
@@ -166,6 +175,7 @@ public class TaggingOperations extends Operations {
      * @param bucketName Bucket 名称
      * @return 标签键值对；不存在时返回空集合
      */
+    @Override
     public Map<String, String> getBucketTags(String bucketName) {
         GetBucketTaggingRequest req = GetBucketTaggingRequest.builder()
                 .bucket(bucketName)
@@ -183,6 +193,7 @@ public class TaggingOperations extends Operations {
      *
      * @param tags 目标标签集合
      */
+    @Override
     public void setBucketTags(Map<String, String> tags) {
         setBucketTags(ossProperties.getBucketName(), tags);
     }
@@ -193,6 +204,7 @@ public class TaggingOperations extends Operations {
      * @param bucketName Bucket 名称
      * @param tags       目标标签集合
      */
+    @Override
     public void setBucketTags(String bucketName, Map<String, String> tags) {
         List<Tag> tagList = tags.entrySet().stream()
                 .map(entry -> Tag.builder().key(entry.getKey()).value(entry.getValue()).build())
@@ -211,6 +223,7 @@ public class TaggingOperations extends Operations {
     /**
      * 删除默认 Bucket 的全部标签。
      */
+    @Override
     public void deleteBucketTags() {
         deleteBucketTags(ossProperties.getBucketName());
     }
@@ -220,6 +233,7 @@ public class TaggingOperations extends Operations {
      *
      * @param bucketName Bucket 名称
      */
+    @Override
     public void deleteBucketTags(String bucketName) {
         DeleteBucketTaggingRequest req = DeleteBucketTaggingRequest.builder()
                 .bucket(bucketName)
@@ -247,3 +261,5 @@ public class TaggingOperations extends Operations {
         return normalizedKey;
     }
 }
+
+

@@ -2,9 +2,9 @@ package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.*;
 import com.wiblog.oss.bean.BucketInfo;
+import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.util.StringUtils;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
  * @author panwm
  */
 @Slf4j
-public class QueryOperations extends Operations {
+public class QueryOperations extends Operations implements OssQueryService {
 
     /**
      * 预览/下载时的 IO 缓冲区大小 4KB
@@ -40,17 +40,17 @@ public class QueryOperations extends Operations {
      */
     private static final int LIST_MAX_KEYS = 1000;
 
-    public QueryOperations(OssProperties ossProperties, S3AsyncClient client,
+    public QueryOperations(OssClientOptions ossProperties, S3AsyncClient client,
                            S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
 
     /**
-     * 返回当前查询操作绑定的 OSS 配置。
+     * 返回当前查询操作绑定的内部选项。
      *
-     * @return OSS 配置
+     * @return 内部选项
      */
-    public OssProperties getOssProperties() {
+    public OssClientOptions getOssProperties() {
         return ossProperties;
     }
 
@@ -63,6 +63,7 @@ public class QueryOperations extends Operations {
      *
      * @return 可访问返回 {@code true}
      */
+    @Override
     public boolean testConnect() {
         return testConnectForBucket();
     }
@@ -73,6 +74,7 @@ public class QueryOperations extends Operations {
      * @param bucketName Bucket 名称
      * @return 可访问返回 {@code true}
      */
+    @Override
     public boolean testConnectForBucket(String bucketName) {
         try {
             client.headBucket(HeadBucketRequest.builder().bucket(bucketName).build()).join();
@@ -87,6 +89,7 @@ public class QueryOperations extends Operations {
      *
      * @return 可访问返回 {@code true}
      */
+    @Override
     public boolean testConnectForBucket() {
         return testConnectForBucket(ossProperties.getBucketName());
     }
@@ -96,6 +99,7 @@ public class QueryOperations extends Operations {
      *
      * @return Bucket 列表
      */
+    @Override
     public List<BucketInfo> getAllBuckets() {
         return client.listBuckets().join().buckets().stream()
                 .map(bucket -> BucketInfo.builder()
@@ -115,6 +119,7 @@ public class QueryOperations extends Operations {
      * @param path 查询前缀
      * @return 对象信息列表
      */
+    @Override
     public List<ObjectInfo> listObjects(String path) {
         return listObjects(ossProperties.getBucketName(), path);
     }
@@ -126,6 +131,7 @@ public class QueryOperations extends Operations {
      * @param path       查询前缀
      * @return 对象信息列表
      */
+    @Override
     public List<ObjectInfo> listObjects(String bucketName, String path) {
         return listObject(bucketName, path, null).stream()
                 .map(e -> ObjectInfo.builder()
@@ -203,6 +209,7 @@ public class QueryOperations extends Operations {
      * @param continuationToken 分页游标
      * @return 懒加载分页结果
      */
+    @Override
     public LazyDataList<ObjectInfo> lazyList(String path, int maxKeys, String continuationToken) {
         return lazyList(ossProperties.getBucketName(), path, maxKeys, continuationToken);
     }
@@ -211,7 +218,7 @@ public class QueryOperations extends Operations {
      * 查询指定 Bucket 的懒加载分页列表。
      *
      * <p>第一页会额外补充下一层级目录节点，
-     * 目的是让调用方在“分页文件 + 目录结构”并存的界面里一次拿到可展示数据。</p>
+     * 目的是让调用方在”分页文件 + 目录结构”并存的界面里一次拿到可展示数据。</p>
      *
      * @param bucketName        Bucket 名称
      * @param path              查询前缀
@@ -219,6 +226,7 @@ public class QueryOperations extends Operations {
      * @param continuationToken 分页游标
      * @return 懒加载分页结果
      */
+    @Override
     public LazyDataList<ObjectInfo> lazyList(String bucketName, String path,
                                              int maxKeys, String continuationToken) {
         if (maxKeys <= 0) {
@@ -230,7 +238,7 @@ public class QueryOperations extends Operations {
                 .bucket(bucketName).prefix(Util.formatPath(path))
                 .maxKeys(maxKeys).delimiter("/");
 
-        if (StringUtils.hasText(continuationToken)) {
+        if (continuationToken != null && !continuationToken.trim().isEmpty()) {
             builder.continuationToken(continuationToken);
         } else {
             resultList.addAll(listNextLevelFolder(bucketName, path));
@@ -257,6 +265,7 @@ public class QueryOperations extends Operations {
      * @param path 查询前缀
      * @return 下一层级节点列表
      */
+    @Override
     public List<ObjectTreeNode> listNextLevel(String path) {
         return listNextLevel(ossProperties.getBucketName(), path);
     }
@@ -268,6 +277,7 @@ public class QueryOperations extends Operations {
      * @param path       查询前缀
      * @return 下一层级节点列表
      */
+    @Override
     public List<ObjectTreeNode> listNextLevel(String bucketName, String path) {
         List<ObjectTreeNode> resultList = new ArrayList<>();
         String prefix = Util.formatPath(path);
@@ -297,6 +307,7 @@ public class QueryOperations extends Operations {
      * @param path 查询前缀
      * @return 文件夹树
      */
+    @Override
     public List<ObjectTreeNode> getFolderTreeList(String path) {
         return getFolderTreeList(ossProperties.getBucketName(), path);
     }
@@ -308,6 +319,7 @@ public class QueryOperations extends Operations {
      * @param path       查询前缀
      * @return 文件夹树
      */
+    @Override
     public List<ObjectTreeNode> getFolderTreeList(String bucketName, String path) {
         String prefix = Util.formatPath(path);
         List<S3Object> list = new ArrayList<>();
@@ -328,6 +340,7 @@ public class QueryOperations extends Operations {
      * @param path 查询前缀
      * @return 目录信息列表
      */
+    @Override
     public List<ObjectInfo> listNextLevelFolder(String path) {
         return listNextLevelFolder(ossProperties.getBucketName(), path);
     }
@@ -339,6 +352,7 @@ public class QueryOperations extends Operations {
      * @param path       查询前缀
      * @return 目录信息列表
      */
+    @Override
     public List<ObjectInfo> listNextLevelFolder(String bucketName, String path) {
         List<ObjectInfo> resultList = new ArrayList<>();
         String prefix = Util.formatPath(path);
@@ -371,6 +385,7 @@ public class QueryOperations extends Operations {
      * @param objectName 对象 key
      * @return 存在返回 {@code true}
      */
+    @Override
     public boolean checkExist(String objectName) {
         return checkExist(ossProperties.getBucketName(), objectName);
     }
@@ -382,6 +397,7 @@ public class QueryOperations extends Operations {
      * @param objectName 对象 key
      * @return 存在返回 {@code true}
      */
+    @Override
     public boolean checkExist(String bucketName, String objectName) {
         try {
             client.headObject(HeadObjectRequest.builder()
@@ -398,6 +414,7 @@ public class QueryOperations extends Operations {
      * @param objectName 对象 key
      * @return 对象信息
      */
+    @Override
     public ObjectInfo getObjectInfo(String objectName) {
         return getObjectInfo(ossProperties.getBucketName(), objectName);
     }
@@ -409,6 +426,7 @@ public class QueryOperations extends Operations {
      * @param objectName 对象 key
      * @return 对象信息
      */
+    @Override
     public ObjectInfo getObjectInfo(String bucketName, String objectName) {
         HeadObjectRequest req = HeadObjectRequest.builder()
                 .bucket(bucketName).key(objectName).build();
@@ -426,6 +444,7 @@ public class QueryOperations extends Operations {
      * @param objectName 对象 key
      * @return UTF-8 文本内容；对象不存在时返回 {@code null}
      */
+    @Override
     public String getContent(String objectName) {
         return getContent(ossProperties.getBucketName(), objectName);
     }
@@ -437,6 +456,7 @@ public class QueryOperations extends Operations {
      * @param objectName 对象 key
      * @return UTF-8 文本内容；对象不存在时返回 {@code null}
      */
+    @Override
     public String getContent(String bucketName, String objectName) {
         try {
             return client.getObject(buildGetRequest(bucketName, objectName),
@@ -455,6 +475,7 @@ public class QueryOperations extends Operations {
      * @param objectName 对象 key
      * @return 对象输入流
      */
+    @Override
     public InputStream getInputStream(String objectName) {
         return getInputStream(ossProperties.getBucketName(), objectName);
     }
@@ -466,6 +487,7 @@ public class QueryOperations extends Operations {
      * @param objectName 对象 key
      * @return 对象输入流
      */
+    @Override
     public InputStream getInputStream(String bucketName, String objectName) {
         return handleRequest(() ->
                 client.getObject(buildGetRequest(bucketName, objectName),
@@ -481,6 +503,7 @@ public class QueryOperations extends Operations {
      * @param range      字节区间，例如 `bytes=0-1023`
      * @return 对应区间的输入流
      */
+    @Override
     public InputStream getInputStream(String bucketName, String objectName, String range) {
         GetObjectRequest req = GetObjectRequest.builder()
                 .bucket(bucketName).key(Util.formatPath(objectName)).range(range).build();
@@ -500,6 +523,7 @@ public class QueryOperations extends Operations {
      * @param localFilePath 本地文件路径或目录路径
      * @return 下载后的本地文件
      */
+    @Override
     public File getFile(String objectName, String localFilePath) {
         return getFile(ossProperties.getBucketName(), objectName, localFilePath);
     }
@@ -512,6 +536,7 @@ public class QueryOperations extends Operations {
      * @param localFilePath 本地文件路径或目录路径
      * @return 下载后的本地文件
      */
+    @Override
     public File getFile(String bucketName, String objectName, String localFilePath) {
         File outputFile = new File(localFilePath);
         outputFile.getParentFile().mkdirs();
@@ -531,6 +556,7 @@ public class QueryOperations extends Operations {
      * @param objectName    目录前缀
      * @param localFilePath 本地目录
      */
+    @Override
     public void getFolder(String objectName, String localFilePath) {
         getFolder(ossProperties.getBucketName(), objectName, localFilePath);
     }
@@ -542,6 +568,7 @@ public class QueryOperations extends Operations {
      * @param objectName    目录前缀
      * @param localFilePath 本地目录
      */
+    @Override
     public void getFolder(String bucketName, String objectName, String localFilePath) {
         List<S3Object> objects = listObject(bucketName, objectName, null);
         if (!localFilePath.endsWith(File.separator)) {
@@ -569,6 +596,7 @@ public class QueryOperations extends Operations {
      * @param objectName 对象 key
      * @param isDownload true=attachment 下载, false=inline 预览
      */
+    @Override
     public void previewObject(OssPreviewContext context, String objectName,
                               boolean isDownload) throws IOException {
         if (Util.isBlank(objectName)) {
@@ -628,6 +656,7 @@ public class QueryOperations extends Operations {
      * @param path 根目录前缀
      * @return 根节点；无命中时返回 {@code null}
      */
+    @Override
     public ObjectTreeNode getTreeList(String path) {
         return getTreeList(ossProperties.getBucketName(), path);
     }
@@ -639,6 +668,7 @@ public class QueryOperations extends Operations {
      * @param path       根目录前缀
      * @return 根节点；无命中时返回 {@code null}
      */
+    @Override
     public ObjectTreeNode getTreeList(String bucketName, String path) {
         return buildTree(listObject(bucketName, path), path);
     }
@@ -650,6 +680,7 @@ public class QueryOperations extends Operations {
      * @param keyword 关键字
      * @return 根节点；无命中时返回 {@code null}
      */
+    @Override
     public ObjectTreeNode getTreeListByName(String path, String keyword) {
         return getTreeListByName(ossProperties.getBucketName(), path, keyword);
     }
@@ -662,6 +693,7 @@ public class QueryOperations extends Operations {
      * @param keyword    关键字
      * @return 根节点；无命中时返回 {@code null}
      */
+    @Override
     public ObjectTreeNode getTreeListByName(String bucketName, String path, String keyword) {
         return buildTree(listObject(bucketName, path, keyword), path);
     }
@@ -828,3 +860,5 @@ public class QueryOperations extends Operations {
         }
     }
 }
+
+

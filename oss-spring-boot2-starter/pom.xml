@@ -15,7 +15,7 @@
     <packaging>jar</packaging>
     <name>oss-spring-boot2-starter</name>
     <description>
-        OSS Spring Boot 2.x Starter。基于 javax.servlet 体系，兼容 Spring Boot 2.x（2.3+）。
+        OSS Spring Boot 2.x Starter。仅聚合 Java API 自动装配能力。
     </description>
 
     <properties>
@@ -41,55 +41,11 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- 核心模块 -->
         <dependency>
             <groupId>io.github.weimin96</groupId>
-            <artifactId>oss-core</artifactId>
+            <artifactId>oss-spring-boot2-autoconfigure</artifactId>
         </dependency>
 
-        <!-- Spring Boot 2 Web（provided：宿主应用必须提供） -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-web</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Bean Validation（javax，Boot 2 使用 javax.validation） -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-validation</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Spring Boot autoconfigure -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-autoconfigure</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Configuration metadata processor（编译期，生成 spring-configuration-metadata.json） -->
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-configuration-processor</artifactId>
-            <optional>true</optional>
-        </dependency>
-
-        <!-- Swagger 注解（provided，宿主应用按需引入 SpringDoc） -->
-        <dependency>
-            <groupId>io.swagger.core.v3</groupId>
-            <artifactId>swagger-annotations</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- Lombok -->
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <scope>provided</scope>
-        </dependency>
-
-        <!-- 测试 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

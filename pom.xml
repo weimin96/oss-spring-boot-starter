@@ -37,12 +37,28 @@
     </developers>
 
     <modules>
+        <!-- 共享领域与契约模块 -->
+        <module>oss-domain</module>
+        <module>oss-web-api</module>
+        <module>oss-openapi</module>
         <!-- 公共核心模块 -->
         <module>oss-core</module>
-        <!-- 各版本 Spring Boot 适配模块 -->
+        <!-- 各版本 Spring Boot 自动装配模块 -->
+        <module>oss-spring-boot2-autoconfigure</module>
+        <module>oss-spring-boot3-autoconfigure</module>
+        <module>oss-spring-boot4-autoconfigure</module>
+        <!-- 各版本 Spring Boot 基础适配模块 -->
         <module>oss-spring-boot2-starter</module>
         <module>oss-spring-boot3-starter</module>
         <module>oss-spring-boot4-starter</module>
+        <!-- 各版本 Spring Boot Web 适配模块 -->
+        <module>oss-spring-boot2-web-starter</module>
+        <module>oss-spring-boot3-web-starter</module>
+        <module>oss-spring-boot4-web-starter</module>
+        <!-- 各版本 Spring Boot OpenAPI 适配模块 -->
+        <module>oss-spring-boot2-openapi-starter</module>
+        <module>oss-spring-boot3-openapi-starter</module>
+        <module>oss-spring-boot4-openapi-starter</module>
         <!-- 示例工程 -->
         <module>samples/sample-springboot2</module>
         <module>samples/sample-springboot3</module>
@@ -63,6 +79,8 @@
         <lombok.version>1.18.44</lombok.version>
         <swagger.v3.version>2.2.48</swagger.v3.version>
         <jackson-annotations.version>2.21</jackson-annotations.version>
+        <jsr305.version>3.0.2</jsr305.version>
+
 
         <!-- 各模块对应的 Spring Boot 版本 -->
         <spring-boot2.version>2.7.18</spring-boot2.version>
@@ -82,10 +100,85 @@
     <!-- 公共依赖管理（所有子模块可直接使用，不会自动引入） -->
     <dependencyManagement>
         <dependencies>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-domain</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-web-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-openapi</artifactId>
+                <version>${project.version}</version>
+            </dependency>
             <!-- oss-core 核心模块 -->
             <dependency>
                 <groupId>io.github.weimin96</groupId>
                 <artifactId>oss-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot2-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot3-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot4-autoconfigure</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot2-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot3-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot4-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot2-web-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot3-web-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot4-web-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot2-openapi-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot3-openapi-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-boot4-openapi-starter</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
@@ -150,6 +243,11 @@
                 <version>${swagger.v3.version}</version>
             </dependency>
             <dependency>
+                <groupId>com.google.code.findbugs</groupId>
+                <artifactId>jsr305</artifactId>
+                <version>${jsr305.version}</version>
+            </dependency>
+            <dependency>
                 <groupId>com.fasterxml.jackson.core</groupId>
                 <artifactId>jackson-annotations</artifactId>
                 <version>${jackson-annotations.version}</version>
@@ -177,6 +275,7 @@
                         <encoding>UTF-8</encoding>
                         <compilerArgs>
                             <arg>-parameters</arg>
+                            <arg>-Xlint:-options</arg>
                         </compilerArgs>
                     </configuration>
                 </plugin>

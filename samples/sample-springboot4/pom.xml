@@ -18,6 +18,8 @@
 
     <properties>
         <java.version>21</java.version>
+        <!-- 父工程默认保留 SLF4J 1.7 以兼容 Spring Boot 2，Boot 4 必须覆盖为 SLF4J 2。 -->
+        <slf4j-api.version>2.0.17</slf4j-api.version>
         <maven.compiler.source>${java.version}</maven.compiler.source>
         <maven.compiler.target>${java.version}</maven.compiler.target>
         <maven.compiler.release>${java.version}</maven.compiler.release>
@@ -36,10 +38,10 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- 引入 Boot3 版本的 OSS starter -->
+        <!-- 引入 Boot4 版本的 OSS OpenAPI starter，保持样例的 HTTP 接口与文档元数据能力 -->
         <dependency>
             <groupId>io.github.weimin96</groupId>
-            <artifactId>oss-spring-boot4-starter</artifactId>
+            <artifactId>oss-spring-boot4-openapi-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -65,7 +67,7 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
-                <version>${spring-boot3.version}</version>
+                <version>${spring-boot4.version}</version>
             </plugin>
         </plugins>
     </build>

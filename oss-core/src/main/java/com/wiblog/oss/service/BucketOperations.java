@@ -1,6 +1,7 @@
 package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.*;
+import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
@@ -18,7 +19,7 @@ import java.util.stream.Collectors;
  * @author panwm
  */
 @Slf4j
-public class BucketOperations extends Operations {
+public class BucketOperations extends Operations implements OssBucketService {
 
     private static final String GROUP_ALL_USERS = "http://acs.amazonaws.com/groups/global/AllUsers";
     private static final String GROUP_AUTHENTICATED_USERS = "http://acs.amazonaws.com/groups/global/AuthenticatedUsers";
@@ -30,7 +31,7 @@ public class BucketOperations extends Operations {
      * @param client          S3 异步客户端
      * @param transferManager 传输管理器
      */
-    public BucketOperations(OssProperties ossProperties, S3AsyncClient client,
+    public BucketOperations(OssClientOptions ossProperties, S3AsyncClient client,
                             S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
@@ -38,6 +39,7 @@ public class BucketOperations extends Operations {
     /**
      * 为默认 Bucket 启用版本控制。
      */
+    @Override
     public void enableVersioning() {
         enableVersioning(ossProperties.getBucketName());
     }
@@ -47,6 +49,7 @@ public class BucketOperations extends Operations {
      *
      * @param bucketName Bucket 名称
      */
+    @Override
     public void enableVersioning(String bucketName) {
         setVersioningStatus(bucketName, BucketVersioningStatus.ENABLED);
     }
@@ -54,6 +57,7 @@ public class BucketOperations extends Operations {
     /**
      * 挂起默认 Bucket 的版本控制。
      */
+    @Override
     public void suspendVersioning() {
         suspendVersioning(ossProperties.getBucketName());
     }
@@ -63,6 +67,7 @@ public class BucketOperations extends Operations {
      *
      * @param bucketName Bucket 名称
      */
+    @Override
     public void suspendVersioning(String bucketName) {
         setVersioningStatus(bucketName, BucketVersioningStatus.SUSPENDED);
     }
@@ -72,6 +77,7 @@ public class BucketOperations extends Operations {
      *
      * @return 版本控制状态；未配置时返回 {@code null}
      */
+    @Override
     public String getVersioningStatus() {
         return getVersioningStatus(ossProperties.getBucketName());
     }
@@ -915,3 +921,5 @@ public class BucketOperations extends Operations {
         }
     }
 }
+
+
