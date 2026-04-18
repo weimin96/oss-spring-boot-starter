@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { formatObjectExt, formatObjectSize, formatObjectTime } from '@/utils/objectExplorer'
-import type { ObjectListItem } from '@/utils/objectExplorer'
+import {computed} from 'vue'
+import type {ObjectListItem} from '@/utils/objectExplorer'
+import {formatObjectExt, formatObjectSize, formatObjectTime} from '@/utils/objectExplorer'
 
 const props = withDefaults(defineProps<{
   items: ObjectListItem[]
@@ -33,45 +33,45 @@ const fileCount = computed(() => props.items.length - folderCount.value)
       <div class="overflow-x-auto">
         <table class="w-full text-xs">
           <thead class="bg-[var(--color-bg)] text-[var(--color-muted)]">
-            <tr>
-              <th class="px-3 py-2 text-left font-semibold">名称</th>
-              <th class="px-3 py-2 text-left font-semibold">类型</th>
-              <th class="px-3 py-2 text-left font-semibold">后缀</th>
-              <th class="px-3 py-2 text-left font-semibold">大小</th>
-              <th class="px-3 py-2 text-left font-semibold">上传时间</th>
-              <th class="px-3 py-2 text-left font-semibold">访问地址</th>
-            </tr>
+          <tr>
+            <th class="px-3 py-2 text-left font-semibold">名称</th>
+            <th class="px-3 py-2 text-left font-semibold">类型</th>
+            <th class="px-3 py-2 text-left font-semibold">后缀</th>
+            <th class="px-3 py-2 text-left font-semibold">大小</th>
+            <th class="px-3 py-2 text-left font-semibold">上传时间</th>
+            <th class="px-3 py-2 text-left font-semibold">访问地址</th>
+          </tr>
           </thead>
           <tbody>
-            <tr
+          <tr
               v-for="item in items"
               :key="item.key"
               class="border-t border-[var(--color-border)] align-top"
-            >
-              <td class="px-3 py-3 min-w-[220px]">
-                <p class="font-medium text-[var(--color-text)] break-all">{{ item.name }}</p>
-                <p class="mt-1 text-[var(--color-muted)] break-all">{{ item.uri }}</p>
-              </td>
-              <td class="px-3 py-3 whitespace-nowrap">
+          >
+            <td class="px-3 py-3 min-w-[220px]">
+              <p class="font-medium text-[var(--color-text)] break-all">{{ item.name }}</p>
+              <p class="mt-1 text-[var(--color-muted)] break-all">{{ item.uri }}</p>
+            </td>
+            <td class="px-3 py-3 whitespace-nowrap">
                 <span :class="item.kind === 'folder' ? 'badge badge-warning' : 'badge badge-info'">
                   {{ item.kind === 'folder' ? '目录' : '文件' }}
                 </span>
-              </td>
-              <td class="px-3 py-3 whitespace-nowrap">{{ formatObjectExt(item.ext, item.kind) }}</td>
-              <td class="px-3 py-3 whitespace-nowrap">{{ formatObjectSize(item.size, item.kind) }}</td>
-              <td class="px-3 py-3 whitespace-nowrap">{{ formatObjectTime(item.uploadTime) }}</td>
-              <td class="px-3 py-3 min-w-[160px]">
-                <a
+            </td>
+            <td class="px-3 py-3 whitespace-nowrap">{{ formatObjectExt(item.ext, item.kind) }}</td>
+            <td class="px-3 py-3 whitespace-nowrap">{{ formatObjectSize(item.size, item.kind) }}</td>
+            <td class="px-3 py-3 whitespace-nowrap">{{ formatObjectTime(item.uploadTime) }}</td>
+            <td class="px-3 py-3 min-w-[160px]">
+              <a
                   v-if="item.url"
                   :href="item.url"
                   target="_blank"
                   class="text-[var(--color-accent)] hover:underline break-all"
-                >
-                  打开链接
-                </a>
-                <span v-else class="text-[var(--color-muted)]">-</span>
-              </td>
-            </tr>
+              >
+                打开链接
+              </a>
+              <span v-else class="text-[var(--color-muted)]">-</span>
+            </td>
+          </tr>
           </tbody>
         </table>
       </div>

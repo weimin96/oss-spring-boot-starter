@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import {computed, ref} from 'vue'
 import ApiCard from '@/components/ApiCard.vue'
-import { ossApi } from '@/api/oss'
+import {ossApi} from '@/api/oss'
 
 // ── 常量配置 ──────────────────────────────────────────────────────────
 const CHUNK_SIZE = 5 * 1024 * 1024            // 5 MB / 片（分片下载大小）
@@ -20,6 +20,7 @@ const globalError = ref('')
 const aborted = ref(false)
 
 type ChunkStatus = 'pending' | 'downloading' | 'done' | 'error'
+
 interface ChunkState {
   index: number        // 分片序号，从 1 开始
   status: ChunkStatus
@@ -32,14 +33,14 @@ const chunks = ref<ChunkState[]>([])
 
 // ── computed ───────────────────────────────────────────────────────────
 const totalChunks = computed(() =>
-  fileSize.value ? Math.ceil(fileSize.value / CHUNK_SIZE) : 0,
+    fileSize.value ? Math.ceil(fileSize.value / CHUNK_SIZE) : 0,
 )
 const doneCount = computed(() => chunks.value.filter(c => c.status === 'done').length)
 const overallPct = computed(() =>
-  totalChunks.value ? Math.round((doneCount.value / totalChunks.value) * 100) : 0,
+    totalChunks.value ? Math.round((doneCount.value / totalChunks.value) * 100) : 0,
 )
 const isTooSmall = computed(() =>
-  fileSize.value > 0 && fileSize.value < SMALL_FILE_THRESHOLD,
+    fileSize.value > 0 && fileSize.value < SMALL_FILE_THRESHOLD,
 )
 
 // ── 辅助函数 ──────────────────────────────────────────────────────────
@@ -127,7 +128,7 @@ async function startDownload() {
   phase.value = 'running'
 
   // 初始化分片状态列表
-  chunks.value = Array.from({ length: total }, (_, i) => ({
+  chunks.value = Array.from({length: total}, (_, i) => ({
     index: i + 1,
     status: 'pending' as ChunkStatus,
     start: i * CHUNK_SIZE,
@@ -191,8 +192,8 @@ async function downloadConcurrently() {
 
   // 启动 CONCURRENCY 个并发 worker
   const workers = Array.from(
-    { length: Math.min(CONCURRENCY, totalChunks.value) },
-    () => worker(),
+      {length: Math.min(CONCURRENCY, totalChunks.value)},
+      () => worker(),
   )
   await Promise.all(workers)
 }
@@ -244,7 +245,8 @@ function formatSize(bytes: number): string {
     <!-- 说明卡片 -->
     <div class="card mb-4 text-xs text-[var(--color-muted)] space-y-1">
       <p>• 分片大小：<code class="text-[var(--color-accent)]">5 MB</code> / 片</p>
-      <p>• 并发下载：<code class="text-[var(--color-accent)]">{{ CONCURRENCY }}</code> 个分片同时下载，单片失败自动重试 {{ MAX_RETRY }} 次</p>
+      <p>• 并发下载：<code class="text-[var(--color-accent)]">{{ CONCURRENCY }}</code> 个分片同时下载，单片失败自动重试
+        {{ MAX_RETRY }} 次</p>
       <p>• 建议文件大小：<code class="text-[var(--color-accent)]">&gt; 10 MB</code>，较小文件将自动使用普通下载</p>
     </div>
 
@@ -253,7 +255,8 @@ function formatSize(bytes: number): string {
       <!-- 文件输入 -->
       <div class="mb-4">
         <p class="section-label">objectName</p>
-        <input v-model="downloadKey" class="oss-input" placeholder="demo/example.bin" :disabled="phase === 'running' || phase === 'fetching'" />
+        <input v-model="downloadKey" class="oss-input" placeholder="demo/example.bin"
+               :disabled="phase === 'running' || phase === 'fetching'"/>
       </div>
 
       <!-- 文件信息 -->
@@ -264,7 +267,8 @@ function formatSize(bytes: number): string {
         </div>
 
         <!-- 小文件提示 -->
-        <div v-if="isTooSmall" class="mt-3 p-3 rounded border border-[var(--color-warning)] bg-[rgba(210,153,34,0.08)] text-[var(--color-warning)] text-xs">
+        <div v-if="isTooSmall"
+             class="mt-3 p-3 rounded border border-[var(--color-warning)] bg-[rgba(210,153,34,0.08)] text-[var(--color-warning)] text-xs">
           文件较小（&lt; 10MB），将自动使用普通下载
         </div>
       </div>
@@ -276,18 +280,20 @@ function formatSize(bytes: number): string {
       <!-- 操作按钮 -->
       <div class="flex gap-2 flex-wrap mb-4">
         <button
-          class="btn btn-primary"
-          :disabled="!downloadKey || phase === 'running' || phase === 'fetching' || phase === 'done'"
-          @click="startDownload"
+            class="btn btn-primary"
+            :disabled="!downloadKey || phase === 'running' || phase === 'fetching' || phase === 'done'"
+            @click="startDownload"
         >
-          <span v-if="phase === 'fetching' || phase === 'running'" class="spinner" />
-          {{ phase === 'done' ? '✓ 下载完成' : phase === 'fetching' ? '获取文件信息…' : phase === 'running' ? '下载中…' : '开始下载' }}
+          <span v-if="phase === 'fetching' || phase === 'running'" class="spinner"/>
+          {{
+            phase === 'done' ? '✓ 下载完成' : phase === 'fetching' ? '获取文件信息…' : phase === 'running' ? '下载中…' : '开始下载'
+          }}
         </button>
         <button v-if="phase === 'running'" class="btn btn-danger" @click="abort">取消</button>
         <button
-          v-if="phase !== 'idle'"
-          class="btn btn-ghost"
-          @click="reset"
+            v-if="phase !== 'idle'"
+            class="btn btn-ghost"
+            @click="reset"
         >
           重置
         </button>
@@ -300,16 +306,16 @@ function formatSize(bytes: number): string {
           <span>{{ overallPct }}%</span>
         </div>
         <div class="progress-track mb-3">
-          <div class="progress-fill" :style="{ width: `${overallPct}%` }" />
+          <div class="progress-fill" :style="{ width: `${overallPct}%` }"/>
         </div>
 
         <!-- 分片状态网格 -->
         <div class="flex flex-wrap gap-1 mb-2">
           <span
-            v-for="c in chunks"
-            :key="c.index"
-            :title="`分片 #${c.index} (${formatSize(c.end - c.start + 1)})${c.retries ? '（已重试 ' + c.retries + ' 次）' : ''}`"
-            :class="[
+              v-for="c in chunks"
+              :key="c.index"
+              :title="`分片 #${c.index} (${formatSize(c.end - c.start + 1)})${c.retries ? '（已重试 ' + c.retries + ' 次）' : ''}`"
+              :class="[
               'inline-flex items-center justify-center w-6 h-6 rounded text-[10px] font-mono cursor-default',
               c.status === 'done'      ? 'bg-[var(--color-success)] text-[#0d1117]' :
               c.status === 'downloading' ? 'bg-[var(--color-accent)] text-[#0d1117] animate-pulse' :

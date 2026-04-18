@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import {computed, ref} from 'vue'
 import ApiCard from '@/components/ApiCard.vue'
 import ResultPanel from '@/components/ResultPanel.vue'
-import { useResult } from '@/composables/useResult'
-import { ossApi } from '@/api/oss'
-import type { BucketRewindResult } from '@/types'
+import {useResult} from '@/composables/useResult'
+import {ossApi} from '@/api/oss'
+import type {BucketRewindResult} from '@/types'
 
 function buildLocalDateTimeValue(date: Date): string {
   const year = date.getFullYear()
@@ -41,7 +41,7 @@ function formatUtcToLocal(utcDateTime?: string | null): string {
   if (Number.isNaN(date.getTime())) {
     return utcDateTime
   }
-  return date.toLocaleString('zh-CN', { hour12: false })
+  return date.toLocaleString('zh-CN', {hour12: false})
 }
 
 // Bucket 回滚
@@ -55,7 +55,7 @@ const normalizedTargetTime = computed(() => {
   const targetDate = new Date(targetTime.value)
   return Number.isNaN(targetDate.getTime()) ? '' : targetDate.toISOString()
 })
-const { status, result, error, execute } = useResult<BucketRewindResult>()
+const {status, result, error, execute} = useResult<BucketRewindResult>()
 </script>
 
 <template>
@@ -67,15 +67,16 @@ const { status, result, error, execute } = useResult<BucketRewindResult>()
       <div class="grid grid-cols-2 gap-3 mb-4">
         <div>
           <p class="section-label">bucketName</p>
-          <input v-model="bucketName" class="oss-input" placeholder="my-bucket" />
+          <input v-model="bucketName" class="oss-input" placeholder="my-bucket"/>
         </div>
         <div>
           <p class="section-label">targetTime</p>
-          <input v-model="targetTime" type="datetime-local" class="oss-input" :max="maxTargetTime" />
+          <input v-model="targetTime" type="datetime-local" class="oss-input" :max="maxTargetTime"/>
         </div>
       </div>
 
-      <div class="p-3 mb-4 rounded border border-[var(--color-border)] bg-[var(--color-bg)] text-xs text-[var(--color-muted)]">
+      <div
+          class="p-3 mb-4 rounded border border-[var(--color-border)] bg-[var(--color-bg)] text-xs text-[var(--color-muted)]">
         页面输入的是本地时间，提交给后端时会转换成 UTC 时间。北京时间比 UTC 快 8 小时，
         所以如果返回值显示为 UTC，看起来会比输入值少 8 小时，但它们表示的是同一个时间点。
       </div>
@@ -85,8 +86,9 @@ const { status, result, error, execute } = useResult<BucketRewindResult>()
         <code>{{ normalizedTargetTime }}</code>
       </div>
 
-      <button class="btn btn-danger" :disabled="status === 'loading'" @click="execute(() => ossApi.bucket.rewind(bucketName, toIsoTargetTime(targetTime)))">
-        <span v-if="status === 'loading'" class="spinner" />执行回滚
+      <button class="btn btn-danger" :disabled="status === 'loading'"
+              @click="execute(() => ossApi.bucket.rewind(bucketName, toIsoTargetTime(targetTime)))">
+        <span v-if="status === 'loading'" class="spinner"/>执行回滚
       </button>
 
       <ResultPanel :status="status" :result="result" :error="error" label="BucketRewindResult">

@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import {computed, ref} from 'vue'
 import ApiCard from '@/components/ApiCard.vue'
 import ResultPanel from '@/components/ResultPanel.vue'
-import { useResult } from '@/composables/useResult'
-import { ossApi } from '@/api/oss'
-import type { ChunkTarget } from '@/types'
+import {useResult} from '@/composables/useResult'
+import {ossApi} from '@/api/oss'
+import type {ChunkTarget} from '@/types'
 
 const CHUNK_SIZE = 5 * 1024 * 1024
 const MULTIPART_THRESHOLD = 10 * 1024 * 1024
@@ -49,25 +49,25 @@ const uploadMessage = ref('')
 const chunkStates = ref<ChunkState[]>([])
 const uploadController = ref<AbortController | null>(null)
 
-const { status: mergeStatus, result: mergeResult, error: mergeError, execute: execMerge, reset: resetMerge } = useResult()
+const {status: mergeStatus, result: mergeResult, error: mergeError, execute: execMerge, reset: resetMerge} = useResult()
 
 const partsObjectName = ref('')
 const partsUploadId = ref('')
-const { status: partsStatus, result: partsResult, error: partsError, execute: execParts, reset: resetParts } = useResult()
+const {status: partsStatus, result: partsResult, error: partsError, execute: execParts, reset: resetParts} = useResult()
 
 const totalChunks = computed(() =>
-  chunkStates.value.length || (selectedFile.value ? Math.ceil(selectedFile.value.size / CHUNK_SIZE) : 0),
+    chunkStates.value.length || (selectedFile.value ? Math.ceil(selectedFile.value.size / CHUNK_SIZE) : 0),
 )
 const completedChunks = computed(() => chunkStates.value.filter(chunk => chunk.status === 'done').length)
 const activeChunks = computed(() => chunkStates.value.filter(chunk => chunk.status === 'uploading').length)
 const overallProgress = computed(() =>
-  totalChunks.value ? Math.round((completedChunks.value / totalChunks.value) * 100) : 0,
+    totalChunks.value ? Math.round((completedChunks.value / totalChunks.value) * 100) : 0,
 )
 const isUploading = computed(() =>
-  uploadPhase.value === 'initializing' || uploadPhase.value === 'uploading' || uploadPhase.value === 'merging',
+    uploadPhase.value === 'initializing' || uploadPhase.value === 'uploading' || uploadPhase.value === 'merging',
 )
 const isSmallFile = computed(() =>
-  selectedFile.value !== null && selectedFile.value.size < MULTIPART_THRESHOLD,
+    selectedFile.value !== null && selectedFile.value.size < MULTIPART_THRESHOLD,
 )
 const resolvedObjectName = computed(() => {
   if (!selectedFile.value) {
@@ -188,7 +188,7 @@ function createChunkStates(file: File): ChunkState[] {
     throw new Error('空文件不支持分片上传')
   }
 
-  return Array.from({ length: total }, (_, index) => {
+  return Array.from({length: total}, (_, index) => {
     const start = index * CHUNK_SIZE
     const end = Math.min(start + CHUNK_SIZE, file.size)
     const size = end - start
@@ -219,9 +219,9 @@ function createChunkFile(sourceFile: File, chunk: ChunkDescriptor): File {
   }
 
   return new File(
-    [chunkBlob],
-    `${sourceFile.name}.part-${String(chunk.index).padStart(4, '0')}`,
-    { type: sourceFile.type || 'application/octet-stream' },
+      [chunkBlob],
+      `${sourceFile.name}.part-${String(chunk.index).padStart(4, '0')}`,
+      {type: sourceFile.type || 'application/octet-stream'},
   )
 }
 
@@ -271,9 +271,9 @@ function collectUploadedChunkTargets(): ChunkTarget[] {
   }
 
   return chunkStates.value
-    .slice()
-    .sort((left, right) => left.index - right.index)
-    .map(chunk => chunk.target!)
+      .slice()
+      .sort((left, right) => left.index - right.index)
+      .map(chunk => chunk.target!)
 }
 
 function waitForRetry(delayMs: number, signal: AbortSignal): Promise<void> {
@@ -292,7 +292,7 @@ function waitForRetry(delayMs: number, signal: AbortSignal): Promise<void> {
       resolve()
     }, delayMs)
 
-    signal.addEventListener('abort', onAbort, { once: true })
+    signal.addEventListener('abort', onAbort, {once: true})
   })
 }
 
@@ -362,7 +362,7 @@ async function uploadChunksInParallel(context: UploadContext) {
 
   const workerCount = Math.min(MAX_PARALLEL_CHUNKS, chunkStates.value.length)
   const results = await Promise.allSettled(
-    Array.from({ length: workerCount }, () => worker()),
+      Array.from({length: workerCount}, () => worker()),
   )
 
   const failed = results.find((result): result is PromiseRejectedResult => result.status === 'rejected')
@@ -473,14 +473,14 @@ async function queryUploadedParts() {
       </div>
 
       <div
-        class="upload-zone mb-4"
-        :class="{ 'drag-over': isDragOver }"
-        @dragover.prevent="isDragOver = true"
-        @dragleave="isDragOver = false"
-        @drop.prevent="onDrop"
-        @click="openFilePicker"
+          class="upload-zone mb-4"
+          :class="{ 'drag-over': isDragOver }"
+          @dragover.prevent="isDragOver = true"
+          @dragleave="isDragOver = false"
+          @drop.prevent="onDrop"
+          @click="openFilePicker"
       >
-        <input ref="fileInputRef" type="file" class="hidden" @change="onFileChange" />
+        <input ref="fileInputRef" type="file" class="hidden" @change="onFileChange"/>
         <div v-if="selectedFile">
           <p class="text-sm font-medium text-[var(--color-text)]">{{ selectedFile.name }}</p>
           <p class="text-xs text-[var(--color-muted)] mt-1">
@@ -509,38 +509,39 @@ async function queryUploadedParts() {
       </div>
 
       <div
-        v-if="isSmallFile && selectedFile"
-        class="p-3 mb-3 rounded border border-[var(--color-warning)] bg-[rgba(210,153,34,0.08)] text-[var(--color-warning)] text-xs"
+          v-if="isSmallFile && selectedFile"
+          class="p-3 mb-3 rounded border border-[var(--color-warning)] bg-[rgba(210,153,34,0.08)] text-[var(--color-warning)] text-xs"
       >
         当前文件大小为 {{ selectedFileSizeText }}。分片上传仍可执行，但小文件通常更适合使用
-        <router-link to="/upload/simple" class="underline">单文件上传</router-link>。
+        <router-link to="/upload/simple" class="underline">单文件上传</router-link>
+        。
       </div>
 
       <div class="mb-4">
         <p class="section-label">存放路径 path</p>
         <input
-          v-model="targetPath"
-          class="oss-input"
-          placeholder="demo/"
-          :disabled="isUploading"
+            v-model="targetPath"
+            class="oss-input"
+            placeholder="demo/"
+            :disabled="isUploading"
         />
       </div>
 
       <div class="flex gap-2 flex-wrap mb-4">
         <button
-          class="btn btn-primary"
-          :disabled="!selectedFile || isUploading"
-          @click="startUpload"
+            class="btn btn-primary"
+            :disabled="!selectedFile || isUploading"
+            @click="startUpload"
         >
-          <span v-if="isUploading" class="spinner" />
+          <span v-if="isUploading" class="spinner"/>
           {{ isUploading ? '上传中…' : uploadPhase === 'done' ? '重新上传' : '开始上传' }}
         </button>
         <button v-if="isUploading" class="btn btn-danger" @click="abortUpload">取消</button>
         <button
-          v-if="selectedFile || uploadPhase !== 'idle'"
-          class="btn btn-ghost"
-          :disabled="isUploading"
-          @click="clearSelectedFile"
+            v-if="selectedFile || uploadPhase !== 'idle'"
+            class="btn btn-ghost"
+            :disabled="isUploading"
+            @click="clearSelectedFile"
         >
           清空
         </button>
@@ -559,15 +560,15 @@ async function queryUploadedParts() {
           <span>{{ overallProgress }}%</span>
         </div>
         <div class="progress-track mb-3">
-          <div class="progress-fill" :style="{ width: `${overallProgress}%` }" />
+          <div class="progress-fill" :style="{ width: `${overallProgress}%` }"/>
         </div>
 
         <div class="flex flex-wrap gap-1 mb-2">
           <span
-            v-for="chunk in chunkStates"
-            :key="chunk.index"
-            :title="buildChunkTooltip(chunk)"
-            :class="[
+              v-for="chunk in chunkStates"
+              :key="chunk.index"
+              :title="buildChunkTooltip(chunk)"
+              :class="[
               'inline-flex items-center justify-center w-7 h-7 rounded text-[10px] font-mono cursor-default',
               chunk.status === 'done'      ? 'bg-[var(--color-success)] text-[#0d1117]' :
               chunk.status === 'uploading' ? 'bg-[var(--color-accent)] text-[#0d1117] animate-pulse' :
@@ -585,10 +586,10 @@ async function queryUploadedParts() {
       </div>
 
       <ResultPanel
-        :status="mergeStatus"
-        :result="mergeResult"
-        :error="mergeError"
-        label="合并结果 ObjectInfo"
+          :status="mergeStatus"
+          :result="mergeResult"
+          :error="mergeError"
+          label="合并结果 ObjectInfo"
       />
     </ApiCard>
   </div>

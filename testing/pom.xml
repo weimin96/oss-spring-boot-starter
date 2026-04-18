@@ -16,6 +16,11 @@
     <name>oss-testing</name>
     <description>测试支撑模块聚合工程，仅用于归并测试模块目录层级。</description>
 
+    <properties>
+        <!-- 测试聚合层只参与本地构建组织，不进入任何 deploy 发布链路。 -->
+        <maven.deploy.skip>true</maven.deploy.skip>
+    </properties>
+
     <modules>
         <module>oss-test-support</module>
         <module>oss-javax-test-support</module>

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { useSlots } from 'vue'
-import type { Status } from '@/composables/useResult'
+import {useSlots} from 'vue'
+import type {Status} from '@/composables/useResult'
 
 defineProps<{
   status: Status
@@ -23,7 +23,7 @@ function displayResult(result: unknown): string {
   <div v-if="status !== 'idle'" class="mt-4">
     <!-- Loading -->
     <div v-if="status === 'loading'" class="flex items-center gap-2 text-[var(--color-muted)] text-sm">
-      <span class="spinner" />
+      <span class="spinner"/>
       <span>请求中…</span>
     </div>
 
@@ -35,7 +35,7 @@ function displayResult(result: unknown): string {
 
     <!-- Success -->
     <div v-else-if="status === 'success'">
-      <slot v-if="slots.success" name="success" :result="result" />
+      <slot v-if="slots.success" name="success" :result="result"/>
       <template v-else>
         <p class="section-label">{{ label ?? '响应结果' }}</p>
         <pre class="code-block">{{ displayResult(result) }}</pre>

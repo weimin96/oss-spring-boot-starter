@@ -13,6 +13,10 @@ concurrency:
   group: deploy-${{ github.ref }}
   cancel-in-progress: true
 
+env:
+  # 发布 Reactor 只保留根父 POM 与 17 个运行时模块，避免 testing/* 与 samples/* 混入发布链路。
+  RELEASE_REACTOR: oss-domain,oss-web-api,oss-core,oss-spring-javax-web-support,oss-spring-jakarta-web-support,oss-spring-boot2-autoconfigure,oss-spring-boot3-autoconfigure,oss-spring-boot4-autoconfigure,oss-spring-boot2-starter,oss-spring-boot3-starter,oss-spring-boot4-starter,oss-spring-boot2-web-starter,oss-spring-boot3-web-starter,oss-spring-boot4-web-starter,oss-spring-boot2-openapi-starter,oss-spring-boot3-openapi-starter,oss-spring-boot4-openapi-starter
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -28,7 +32,7 @@ jobs:
           cache: maven
 
       - name: Build release artifacts
-        run: mvn -B -ntp -DskipTests -Prelease package
+        run: mvn -B -ntp -pl "$RELEASE_REACTOR" -am -Dmaven.test.skip=true -Prelease package
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
@@ -37,7 +41,15 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           path: |
+            oss-spring-boot2-starter/target/*.jar
+            oss-spring-boot2-web-starter/target/*.jar
+            oss-spring-boot2-openapi-starter/target/*.jar
             oss-spring-boot3-starter/target/*.jar
+            oss-spring-boot3-web-starter/target/*.jar
+            oss-spring-boot3-openapi-starter/target/*.jar
+            oss-spring-boot4-starter/target/*.jar
+            oss-spring-boot4-web-starter/target/*.jar
+            oss-spring-boot4-openapi-starter/target/*.jar
 
   deploy:
     needs: build
@@ -59,7 +71,7 @@ jobs:
           gpg-passphrase: GPG_PASSPHRASE
 
       - name: Deploy to Maven Central
-        run: mvn -B -ntp -DskipTests -Prelease deploy
+        run: mvn -B -ntp -pl "$RELEASE_REACTOR" -am -Dmaven.test.skip=true -Prelease deploy
         env:
           GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           CENTER_USERNAME: ${{ secrets.CENTER_USERNAME }}

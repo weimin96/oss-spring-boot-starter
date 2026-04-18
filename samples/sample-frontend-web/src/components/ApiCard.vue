@@ -17,6 +17,6 @@ defineProps<{
       </div>
     </div>
     <!-- Slot: form + result -->
-    <slot />
+    <slot/>
   </div>
 </template>

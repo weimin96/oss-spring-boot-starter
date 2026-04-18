@@ -1,11 +1,7 @@
 package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.ObjectInfo;
-import com.wiblog.oss.bean.chunk.ChunkMerge;
-import com.wiblog.oss.bean.chunk.ChunkPartInfo;
-import com.wiblog.oss.bean.chunk.ChunkTarget;
-import com.wiblog.oss.bean.chunk.ChunkTask;
-import com.wiblog.oss.bean.chunk.ChunkUploadCommand;
+import com.wiblog.oss.bean.chunk.*;
 
 import java.io.File;
 import java.io.InputStream;

@@ -1,11 +1,7 @@
 package com.wiblog.oss.controller.support;
 
 import com.wiblog.oss.bean.*;
-import com.wiblog.oss.bean.chunk.Chunk;
-import com.wiblog.oss.bean.chunk.ChunkMerge;
-import com.wiblog.oss.bean.chunk.ChunkPartInfo;
-import com.wiblog.oss.bean.chunk.ChunkTarget;
-import com.wiblog.oss.bean.chunk.ChunkTask;
+import com.wiblog.oss.bean.chunk.*;
 import com.wiblog.oss.controller.OssHttpEndpoint;
 import com.wiblog.oss.resp.OssResponse;
 import com.wiblog.oss.service.JakartaOssPreviewContext;
