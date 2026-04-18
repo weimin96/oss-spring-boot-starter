@@ -43,6 +43,9 @@
         <module>oss-openapi</module>
         <!-- 公共核心模块 -->
         <module>oss-core</module>
+        <!-- 共享 Web 适配支持模块 -->
+        <module>oss-spring-javax-web-support</module>
+        <module>oss-spring-jakarta-web-support</module>
         <!-- 各版本 Spring Boot 自动装配模块 -->
         <module>oss-spring-boot2-autoconfigure</module>
         <module>oss-spring-boot3-autoconfigure</module>
@@ -59,6 +62,10 @@
         <module>oss-spring-boot2-openapi-starter</module>
         <module>oss-spring-boot3-openapi-starter</module>
         <module>oss-spring-boot4-openapi-starter</module>
+        <!-- 测试支持模块 -->
+        <module>oss-test-support</module>
+        <module>oss-javax-test-support</module>
+        <module>oss-jakarta-test-support</module>
         <!-- 示例工程 -->
         <module>samples/sample-springboot2</module>
         <module>samples/sample-springboot3</module>
@@ -123,6 +130,16 @@
             </dependency>
             <dependency>
                 <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-javax-web-support</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-spring-jakarta-web-support</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
                 <artifactId>oss-spring-boot2-autoconfigure</artifactId>
                 <version>${project.version}</version>
             </dependency>
@@ -179,6 +196,21 @@
             <dependency>
                 <groupId>io.github.weimin96</groupId>
                 <artifactId>oss-spring-boot4-openapi-starter</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-test-support</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-javax-test-support</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>io.github.weimin96</groupId>
+                <artifactId>oss-jakarta-test-support</artifactId>
                 <version>${project.version}</version>
             </dependency>
 
