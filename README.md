@@ -13,6 +13,10 @@ Java API、内置 REST 接口、OpenAPI 注解元数据三类 Starter。
 
 示例工程入口：[samples/README.md](samples/README.md)
 
+前端在线演示页（GitHub Pages）：[https://weimin96.github.io/oss-spring-boot-starter/](https://weimin96.github.io/oss-spring-boot-starter/)
+
+*该页面只托管前端静态资源*
+
 ## 演示效果
 
 ### 分片上传

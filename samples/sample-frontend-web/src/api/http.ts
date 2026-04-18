@@ -1,8 +1,15 @@
 import axios, {type AxiosRequestConfig} from 'axios'
 import type {R} from '@/types'
+import {
+    clearRuntimeBackendBaseUrl,
+    persistRuntimeBackendBaseUrl,
+    resolveConfiguredBackendBaseUrl,
+    resolveEffectiveBackendBaseUrl,
+    resolveEffectiveOssApiBaseUrl,
+} from './endpoint'
 
 const http = axios.create({
-    baseURL: '/api/oss',
+    baseURL: resolveEffectiveOssApiBaseUrl(),
     timeout: 60_000,
 })
 
@@ -42,6 +49,30 @@ export async function request<T>(config: AxiosRequestConfig): Promise<T> {
 
 export async function requestRaw(config: AxiosRequestConfig) {
     return http(config)
+}
+
+export function syncOssApiBaseUrl(): string {
+    const nextBaseUrl = resolveEffectiveOssApiBaseUrl()
+    http.defaults.baseURL = nextBaseUrl
+    return nextBaseUrl
+}
+
+export function applyRuntimeBackendBaseUrl(rawValue: string): string {
+    persistRuntimeBackendBaseUrl(rawValue)
+    return syncOssApiBaseUrl()
+}
+
+export function resetRuntimeBackendBaseUrl(): string {
+    clearRuntimeBackendBaseUrl()
+    return syncOssApiBaseUrl()
+}
+
+export function getConfiguredBackendBaseUrl(): string {
+    return resolveConfiguredBackendBaseUrl()
+}
+
+export function getEffectiveBackendBaseUrl(): string {
+    return resolveEffectiveBackendBaseUrl()
 }
 
 export default http
