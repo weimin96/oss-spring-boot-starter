@@ -25,11 +25,32 @@ Java API、内置 REST 接口、OpenAPI 注解元数据三类 Starter。
 
 ## 能力概览
 
-- 使用 `OssTemplate` 访问上传、查询、删除、流式解压、预签名 URL、标签、Bucket 管理能力。
-- 支持 MinIO、腾讯云 COS、华为云 OBS 以及通用 S3 兼容服务。
-- 可按需启用内置 REST 接口，路径统一挂载在 `${oss.http.prefix}/oss`。
-- 可按需启用带 Swagger 注解元数据的控制器，便于接入宿主应用已有的 OpenAPI 工具链。
-- Spring Boot 2 使用 `javax.servlet`，Spring Boot 3 和 Spring Boot 4 使用 `jakarta.servlet`。
+### 核心能力
+- **文件操作**：`OssTemplate` 提供统一入口，支持上传、下载、复制、移动、删除
+- **大文件处理**：分片上传、分片下载，完整支持 HTTP Range 断点续传
+- **流式解压**：ZIP 文件流式解压，支持跨 Bucket 和按前缀过滤
+- **预签名 URL**：生成下载/上传预签名，支持临时授权访问
+- **标签管理**：对象标签和 Bucket 标签的 CRUD 操作
+
+### 查询能力
+- 多种列表模式：递归列表、层级列举、游标分页懒加载
+- 目录树：完整树形结构、关键字搜索、仅目录树
+- 元数据查询：对象信息、连接测试、Bucket 详情
+
+### Bucket 管理
+- ACL 权限控制、版本控制、时间回滚
+- 生命周期规则、CORS 配置、策略管理
+- 服务端加密、公共访问屏蔽
+
+### 多端点支持
+- 基础 Java API：直接使用 `OssTemplate`
+- 内置 REST 接口：Web Starter 提供完整 HTTP 端点
+- OpenAPI 元数据：OpenAPI Starter 输出 Swagger 注解
+
+### 兼容性与部署
+- 存储类型：MinIO、腾讯云 COS、华为云 OBS、通用 S3 兼容服务
+- Spring Boot 版本：2.x（javax.servlet）、3.x/4.x（jakarta.servlet）
+- 模块化设计：按需引入，避免不必要的依赖
 
 ## 选择依赖
 
@@ -154,7 +175,7 @@ Bucket 寻址方式。
 | 入口                      | 能力                                        |
 |-------------------------|-------------------------------------------|
 | `ossTemplate.put()`     | 上传文件、创建目录占位、复制、移动、分片上传                    |
-| `ossTemplate.query()`   | 连接测试、对象元数据、列表、树形结构、下载、预览                  |
+| `ossTemplate.query()`   | 连接测试、对象元数据、列表、树形结构、下载、预览、按前缀流式 ZIP 导出      |
 | `ossTemplate.delete()`  | 单个删除、批量删除、目录递归删除                          |
 | `ossTemplate.unzip()`   | ZIP 流式解压、跨 Bucket 解压、按条目前缀过滤解压            |
 | `ossTemplate.presign()` | 生成 GET/PUT 预签名 URL                        |
@@ -192,7 +213,33 @@ String downloadUrl = ossTemplate.presign()
         .generateGetPresignedUrl("uploads/demo.txt", Duration.ofMinutes(10));
 ```
 
+文件夹压缩下载示例：
+
+```java
+@GetMapping("/files/folder/download")
+public void downloadFolder(
+        @RequestParam String path,
+        @RequestParam(required = false) String filename,
+        HttpServletResponse response) throws IOException {
+    String zipFilename = (filename == null || filename.trim().isEmpty())
+            ? "folder-download.zip"
+            : (filename.endsWith(".zip") ? filename : filename + ".zip");
+
+    response.setContentType("application/zip");
+    response.setHeader("Content-Disposition", "attachment; filename=\"" + zipFilename + "\"");
+    ossTemplate.query().writeFolderAsZip(path, response.getOutputStream());
+}
+```
+
+说明：
+
+- `path` 表示 S3 prefix，而不是真实文件夹。
+- 目录占位对象不会写入 ZIP，只有 prefix 下的真实对象会按相对路径进入压缩包。
+- 当前缀为空、prefix 下没有真实对象，或对象流读取失败时，接口会显式失败，不返回空 ZIP。
+
 更多示例参考：[samples/README.md](samples/README.md) 或 [JavaxOpenApiOssControllerSupport.java](oss-spring-javax-web-support/src/main/java/com/wiblog/oss/controller/support/JavaxOpenApiOssControllerSupport.java)
+
+前端示例工程已补充“文件夹压缩下载”页面，后端示例工程已补充 `/api/files/folder/download` 自定义控制器用法。
 
 ## 内置 REST 接口
 
@@ -205,7 +252,7 @@ String downloadUrl = ossTemplate.presign()
 
 所有路径都以 `${oss.http.prefix}/oss` 为前缀。示例配置 `oss.http.prefix=/api` 时，完整前缀为 `/api/oss`。
 
-除预览和下载接口直接输出文件流外，其他接口统一返回 `OssResponse`。
+除预览、单对象下载和文件夹压缩下载接口直接输出二进制流外，其他接口统一返回 `OssResponse`。
 
 ### 分片上传
 
@@ -251,8 +298,16 @@ String downloadUrl = ossTemplate.presign()
 |--------|-----------------------|-------------------------|
 | `GET`  | `/object/preview/**`  | 内联预览对象，支持 HTTP Range    |
 | `GET`  | `/object/download/**` | 以附件方式下载对象，支持 HTTP Range |
+| `GET`  | `/folder/download`    | 按 `path` 指定的 prefix 流式压缩下载 ZIP |
 | `POST` | `/object/copy`        | 复制对象                    |
 | `POST` | `/object/move`        | 移动对象到目标目录               |
+
+`/folder/download` 参数说明：
+
+- `path`：必填，表示 S3 prefix。
+- `filename`：可选，自定义 ZIP 文件名；未传时默认使用 prefix 最后一级名称。
+
+该接口不会把目录占位对象写入 ZIP。若 `path` 为空、prefix 下没有真实对象，或对象流读取失败，会直接返回错误响应，不返回空 ZIP。
 
 ### 解压与预签名
 
