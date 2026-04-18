@@ -9,7 +9,19 @@
 基于 AWS S3 SDK v2 的对象存储 Spring Boot Starter，支持 Spring Boot 2、Spring Boot 3、Spring Boot 4。项目按使用方式拆分为基础
 Java API、内置 REST 接口、OpenAPI 注解元数据三类 Starter。
 
+![oss-spring-boot-starter 主图](screenshot/oss-spring-boot-starter-main.svg)
+
 示例工程入口：[samples/README.md](samples/README.md)
+
+## 演示效果
+
+### 分片上传
+
+![分片上传演示](screenshot/分片上传.gif)
+
+### 全部功能
+
+![全部功能演示](screenshot/所有功能.gif)
 
 ## 能力概览
 
