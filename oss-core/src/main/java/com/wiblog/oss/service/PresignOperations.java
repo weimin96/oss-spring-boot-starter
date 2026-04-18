@@ -1,6 +1,6 @@
 package com.wiblog.oss.service;
 
-import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
@@ -28,7 +28,7 @@ import java.util.Map;
  * @author panwm
  */
 @Slf4j
-public class PresignOperations extends Operations {
+public class PresignOperations extends Operations implements OssPresignService {
 
     /**
      * 默认预签名有效期（1 小时）。
@@ -44,7 +44,7 @@ public class PresignOperations extends Operations {
      * @param client          S3 异步客户端
      * @param transferManager 传输管理器
      */
-    public PresignOperations(OssProperties ossProperties, S3AsyncClient client,
+    public PresignOperations(OssClientOptions ossProperties, S3AsyncClient client,
                              S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
         this.presigner = buildPresigner(ossProperties);
@@ -60,6 +60,7 @@ public class PresignOperations extends Operations {
      * @param objectName 对象 key
      * @return 预签名 URL 字符串
      */
+    @Override
     public String generateGetPresignedUrl(String objectName) {
         return generateGetPresignedUrl(ossProperties.getBucketName(), objectName, DEFAULT_EXPIRATION);
     }
@@ -71,6 +72,7 @@ public class PresignOperations extends Operations {
      * @param expiration 有效时长（最大 7 天）
      * @return 预签名 URL 字符串
      */
+    @Override
     public String generateGetPresignedUrl(String objectName, Duration expiration) {
         return generateGetPresignedUrl(ossProperties.getBucketName(), objectName, expiration);
     }
@@ -78,6 +80,7 @@ public class PresignOperations extends Operations {
     /**
      * 跨 Bucket 生成下载预签名 URL。
      */
+    @Override
     public String generateGetPresignedUrl(String bucketName, String objectName, Duration expiration) {
         GetObjectRequest getRequest = GetObjectRequest.builder()
                 .bucket(bucketName)
@@ -107,6 +110,7 @@ public class PresignOperations extends Operations {
      * @param contentType 文件 MIME 类型，例如 "image/jpeg"
      * @return 预签名 URL 字符串
      */
+    @Override
     public String generatePutPresignedUrl(String objectName, String contentType) {
         return generatePutPresignedUrl(ossProperties.getBucketName(), objectName,
                 contentType, DEFAULT_EXPIRATION, null);
@@ -121,6 +125,7 @@ public class PresignOperations extends Operations {
      * @param metadata    自定义元数据（将作为 x-amz-meta-* 头部）
      * @return 预签名 URL 字符串
      */
+    @Override
     public String generatePutPresignedUrl(String objectName, String contentType,
                                           Duration expiration, Map<String, String> metadata) {
         return generatePutPresignedUrl(ossProperties.getBucketName(), objectName,
@@ -130,6 +135,7 @@ public class PresignOperations extends Operations {
     /**
      * 跨 Bucket 生成上传预签名 URL。
      */
+    @Override
     public String generatePutPresignedUrl(String bucketName, String objectName,
                                           String contentType, Duration expiration,
                                           Map<String, String> metadata) {
@@ -169,7 +175,7 @@ public class PresignOperations extends Operations {
     // 私有工具
     // ----------------------------------------------------------------
 
-    private static S3Presigner buildPresigner(OssProperties props) {
+    private static S3Presigner buildPresigner(OssClientOptions props) {
         StaticCredentialsProvider credentials = StaticCredentialsProvider.create(
                 AwsBasicCredentials.create(props.getAccessKey(), props.getSecretKey()));
 
@@ -181,3 +187,5 @@ public class PresignOperations extends Operations {
         return builder.build();
     }
 }
+
+

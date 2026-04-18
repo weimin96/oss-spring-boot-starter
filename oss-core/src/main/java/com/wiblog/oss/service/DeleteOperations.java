@@ -1,6 +1,6 @@
 package com.wiblog.oss.service;
 
-import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
@@ -20,7 +20,7 @@ import java.util.stream.Collectors;
  * @author panwm
  */
 @Slf4j
-public class DeleteOperations extends Operations {
+public class DeleteOperations extends Operations implements OssDeleteService {
 
     /**
      * S3 批量删除单次上限。
@@ -34,7 +34,7 @@ public class DeleteOperations extends Operations {
      * @param client          S3 异步客户端
      * @param transferManager 传输管理器
      */
-    public DeleteOperations(OssProperties ossProperties, S3AsyncClient client, S3TransferManager transferManager) {
+    public DeleteOperations(OssClientOptions ossProperties, S3AsyncClient client, S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
     }
 
@@ -43,6 +43,7 @@ public class DeleteOperations extends Operations {
      *
      * @param objectName 对象 key
      */
+    @Override
     public void removeObject(String objectName) {
         removeObject(ossProperties.getBucketName(), objectName);
     }
@@ -51,11 +52,12 @@ public class DeleteOperations extends Operations {
      * 删除指定 Bucket 下的单个对象。
      *
      * <p>单对象删除要求精确命中对象 key；如果对象不存在，方法会显式抛出领域异常，
-     * 避免调用方误把“未删除任何内容”当成成功。</p>
+     * 避免调用方误把”未删除任何内容”当成成功。</p>
      *
      * @param bucketName Bucket 名称
      * @param objectName 对象 key
      */
+    @Override
     public void removeObject(String bucketName, String objectName) {
         String normalizedKey = normalizeObjectKey(objectName);
         if (!deleteExactObjectIfExists(bucketName, normalizedKey)) {
@@ -68,17 +70,19 @@ public class DeleteOperations extends Operations {
      *
      * @param objectNames 对象 key 或目录前缀集合
      */
+    @Override
     public void removeObjects(List<String> objectNames) {
         removeObjects(ossProperties.getBucketName(), objectNames);
     }
 
     /**
-     * 批量删除支持“文件 key + 文件夹路径”混合输入。
+     * 批量删除支持”文件 key + 文件夹路径”混合输入。
      *
      * <p>这样设计的原因是前端批量操作通常来自多选结果，其中可能同时包含文件和目录。
      * 这里优先按精确对象命中，命不中且输入更像目录时，再按目录前缀展开为对象集合删除，
      * 从而避免把目录请求错误地当作单个占位对象删除。</p>
      */
+    @Override
     public void removeObjects(String bucketName, List<String> objectNames) {
         LinkedHashSet<String> deleteKeys = resolveDeleteKeys(bucketName, objectNames);
         if (deleteKeys.isEmpty()) {
@@ -94,6 +98,7 @@ public class DeleteOperations extends Operations {
      *
      * @param path 目录前缀
      */
+    @Override
     public void removeFolder(String path) {
         removeFolder(ossProperties.getBucketName(), path);
     }
@@ -104,6 +109,7 @@ public class DeleteOperations extends Operations {
      * <p>这里显式分页，是因为对象存储的列举结果可能超过单次上限；每一页删除完成后再继续拉取后续页，
      * 可以避免只删除第一页对象或陷入死循环。</p>
      */
+    @Override
     public void removeFolder(String bucketName, String path) {
         String normalizedPath = Util.formatPath(path);
         List<ObjectIdentifier> objectIdentifiers = collectObjectIdentifiersByPrefix(bucketName, normalizedPath);
@@ -189,12 +195,25 @@ public class DeleteOperations extends Operations {
 
     private void deleteByIdentifiers(String bucketName, String operationName,
                                      List<ObjectIdentifier> objectIdentifiers) {
+        if (shouldUseSingleDeleteForCompatibility()) {
+            // AWS SDK 2.30+ 在 deleteObjects 上对 MinIO 等兼容实现存在已知的 Content-MD5 兼容性问题，
+            // 这里直接走逐对象删除，避免先触发告警再回退，保证 CI 日志和运行行为稳定。
+            deleteObjectsOneByOne(bucketName, objectIdentifiers);
+            log.debug("{} completed with single-object delete fallback, deleted {} objects",
+                    operationName, objectIdentifiers.size());
+            return;
+        }
         for (int start = 0; start < objectIdentifiers.size(); start += BATCH_DELETE_SIZE) {
             int end = Math.min(start + BATCH_DELETE_SIZE, objectIdentifiers.size());
             List<ObjectIdentifier> batch = new ArrayList<>(objectIdentifiers.subList(start, end));
             deleteObjectsWithCompatibility(bucketName, operationName, batch);
         }
         log.debug("{} completed, deleted {} objects", operationName, objectIdentifiers.size());
+    }
+
+    private boolean shouldUseSingleDeleteForCompatibility() {
+        String storageType = ossProperties.getType();
+        return storageType != null && !"s3".equalsIgnoreCase(storageType);
     }
 
     private List<ObjectIdentifier> collectObjectIdentifiersByPrefix(String bucketName, String prefix) {
@@ -249,3 +268,5 @@ public class DeleteOperations extends Operations {
         return normalizedKey;
     }
 }
+
+

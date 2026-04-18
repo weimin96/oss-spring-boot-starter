@@ -36,10 +36,10 @@
     </dependencyManagement>
 
     <dependencies>
-        <!-- 引入 Boot3 版本的 OSS starter -->
+        <!-- 引入 Boot3 版本的 OSS OpenAPI starter，保持样例的 HTTP 接口与文档元数据能力 -->
         <dependency>
             <groupId>io.github.weimin96</groupId>
-            <artifactId>oss-spring-boot3-starter</artifactId>
+            <artifactId>oss-spring-boot3-openapi-starter</artifactId>
             <version>${project.version}</version>
         </dependency>
 

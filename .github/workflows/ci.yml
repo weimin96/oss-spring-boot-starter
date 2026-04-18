@@ -7,6 +7,10 @@ on:
     branches:
       - 'main'
       - 'spring3'
+  pull_request:
+    branches:
+      - 'main'
+      - 'spring3'
 
 permissions:
   contents: read
@@ -66,31 +70,18 @@ jobs:
           echo "MinIO 未在预期时间内启动完成" >&2
           exit 1
 
-      - name: Report Coverage to Coveralls for Pull Requests
-        if: github.event_name == 'pull_request'
-        run: >
-          mvn -B clean test
-          org.jacoco:jacoco-maven-plugin:report
-          org.eluder.coveralls:coveralls-maven-plugin:report
-          -Dlicense.skip=true
-          -DrepoToken=$GITHUB_TOKEN
-          -DserviceName=github
-          -DpullRequest=$PR_NUMBER
-        env:
-          GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
-          PR_NUMBER: ${{ github.event.number }}
+      - name: Build and Test
+        run: mvn -B clean test
 
-      - name: Report Coverage to Coveralls for General Push
-        if: github.event_name == 'push'
-        run: >
-          mvn -B clean test
-          org.jacoco:jacoco-maven-plugin:report
-          org.eluder.coveralls:coveralls-maven-plugin:report
-          -Dlicense.skip=true
-          -DrepoToken=$GITHUB_TOKEN
-          -DserviceName=github
-        env:
-          GITHUB_TOKEN: ${{ secrets.COVERALLS_TOKEN }}
+      - name: Upload Coverage to Coveralls
+        uses: coverallsapp/github-action@v2
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          format: jacoco
+          files: >-
+            oss-spring-boot2-starter/target/site/jacoco/jacoco.xml
+            oss-spring-boot3-starter/target/site/jacoco/jacoco.xml
+            oss-spring-boot4-starter/target/site/jacoco/jacoco.xml
 
 #      - name: Build front-end sample
 #        run: |

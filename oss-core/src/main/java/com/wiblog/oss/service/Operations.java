@@ -2,7 +2,7 @@ package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
-import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.service.strategy.DomainStrategy;
 import com.wiblog.oss.service.strategy.DomainStrategyFactory;
@@ -35,7 +35,7 @@ import java.util.function.Supplier;
 @Slf4j
 public abstract class Operations {
 
-    protected final OssProperties ossProperties;
+    protected final OssClientOptions ossProperties;
     protected final S3AsyncClient client;
     protected final S3TransferManager transferManager;
 
@@ -44,7 +44,7 @@ public abstract class Operations {
      */
     private final String domainPrefix;
 
-    protected Operations(OssProperties ossProperties,
+    protected Operations(OssClientOptions ossProperties,
                          S3AsyncClient client,
                          S3TransferManager transferManager) {
         this.ossProperties = ossProperties;
@@ -227,3 +227,5 @@ public abstract class Operations {
         return (path != null && path.endsWith("/")) ? path.substring(0, path.length() - 1) : path;
     }
 }
+
+

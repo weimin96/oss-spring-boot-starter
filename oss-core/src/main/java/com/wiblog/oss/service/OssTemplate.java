@@ -1,6 +1,6 @@
 package com.wiblog.oss.service;
 
-import com.wiblog.oss.bean.OssProperties;
+import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
@@ -24,7 +24,7 @@ import java.util.concurrent.CompletableFuture;
 @Slf4j
 public class OssTemplate {
 
-    private final OssProperties ossProperties;
+    private final OssClientOptions ossProperties;
 
     // volatile 保证 stop/restart 场景下多线程可见性。
     private volatile S3AsyncClient client;
@@ -45,7 +45,7 @@ public class OssTemplate {
      *
      * @param ossProperties OSS 配置
      */
-    public OssTemplate(OssProperties ossProperties) {
+    public OssTemplate(OssClientOptions ossProperties) {
         this.ossProperties = ossProperties;
         this.start();
     }
@@ -106,7 +106,7 @@ public class OssTemplate {
      *
      * @return 上传操作门面
      */
-    public PutOperations put() {
+    public OssPutService put() {
         return putOperations;
     }
 
@@ -115,7 +115,7 @@ public class OssTemplate {
      *
      * @return 查询操作门面
      */
-    public QueryOperations query() {
+    public OssQueryService query() {
         return queryOperations;
     }
 
@@ -124,7 +124,7 @@ public class OssTemplate {
      *
      * @return 删除操作门面
      */
-    public DeleteOperations delete() {
+    public OssDeleteService delete() {
         return deleteOperations;
     }
 
@@ -133,7 +133,7 @@ public class OssTemplate {
      *
      * @return 解压操作门面
      */
-    public StreamUnzipOperations unzip() {
+    public OssUnzipService unzip() {
         return streamUnzipOperations;
     }
 
@@ -142,7 +142,7 @@ public class OssTemplate {
      *
      * @return 预签名操作门面
      */
-    public PresignOperations presign() {
+    public OssPresignService presign() {
         return presignOperations;
     }
 
@@ -151,7 +151,7 @@ public class OssTemplate {
      *
      * @return 标签操作门面
      */
-    public TaggingOperations tagging() {
+    public OssTaggingService tagging() {
         return taggingOperations;
     }
 
@@ -160,8 +160,21 @@ public class OssTemplate {
      *
      * @return Bucket 操作门面
      */
-    public BucketOperations bucket() {
+    public OssBucketService bucket() {
         return bucketOperations;
+    }
+
+    /**
+     * 返回默认 Bucket 名称。
+     *
+     * <p>Web 适配层只需要读取默认 Bucket 标识，
+     * 没必要感知完整内部选项对象，
+     * 因此门面只暴露最小读取面。</p>
+     *
+     * @return 默认 Bucket 名称
+     */
+    public String getDefaultBucketName() {
+        return ossProperties.getBucketName();
     }
 
     // ----------------------------------------------------------------
@@ -238,3 +251,5 @@ public class OssTemplate {
         return false;
     }
 }
+
+
