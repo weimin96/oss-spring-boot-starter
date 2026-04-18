@@ -45,18 +45,21 @@ docker run -d \
 
 ### 前端示例
 
-```bash
+```cmd
 # 进入前端目录
 cd samples/sample-frontend-web
 
 # 安装依赖
-pnpm install
+npm install
 
 # 启动开发服务器
-pnpm dev
+npm run dev
 ```
 
 前端默认连接 `http://localhost:8080`（后端服务地址），如需修改可编辑 `.env` 文件。
+
+如果需要把前端 sample 发布到 GitHub Pages，请推送 [pages.yml](../.github/workflows/pages.yml) 并在仓库变量中配置
+`SAMPLE_FRONTEND_API_BASE_URL`。页面发布后也可以在左下角直接修改后端根地址，浏览器会把该值持久化到本地。
 
 ## 功能演示
 
