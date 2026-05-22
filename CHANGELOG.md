@@ -2,6 +2,18 @@
 
 本项目所有重要的变更都将记录在此文件中。
 
+## [v3.1.0] - 2026-05-14
+
+## 特性
+
+### MinIO 对象事件监听
+- 新增 `OssObjectEvent` 对象变化事件模型。
+- 新增 `OssObjectEventListener` 业务监听端口。
+- `oss.type=minio` 且 `oss.event.enable=true` 时支持自动启动对象事件监听。
+- 支持监听对象创建和删除事件，并返回 Bucket、对象键、事件名、事件时间、大小、ETag、版本号和 sequencer。
+- 监听实现不引入 MinIO SDK、消息队列或新增依赖。
+- 支持 `oss.event.bucket-name`、`oss.event.events`、`oss.event.prefix`、`oss.event.suffix`、`oss.event.reconnect-interval` 配置。
+
 ## [v3.0.0] - 2026-04-18
 
 ## 特性

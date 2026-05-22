@@ -35,6 +35,7 @@ Java API、内置 REST 接口、OpenAPI 注解元数据三类 Starter。
 - **流式解压**：ZIP 文件流式解压，支持跨 Bucket 和按前缀过滤
 - **预签名 URL**：生成下载/上传预签名，支持临时授权访问
 - **标签管理**：对象标签和 Bucket 标签的 CRUD 操作
+- **MinIO 事件监听**：`oss.type=minio` 时支持对象创建、删除事件监听
 
 ### 查询能力
 - 多种列表模式：递归列表、层级列举、游标分页懒加载
@@ -76,7 +77,7 @@ Spring Boot 3 基础 Java API 示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-starter</artifactId>
-    <version>3.0.0</version>
+    <version>3.1.0</version>
 </dependency>
 ```
 
@@ -86,7 +87,7 @@ Spring Boot 3 内置 REST 接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-web-starter</artifactId>
-    <version>3.0.0</version>
+    <version>3.1.0</version>
 </dependency>
 ```
 
@@ -96,7 +97,7 @@ Spring Boot 3 OpenAPI 注解接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-openapi-starter</artifactId>
-    <version>3.0.0</version>
+    <version>3.1.0</version>
 </dependency>
 ```
 
@@ -132,6 +133,15 @@ oss:
   http:
     enable: true
     prefix: /api
+  event:
+    enable: false
+    bucket-name: oss-sample
+    events:
+      - s3:ObjectCreated:*
+      - s3:ObjectRemoved:*
+    prefix: ""
+    suffix: ""
+    reconnect-interval: 5s
 
 spring:
   servlet:
@@ -159,6 +169,12 @@ spring:
 | `oss.part-size-in-mb`    | int     | `10`    | 分片大小，最小值为 5 MB                  |
 | `oss.http.enable`        | boolean | `false` | 是否注册内置 REST 接口                  |
 | `oss.http.prefix`        | String  | 空字符串    | REST 接口路径前缀                     |
+| `oss.event.enable`       | boolean | `false` | 是否启用 MinIO 对象事件监听              |
+| `oss.event.bucket-name`  | String  | 默认 Bucket | 监听事件的 Bucket 名称                  |
+| `oss.event.events`       | List    | 创建、删除事件 | 监听的 S3 事件名称                     |
+| `oss.event.prefix`       | String  | 空字符串    | 只监听指定对象前缀                      |
+| `oss.event.suffix`       | String  | 空字符串    | 只监听指定对象后缀                      |
+| `oss.event.reconnect-interval` | Duration | `5s` | 事件连接断开后的重连间隔                  |
 
 ## 存储类型
 
@@ -216,6 +232,37 @@ boolean exists = ossTemplate.query().checkExist("uploads/demo.txt");
 String downloadUrl = ossTemplate.presign()
         .generateGetPresignedUrl("uploads/demo.txt", Duration.ofMinutes(10));
 ```
+
+MinIO 文件变化监听示例：
+
+```yaml
+oss:
+  enable: true
+  type: minio
+  bucket-name: oss-sample
+  event:
+    enable: true
+    events:
+      - s3:ObjectCreated:*
+      - s3:ObjectRemoved:*
+    prefix: uploads/
+    reconnect-interval: 5s
+```
+
+```java
+@Component
+public class ObjectEventHandler implements OssObjectEventListener {
+
+    @Override
+    public void onObjectChanged(OssObjectEvent event) {
+        String bucketName = event.getBucketName();
+        String objectKey = event.getObjectKey();
+        String eventName = event.getEventName();
+    }
+}
+```
+
+该能力只在 `oss.type=minio` 时生效，使用 MinIO 扩展监听接口，不引入 MinIO SDK 和消息队列。事件可能重复、延迟或在断线重连期间丢失，业务侧处理应保持幂等。
 
 文件夹压缩下载示例：
 

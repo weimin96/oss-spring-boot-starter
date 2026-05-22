@@ -2,6 +2,10 @@ package com.wiblog.oss.config;
 
 import lombok.Data;
 
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * OSS 客户端内部选项。
  *
@@ -26,6 +30,7 @@ public class OssClientOptions {
     private double throughputInGbps = 20.0;
     private int partSizeInMb = 10;
     private Http http = new Http();
+    private Event event = new Event();
 
     /**
      * 创建一个空内部选项对象。
@@ -67,5 +72,15 @@ public class OssClientOptions {
     public static class Http {
         private String prefix = "";
         private boolean enable = false;
+    }
+
+    @Data
+    public static class Event {
+        private boolean enable = false;
+        private String bucketName;
+        private List<String> events = Arrays.asList("s3:ObjectCreated:*", "s3:ObjectRemoved:*");
+        private String prefix = "";
+        private String suffix = "";
+        private Duration reconnectInterval = Duration.ofSeconds(5);
     }
 }

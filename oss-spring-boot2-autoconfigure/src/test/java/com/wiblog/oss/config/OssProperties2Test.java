@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import javax.validation.ConstraintViolation;
 import javax.validation.Validation;
 import javax.validation.Validator;
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -74,5 +76,30 @@ class OssProperties2Test {
         assertThat(properties.getConnectionTimeout()).isEqualTo(10000L);
         assertThat(properties.getPartSizeInMb()).isEqualTo(10);
         assertThat(properties.getHttp()).isNotNull();
+        assertThat(properties.getEvent()).isNotNull();
+        assertThat(properties.getEvent().isEnable()).isFalse();
+        assertThat(properties.getEvent().getEvents()).containsExactly("s3:ObjectCreated:*", "s3:ObjectRemoved:*");
+        assertThat(properties.getEvent().getReconnectInterval()).isEqualTo(Duration.ofSeconds(5));
+    }
+
+    @Test
+    @DisplayName("事件配置应映射到核心选项")
+    void eventPropertiesMapToOptions() {
+        OssProperties2 properties = new OssProperties2();
+        properties.getEvent().setEnable(true);
+        properties.getEvent().setBucketName("events-bucket");
+        properties.getEvent().setEvents(Arrays.asList("s3:ObjectCreated:Put"));
+        properties.getEvent().setPrefix("images/");
+        properties.getEvent().setSuffix(".jpg");
+        properties.getEvent().setReconnectInterval(Duration.ofSeconds(3));
+
+        OssClientOptions options = properties.toOptions();
+
+        assertThat(options.getEvent().isEnable()).isTrue();
+        assertThat(options.getEvent().getBucketName()).isEqualTo("events-bucket");
+        assertThat(options.getEvent().getEvents()).containsExactly("s3:ObjectCreated:Put");
+        assertThat(options.getEvent().getPrefix()).isEqualTo("images/");
+        assertThat(options.getEvent().getSuffix()).isEqualTo(".jpg");
+        assertThat(options.getEvent().getReconnectInterval()).isEqualTo(Duration.ofSeconds(3));
     }
 }

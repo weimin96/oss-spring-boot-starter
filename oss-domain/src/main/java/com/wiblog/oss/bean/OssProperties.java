@@ -2,6 +2,10 @@ package com.wiblog.oss.bean;
 
 import lombok.Data;
 
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
+
 /**
  * OSS 配置属性
  *
@@ -73,6 +77,11 @@ public class OssProperties {
     private Http http = new Http();
 
     /**
+     * 事件监听配置独立封装，是为了避免 MinIO 扩展能力污染基础对象操作配置。
+     */
+    private Event event = new Event();
+
+    /**
      * 创建一个空配置对象。
      *
      * <p>保留无参构造的原因是兼容 Spring Boot `@ConfigurationProperties` 绑定，
@@ -125,6 +134,33 @@ public class OssProperties {
          * HTTP 开关单独控制，是为了允许只启用 Java API 而不暴露内置 REST 接口。
          */
         private boolean enable = false;
+    }
+
+    @Data
+    public static class Event {
+        /**
+         * 事件监听默认关闭，避免应用启动后隐式建立长连接。
+         */
+        private boolean enable = false;
+
+        /**
+         * 监听 Bucket 允许独立配置，便于默认操作 Bucket 与事件订阅 Bucket 分离。
+         */
+        private String bucketName;
+
+        /**
+         * 默认只订阅对象创建和删除，覆盖上传在 MinIO 中也会表现为创建类事件。
+         */
+        private List<String> events = Arrays.asList("s3:ObjectCreated:*", "s3:ObjectRemoved:*");
+
+        private String prefix = "";
+
+        private String suffix = "";
+
+        /**
+         * 重连间隔显式配置，避免监听断开时形成高频重试。
+         */
+        private Duration reconnectInterval = Duration.ofSeconds(5);
     }
 }
 

@@ -1,5 +1,6 @@
 package com.wiblog.oss.config;
 
+import com.wiblog.oss.config.OssClientOptions.Event;
 import com.wiblog.oss.config.OssClientOptions.Http;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
@@ -7,6 +8,10 @@ import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
+
+import java.time.Duration;
+import java.util.Arrays;
+import java.util.List;
 
 /**
  * Spring Boot 4.x OSS 配置属性（jakarta.validation）。
@@ -54,6 +59,9 @@ public class OssProperties4 {
     @Valid
     private HttpProperties http = new HttpProperties();
 
+    @Valid
+    private EventProperties event = new EventProperties();
+
     /**
      * 转换为核心层内部选项。
      *
@@ -77,6 +85,15 @@ public class OssProperties4 {
         httpOptions.setPrefix(http.getPrefix());
         httpOptions.setEnable(http.isEnable());
         options.setHttp(httpOptions);
+
+        Event eventOptions = new Event();
+        eventOptions.setEnable(event.isEnable());
+        eventOptions.setBucketName(event.getBucketName());
+        eventOptions.setEvents(event.getEvents());
+        eventOptions.setPrefix(event.getPrefix());
+        eventOptions.setSuffix(event.getSuffix());
+        eventOptions.setReconnectInterval(event.getReconnectInterval());
+        options.setEvent(eventOptions);
         return options;
     }
 
@@ -87,5 +104,18 @@ public class OssProperties4 {
     public static class HttpProperties {
         private String prefix = "";
         private boolean enable = false;
+    }
+
+    /**
+     * MinIO 事件监听配置。
+     */
+    @Data
+    public static class EventProperties {
+        private boolean enable = false;
+        private String bucketName;
+        private List<String> events = Arrays.asList("s3:ObjectCreated:*", "s3:ObjectRemoved:*");
+        private String prefix = "";
+        private String suffix = "";
+        private Duration reconnectInterval = Duration.ofSeconds(5);
     }
 }
