@@ -77,7 +77,7 @@ Spring Boot 3 基础 Java API 示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-starter</artifactId>
-    <version>3.1.0</version>
+    <version>3.1.1</version>
 </dependency>
 ```
 
@@ -87,7 +87,7 @@ Spring Boot 3 内置 REST 接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-web-starter</artifactId>
-    <version>3.1.0</version>
+    <version>3.1.1</version>
 </dependency>
 ```
 
@@ -97,7 +97,7 @@ Spring Boot 3 OpenAPI 注解接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-openapi-starter</artifactId>
-    <version>3.1.0</version>
+    <version>3.1.1</version>
 </dependency>
 ```
 

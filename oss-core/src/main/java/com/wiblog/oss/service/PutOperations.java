@@ -19,6 +19,7 @@ import software.amazon.awssdk.transfer.s3.model.UploadRequest;
 import java.io.*;
 import java.nio.ByteBuffer;
 import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
@@ -31,6 +32,8 @@ import java.util.stream.Collectors;
  */
 @Slf4j
 public class PutOperations extends Operations implements OssPutService {
+
+    private static final int LIST_PARTS_MAX_PARTS = 1000;
 
     /**
      * 创建上传操作门面。
@@ -446,18 +449,35 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public List<ChunkPartInfo> listParts(String bucketName, String objectName, String uploadId) {
-        ListPartsRequest req = ListPartsRequest.builder()
-                .bucket(bucketName).key(objectName).uploadId(uploadId)
-                .maxParts(Integer.MAX_VALUE).build();
-        return client.listParts(req).join().parts().stream()
-                .map(part -> {
+        List<ChunkPartInfo> partInfos = new ArrayList<>();
+        Integer partNumberMarker = null;
+        boolean hasNextPage;
+        do {
+            ListPartsRequest.Builder requestBuilder = ListPartsRequest.builder()
+                    .bucket(bucketName)
+                    .key(objectName)
+                    .uploadId(uploadId)
+                    .maxParts(LIST_PARTS_MAX_PARTS);
+            if (partNumberMarker != null) {
+                requestBuilder.partNumberMarker(partNumberMarker);
+            }
+
+            ListPartsResponse response = client.listParts(requestBuilder.build()).join();
+            response.parts().forEach(part -> {
                     ChunkPartInfo info = new ChunkPartInfo();
                     info.setPartNumber(part.partNumber());
                     info.setEtag(part.eTag());
                     info.setSize(part.size());
-                    return info;
-                })
-                .collect(Collectors.toList());
+                    partInfos.add(info);
+                });
+
+            hasNextPage = Boolean.TRUE.equals(response.isTruncated());
+            partNumberMarker = response.nextPartNumberMarker();
+            if (hasNextPage && partNumberMarker == null) {
+                throw new OssException("LIST_PARTS_PAGINATION_ERROR", "List parts response is truncated but missing next part marker");
+            }
+        } while (hasNextPage);
+        return partInfos;
     }
 
     // ----------------------------------------------------------------
