@@ -4,15 +4,20 @@ import com.wiblog.oss.bean.UnzipResult;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import org.junit.jupiter.api.Test;
-import software.amazon.awssdk.core.ResponseBytes;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
+import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Proxy;
+import java.nio.ByteBuffer;
 import java.util.concurrent.CompletableFuture;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -45,11 +50,12 @@ class StreamUnzipOperationsTest {
             @Override
             public CompletableFuture<?> handle(String methodName, Object[] args) {
                 if ("getObject".equals(methodName)) {
-                    return completed(ResponseBytes.fromByteArray(
+                    return completed(new ResponseInputStream<GetObjectResponse>(
                             GetObjectResponse.builder().build(),
-                            archiveBytes));
+                            new ByteArrayInputStream(archiveBytes)));
                 }
                 if ("putObject".equals(methodName)) {
+                    consumeRequestBody((AsyncRequestBody) args[1]);
                     return failed(S3Exception.builder().message("denied").build());
                 }
                 throw unsupported(methodName);
@@ -106,6 +112,27 @@ class StreamUnzipOperationsTest {
 
     private static UnsupportedOperationException unsupported(String methodName) {
         return new UnsupportedOperationException(methodName);
+    }
+
+    private static void consumeRequestBody(AsyncRequestBody requestBody) {
+        requestBody.subscribe(new Subscriber<ByteBuffer>() {
+            @Override
+            public void onSubscribe(Subscription subscription) {
+                subscription.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(ByteBuffer byteBuffer) {
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+            }
+
+            @Override
+            public void onComplete() {
+            }
+        });
     }
 
     private interface S3Handler {

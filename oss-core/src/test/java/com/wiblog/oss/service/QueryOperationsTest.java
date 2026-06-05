@@ -5,8 +5,7 @@ import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import org.junit.jupiter.api.Test;
-import software.amazon.awssdk.core.ResponseBytes;
-import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
@@ -20,6 +19,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
@@ -86,6 +87,47 @@ class QueryOperationsTest {
     }
 
     @Test
+    void getInputStreamUsesBlockingStreamTransformer() throws IOException {
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("getObject".equals(methodName)) {
+                    return completed(new ResponseInputStream<GetObjectResponse>(
+                            GetObjectResponse.builder().build(),
+                            new ByteArrayInputStream("streamed".getBytes(StandardCharsets.UTF_8))));
+                }
+                throw unsupported(methodName);
+            }
+        }));
+
+        InputStream inputStream = operations.getInputStream("bucket", "large-object");
+
+        assertEquals("streamed", readString(inputStream));
+    }
+
+    @Test
+    void getInputStreamWithRangeUsesBlockingStreamTransformer() throws IOException {
+        List<GetObjectRequest> requests = new ArrayList<>();
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("getObject".equals(methodName)) {
+                    requests.add((GetObjectRequest) args[0]);
+                    return completed(new ResponseInputStream<GetObjectResponse>(
+                            GetObjectResponse.builder().build(),
+                            new ByteArrayInputStream("part".getBytes(StandardCharsets.UTF_8))));
+                }
+                throw unsupported(methodName);
+            }
+        }));
+
+        InputStream inputStream = operations.getInputStream("bucket", "large-object", "bytes=0-3");
+
+        assertEquals("part", readString(inputStream));
+        assertEquals("bytes=0-3", requests.get(0).range());
+    }
+
+    @Test
     void previewObjectSupportsSuffixRange() throws IOException {
         List<GetObjectRequest> requests = new ArrayList<>();
         QueryOperations operations = operations(s3Client(new S3Handler() {
@@ -100,10 +142,9 @@ class QueryOperationsTest {
                 if ("getObject".equals(methodName)) {
                     GetObjectRequest request = (GetObjectRequest) args[0];
                     requests.add(request);
-                    ResponseBytes<GetObjectResponse> bytes = ResponseBytes.fromByteArray(
+                    return completed(new ResponseInputStream<GetObjectResponse>(
                             GetObjectResponse.builder().build(),
-                            "world".getBytes(StandardCharsets.UTF_8));
-                    return completed(bytes);
+                            new ByteArrayInputStream("world".getBytes(StandardCharsets.UTF_8))));
                 }
                 throw unsupported(methodName);
             }
@@ -179,6 +220,18 @@ class QueryOperationsTest {
 
     private static UnsupportedOperationException unsupported(String methodName) {
         return new UnsupportedOperationException(methodName);
+    }
+
+    private static String readString(InputStream inputStream) throws IOException {
+        try (InputStream in = inputStream;
+             ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8];
+            int read;
+            while ((read = in.read(buffer)) != -1) {
+                outputStream.write(buffer, 0, read);
+            }
+            return new String(outputStream.toByteArray(), StandardCharsets.UTF_8);
+        }
     }
 
     private interface S3Handler {

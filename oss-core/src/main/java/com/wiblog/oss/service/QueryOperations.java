@@ -494,8 +494,7 @@ public class QueryOperations extends Operations implements OssQueryService {
     public InputStream getInputStream(String bucketName, String objectName) {
         return handleRequest(() ->
                 client.getObject(buildGetRequest(bucketName, objectName),
-                                AsyncResponseTransformer.toBytes())
-                        .thenApply(rb -> toInputStream(rb.asByteBuffer())));
+                        AsyncResponseTransformer.toBlockingInputStream()));
     }
 
     /**
@@ -511,8 +510,7 @@ public class QueryOperations extends Operations implements OssQueryService {
         GetObjectRequest req = GetObjectRequest.builder()
                 .bucket(bucketName).key(normalizeObjectKey(objectName)).range(range).build();
         return handleRequest(() ->
-                client.getObject(req, AsyncResponseTransformer.toBytes())
-                        .thenApply(rb -> toInputStream(rb.asByteBuffer())));
+                client.getObject(req, AsyncResponseTransformer.toBlockingInputStream()));
     }
 
     // ----------------------------------------------------------------
@@ -873,12 +871,6 @@ public class QueryOperations extends Operations implements OssQueryService {
         }
         String objectKey = objectName.replace('\\', '/');
         return objectKey.startsWith("/") ? objectKey.substring(1) : objectKey;
-    }
-
-    private static InputStream toInputStream(ByteBuffer buffer) {
-        byte[] bytes = new byte[buffer.remaining()];
-        buffer.get(bytes);
-        return new ByteArrayInputStream(bytes);
     }
 
     /**

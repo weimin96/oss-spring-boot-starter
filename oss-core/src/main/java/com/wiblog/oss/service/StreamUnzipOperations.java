@@ -7,17 +7,19 @@ import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
+import software.amazon.awssdk.core.async.BlockingInputStreamAsyncRequestBody;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 import java.io.*;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -35,13 +37,6 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
      * 流式读取缓冲区大小。
      */
     private static final int BUFFER_SIZE = 64 * 1024;
-
-    /**
-     * 单个 ZIP 条目允许进入内存缓冲的上限。
-     * <p>
-     * 这里显式限制，是为了避免过滤解压和自定义处理在遇到异常大条目时把 JVM 内存拖垮。
-     */
-    private static final int MAX_BUFFER_BYTES = 128 * 1024 * 1024;
 
     /**
      * 创建流式解压操作门面。
@@ -278,26 +273,17 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
                 .bucket(bucketName)
                 .key(objectKey)
                 .build();
-        byte[] bytes = requireSuccessfulRequest(() ->
-                client.getObject(req, AsyncResponseTransformer.toBytes())
-                        .thenApply(responseBytes -> {
-                            ByteBuffer byteBuffer = responseBytes.asByteBuffer();
-                            byte[] buffer = new byte[byteBuffer.remaining()];
-                            byteBuffer.get(buffer);
-                            return buffer;
-                        }),
+        return requireSuccessfulRequest(() ->
+                client.getObject(req, AsyncResponseTransformer.toBlockingInputStream()),
                 "UNZIP_SOURCE_READ_FAILED",
                 "读取 ZIP 对象失败：" + objectKey);
-        return new ByteArrayInputStream(bytes);
     }
 
     private ObjectInfo uploadEntry(ZipInputStream zis, ZipEntry entry,
                                    String targetBucket, String destKey) throws IOException {
         long knownSize = entry.getSize();
-        byte[] data = readAllBytes(zis);
-        uploadBytes(data, targetBucket, destKey);
+        long actualSize = uploadStream(new NonClosingInputStream(zis), knownSize, targetBucket, destKey);
 
-        long actualSize = knownSize >= 0 ? knownSize : data.length;
         return ObjectInfo.builder()
                 .uri(destKey)
                 .url(getDomain() + destKey)
@@ -308,30 +294,32 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
                 .build();
     }
 
-    private void uploadBytes(byte[] data, String bucket, String key) {
-        PutObjectRequest putReq = PutObjectRequest.builder()
+    private long uploadStream(InputStream inputStream, long knownSize, String bucket, String key) {
+        Long contentLength = knownSize >= 0 ? knownSize : null;
+        PutObjectRequest.Builder putRequestBuilder = PutObjectRequest.builder()
                 .bucket(bucket)
                 .key(key)
-                .contentType(Util.getContentType(key))
-                .contentLength((long) data.length)
-                .build();
-        requireSuccessfulRequest(() -> client.putObject(putReq, AsyncRequestBody.fromBytes(data)),
-                "UNZIP_ENTRY_UPLOAD_FAILED",
-                "上传解压条目失败：" + key);
-        log.debug("Uploaded unzipped entry: [{}/{}] ({} bytes)", bucket, key, data.length);
-    }
-
-    private static byte[] readAllBytes(InputStream in) throws IOException {
-        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-        byte[] buf = new byte[BUFFER_SIZE];
-        int read;
-        while ((read = in.read(buf)) != -1) {
-            baos.write(buf, 0, read);
-            if (baos.size() > MAX_BUFFER_BYTES) {
-                throw new IOException("ZIP entry exceeds max buffer size: " + MAX_BUFFER_BYTES + " bytes");
-            }
+                .contentType(Util.getContentType(key));
+        if (contentLength != null) {
+            putRequestBuilder.contentLength(contentLength);
         }
-        return baos.toByteArray();
+        BlockingInputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingInputStream(contentLength);
+        CompletableFuture<PutObjectResponse> uploadFuture = client.putObject(putRequestBuilder.build(), body);
+        long actualSize;
+        try {
+            actualSize = body.writeInputStream(inputStream);
+            requireSuccessfulRequest(() -> uploadFuture,
+                    "UNZIP_ENTRY_UPLOAD_FAILED",
+                    "上传解压条目失败：" + key);
+        } catch (OssException e) {
+            body.cancel();
+            throw e;
+        } catch (RuntimeException e) {
+            body.cancel();
+            throw OssException.uploadFailed(key, e);
+        }
+        log.debug("Uploaded unzipped entry: [{}/{}] ({} bytes)", bucket, key, actualSize);
+        return actualSize;
     }
 
     /**

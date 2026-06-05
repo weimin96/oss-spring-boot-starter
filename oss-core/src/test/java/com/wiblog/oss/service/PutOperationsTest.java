@@ -16,11 +16,18 @@ import software.amazon.awssdk.services.s3.model.Part;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
+import software.amazon.awssdk.transfer.s3.model.Upload;
 import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
+import software.amazon.awssdk.transfer.s3.model.UploadRequest;
+import org.reactivestreams.Subscriber;
+import org.reactivestreams.Subscription;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Proxy;
+import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -54,6 +61,30 @@ class PutOperationsTest {
                 .putObjectForKey("bucket", "README", sourceFile);
 
         assertEquals("README", uploadRequest[0].putObjectRequest().key());
+    }
+
+    @Test
+    void putObjectForKeyUploadsInputStreamWithoutBufferingWholeStream() {
+        final UploadRequest[] uploadRequest = new UploadRequest[1];
+        final ByteArrayOutputStream uploadedBytes = new ByteArrayOutputStream();
+        S3TransferManager transferManager = transferManager(new TransferHandler() {
+            @Override
+            public Object handle(String methodName, Object[] args) {
+                if ("upload".equals(methodName)) {
+                    uploadRequest[0] = (UploadRequest) args[0];
+                    CompletableFuture<Void> consumed = consumeRequestBody(uploadRequest[0], uploadedBytes);
+                    return upload(consumed);
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        operations(s3Client(noS3Calls()), transferManager)
+                .putObjectForKey("bucket", "large-object", new ByteArrayInputStream(new byte[]{1, 2, 3, 4}));
+
+        assertEquals("large-object", uploadRequest[0].putObjectRequest().key());
+        assertEquals(false, uploadRequest[0].requestBody().contentLength().isPresent());
+        assertEquals(4, uploadedBytes.size());
     }
 
     @Test
@@ -283,6 +314,46 @@ class PutOperationsTest {
                     }
                     throw unsupported(method.getName());
                 });
+    }
+
+    private static Upload upload(CompletableFuture<Void> consumed) {
+        return (Upload) Proxy.newProxyInstance(
+                Upload.class.getClassLoader(),
+                new Class<?>[]{Upload.class},
+                (proxy, method, args) -> {
+                    if ("completionFuture".equals(method.getName())) {
+                        return consumed.thenApply(ignored -> null);
+                    }
+                    throw unsupported(method.getName());
+                });
+    }
+
+    private static CompletableFuture<Void> consumeRequestBody(UploadRequest request, ByteArrayOutputStream outputStream) {
+        CompletableFuture<Void> consumed = new CompletableFuture<>();
+        request.requestBody().subscribe(new Subscriber<ByteBuffer>() {
+            @Override
+            public void onSubscribe(Subscription subscription) {
+                subscription.request(Long.MAX_VALUE);
+            }
+
+            @Override
+            public void onNext(ByteBuffer byteBuffer) {
+                byte[] bytes = new byte[byteBuffer.remaining()];
+                byteBuffer.get(bytes);
+                outputStream.write(bytes, 0, bytes.length);
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                consumed.completeExceptionally(throwable);
+            }
+
+            @Override
+            public void onComplete() {
+                consumed.complete(null);
+            }
+        });
+        return consumed;
     }
 
     @SuppressWarnings("unchecked")

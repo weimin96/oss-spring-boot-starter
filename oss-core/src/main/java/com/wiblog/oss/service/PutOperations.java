@@ -123,9 +123,6 @@ public class PutOperations extends Operations implements OssPutService {
 
     /**
      * 上传 InputStream。
-     * <p>
-     * 改进：原代码使用 stream.available() 获取大小（不可靠），
-     * 现改为先将流读入缓冲区，用精确字节数上传，确保 Content-Length 正确。
      *
      * @param bucketName Bucket 名称
      * @param objectName 完整对象 key
@@ -135,11 +132,7 @@ public class PutOperations extends Operations implements OssPutService {
     @Override
     public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
         objectName = Util.normalizeObjectKey(objectName);
-        // 先缓冲，获得精确长度
-        byte[] data = toByteArray(stream);
-        long fileSize = data.length;
-
-        BlockingInputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingInputStream(fileSize);
+        BlockingInputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingInputStream(null);
         PutObjectRequest putReq = PutObjectRequest.builder()
                 .bucket(bucketName).key(objectName)
                 .contentType(Util.getContentType(objectName))
@@ -147,9 +140,15 @@ public class PutOperations extends Operations implements OssPutService {
         UploadRequest uploadReq = UploadRequest.builder()
                 .requestBody(body).putObjectRequest(putReq).build();
 
-        Upload upload = transferManager.upload(uploadReq);
-        body.writeInputStream(new ByteArrayInputStream(data));
-        upload.completionFuture().join();
+        long fileSize;
+        try {
+            Upload upload = transferManager.upload(uploadReq);
+            fileSize = body.writeInputStream(stream);
+            upload.completionFuture().join();
+        } catch (RuntimeException e) {
+            body.cancel();
+            throw OssException.uploadFailed(objectName, e);
+        }
 
         return buildObjectInfo(objectName, new Date(), fileSize);
     }
@@ -492,22 +491,6 @@ public class PutOperations extends Operations implements OssPutService {
     // 私有工具
     // ----------------------------------------------------------------
 
-    /**
-     * 将 InputStream 读入字节数组。
-     * 改进：原代码使用 available()（不可靠），此处使用 ByteArrayOutputStream 完整读取。
-     */
-    private static byte[] toByteArray(InputStream stream) {
-        try (ByteArrayOutputStream buffer = new ByteArrayOutputStream()) {
-            byte[] buf = new byte[8192];
-            int read;
-            while ((read = stream.read(buf)) != -1) {
-                buffer.write(buf, 0, read);
-            }
-            return buffer.toByteArray();
-        } catch (IOException e) {
-            throw new OssException("STREAM_READ_ERROR", "Failed to read input stream", e);
-        }
-    }
 }
 
 
