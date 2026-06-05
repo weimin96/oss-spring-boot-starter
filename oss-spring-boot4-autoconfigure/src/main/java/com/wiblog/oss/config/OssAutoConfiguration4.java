@@ -7,6 +7,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -52,7 +53,7 @@ public class OssAutoConfiguration4 {
     @Bean(initMethod = "start", destroyMethod = "stop")
     @ConditionalOnBean(OssObjectEventListener.class)
     @ConditionalOnMissingBean(MinioObjectEventListenerContainer.class)
-    @ConditionalOnProperty(prefix = "oss.event", name = "enable", havingValue = "true")
+    @ConditionalOnExpression("'${oss.type:}'.equalsIgnoreCase('minio') && '${oss.event.enable:false}'.equalsIgnoreCase('true')")
     public MinioObjectEventListenerContainer minioObjectEventListenerContainer(
             OssProperties4 properties, List<OssObjectEventListener> listeners) {
         return new MinioObjectEventListenerContainer(properties.toOptions(), listeners);

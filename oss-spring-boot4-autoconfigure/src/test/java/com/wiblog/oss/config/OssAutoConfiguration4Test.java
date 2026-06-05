@@ -112,11 +112,29 @@ class OssAutoConfiguration4Test {
                         "oss.endpoint=http://localhost:9000",
                         "oss.access-key=ak",
                         "oss.secret-key=sk",
+                        "oss.type=minio",
+                        "oss.bucket-name=",
+                        "oss.auto-create-bucket=false",
+                        "oss.event.bucket-name=events",
+                        "oss.event.enable=true")
+                .run(context -> assertThat(context).hasSingleBean(MinioObjectEventListenerContainer.class));
+    }
+
+    @Test
+    @DisplayName("非 MinIO 类型不应注册监听容器")
+    void doesNotRegisterEventContainerWhenTypeIsNotMinio() {
+        contextRunner
+                .withUserConfiguration(EventListenerConfiguration.class)
+                .withPropertyValues(
+                        "oss.enable=true",
+                        "oss.endpoint=http://localhost:9000",
+                        "oss.access-key=ak",
+                        "oss.secret-key=sk",
                         "oss.type=obs",
                         "oss.bucket-name=",
                         "oss.auto-create-bucket=false",
                         "oss.event.enable=true")
-                .run(context -> assertThat(context).hasSingleBean(MinioObjectEventListenerContainer.class));
+                .run(context -> assertThat(context).doesNotHaveBean(MinioObjectEventListenerContainer.class));
     }
 
     @Configuration(proxyBeanMethods = false)
