@@ -236,7 +236,9 @@ public class DeleteOperations extends Operations implements OssDeleteService {
         if (!objectExists(bucketName, objectKey)) {
             return false;
         }
-        handleRequest(() -> client.deleteObject(x -> x.bucket(bucketName).key(objectKey).build()));
+        requireSuccessfulRequest(() -> client.deleteObject(x -> x.bucket(bucketName).key(objectKey).build()),
+                "OBJECT_DELETE_FAILED",
+                "删除对象失败：" + objectKey);
         return true;
     }
 

@@ -62,7 +62,9 @@ public class PutOperations extends Operations implements OssPutService {
     public void createBucket(String bucketName) {
         if (!bucketExists(bucketName)) {
             CreateBucketRequest req = CreateBucketRequest.builder().bucket(bucketName).build();
-            handleRequest(() -> client.createBucket(req));
+            requireSuccessfulRequest(() -> client.createBucket(req),
+                    "BUCKET_CREATE_FAILED",
+                    "创建 Bucket 失败：" + bucketName);
             log.info("Bucket [{}] created", bucketName);
         }
     }
@@ -244,7 +246,9 @@ public class PutOperations extends Operations implements OssPutService {
     public ObjectInfo mkdirs(String bucketName, String path) {
         PutObjectRequest req = PutObjectRequest.builder()
                 .bucket(bucketName).key(formatPath(path)).build();
-        handleRequest(() -> client.putObject(req, AsyncRequestBody.empty()));
+        requireSuccessfulRequest(() -> client.putObject(req, AsyncRequestBody.empty()),
+                "DIRECTORY_CREATE_FAILED",
+                "创建目录失败：" + formatPath(path));
         return buildObjectInfo(path, new Date(), 0);
     }
 
@@ -326,7 +330,9 @@ public class PutOperations extends Operations implements OssPutService {
                 .sourceBucket(sourceBucket).sourceKey(formatPath(sourceKey))
                 .destinationBucket(destBucket).destinationKey(formatPath(destKey))
                 .build();
-        handleRequest(() -> client.copyObject(req));
+        requireSuccessfulRequest(() -> client.copyObject(req),
+                "OBJECT_COPY_FAILED",
+                "复制对象失败：" + formatPath(sourceKey));
     }
 
     /**
@@ -354,7 +360,9 @@ public class PutOperations extends Operations implements OssPutService {
         String filename = Util.getFilename(sourceObjectName);
         String destKey = Util.formatPath(destinationDirectory) + filename;
         copyFile(bucketName, bucketName, sourceObjectName, destKey);
-        handleRequest(() -> client.deleteObject(x -> x.bucket(bucketName).key(formatPath(sourceObjectName)).build()));
+        requireSuccessfulRequest(() -> client.deleteObject(x -> x.bucket(bucketName).key(formatPath(sourceObjectName)).build()),
+                "OBJECT_DELETE_FAILED",
+                "删除源对象失败：" + formatPath(sourceObjectName));
     }
 
     // ----------------------------------------------------------------

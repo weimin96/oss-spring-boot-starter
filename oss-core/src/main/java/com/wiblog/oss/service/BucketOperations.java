@@ -465,8 +465,10 @@ public class BucketOperations extends Operations implements OssBucketService {
      */
     @Override
     public void putBucketPolicy(String bucketName, String policyJson) {
-        handleRequest(() -> client.putBucketPolicy(
-                PutBucketPolicyRequest.builder().bucket(bucketName).policy(policyJson).build()));
+        requireSuccessfulRequest(() -> client.putBucketPolicy(
+                        PutBucketPolicyRequest.builder().bucket(bucketName).policy(policyJson).build()),
+                "BUCKET_POLICY_UPDATE_FAILED",
+                "设置 Bucket 访问策略失败：" + bucketName);
         log.info("Updated policy on bucket [{}]", bucketName);
     }
 
@@ -485,8 +487,10 @@ public class BucketOperations extends Operations implements OssBucketService {
      */
     @Override
     public void deleteBucketPolicy(String bucketName) {
-        handleRequest(() -> client.deleteBucketPolicy(
-                DeleteBucketPolicyRequest.builder().bucket(bucketName).build()));
+        requireSuccessfulRequest(() -> client.deleteBucketPolicy(
+                        DeleteBucketPolicyRequest.builder().bucket(bucketName).build()),
+                "BUCKET_POLICY_DELETE_FAILED",
+                "删除 Bucket 访问策略失败：" + bucketName);
         log.info("Deleted policy on bucket [{}]", bucketName);
     }
 
@@ -511,11 +515,13 @@ public class BucketOperations extends Operations implements OssBucketService {
                 .blockPublicPolicy(true)
                 .restrictPublicBuckets(true)
                 .build();
-        handleRequest(() -> client.putPublicAccessBlock(
-                PutPublicAccessBlockRequest.builder()
-                        .bucket(bucketName)
-                        .publicAccessBlockConfiguration(config)
-                        .build()));
+        requireSuccessfulRequest(() -> client.putPublicAccessBlock(
+                        PutPublicAccessBlockRequest.builder()
+                                .bucket(bucketName)
+                                .publicAccessBlockConfiguration(config)
+                                .build()),
+                "BUCKET_PUBLIC_ACCESS_BLOCK_FAILED",
+                "开启 Bucket 公网访问屏蔽失败：" + bucketName);
         log.info("Blocked all public access on bucket [{}]", bucketName);
     }
 
@@ -564,12 +570,14 @@ public class BucketOperations extends Operations implements OssBucketService {
                 .bucketKeyEnabled(true)
                 .build();
 
-        handleRequest(() -> client.putBucketEncryption(
-                PutBucketEncryptionRequest.builder()
-                        .bucket(bucketName)
-                        .serverSideEncryptionConfiguration(
-                                ServerSideEncryptionConfiguration.builder().rules(rule).build())
-                        .build()));
+        requireSuccessfulRequest(() -> client.putBucketEncryption(
+                        PutBucketEncryptionRequest.builder()
+                                .bucket(bucketName)
+                                .serverSideEncryptionConfiguration(
+                                        ServerSideEncryptionConfiguration.builder().rules(rule).build())
+                                .build()),
+                "BUCKET_ENCRYPTION_ENABLE_FAILED",
+                "启用 Bucket 服务端加密失败：" + bucketName);
         log.info("Enabled SSE-S3 encryption on bucket [{}]", bucketName);
     }
 
@@ -600,7 +608,9 @@ public class BucketOperations extends Operations implements OssBucketService {
                 .bucket(bucketName)
                 .versioningConfiguration(VersioningConfiguration.builder().status(status).build())
                 .build();
-        handleRequest(() -> client.putBucketVersioning(req));
+        requireSuccessfulRequest(() -> client.putBucketVersioning(req),
+                "BUCKET_VERSIONING_UPDATE_FAILED",
+                "设置 Bucket 版本控制失败：" + bucketName);
         log.info("Set versioning status [{}] on bucket [{}]", status, bucketName);
     }
 
