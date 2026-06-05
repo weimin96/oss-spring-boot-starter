@@ -12,6 +12,7 @@ import com.wiblog.oss.web.adapter.SpringMultipartUploadFile;
 import com.wiblog.oss.web.request.ObjectUploadRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -194,7 +195,7 @@ public abstract class JakartaOssControllerSupport implements OssHttpEndpoint {
     @GetMapping("/object/list/lazy")
     public OssResponse<?> lazyList(
             @NotBlank @RequestParam String path,
-            @RequestParam(defaultValue = "100") @Min(1) int maxKeys,
+            @RequestParam(defaultValue = "100") @Min(1) @Max(1000) int maxKeys,
             @RequestParam(required = false) String continuationToken) {
         return OssResponse.data(ossTemplate.query().lazyList(path, maxKeys, continuationToken));
     }

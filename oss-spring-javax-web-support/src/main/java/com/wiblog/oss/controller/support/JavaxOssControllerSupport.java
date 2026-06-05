@@ -19,6 +19,7 @@ import org.springframework.web.servlet.HandlerMapping;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
@@ -195,7 +196,7 @@ public abstract class JavaxOssControllerSupport implements OssHttpEndpoint {
     @GetMapping("/object/list/lazy")
     public OssResponse<?> lazyList(
             @NotBlank @RequestParam String path,
-            @RequestParam(defaultValue = "100") @Min(1) int maxKeys,
+            @RequestParam(defaultValue = "100") @Min(1) @Max(1000) int maxKeys,
             @RequestParam(required = false) String continuationToken) {
         return OssResponse.data(ossTemplate.query().lazyList(path, maxKeys, continuationToken));
     }

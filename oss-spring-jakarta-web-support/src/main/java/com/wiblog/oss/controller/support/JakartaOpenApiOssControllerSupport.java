@@ -10,6 +10,9 @@ import com.wiblog.oss.service.OssTemplate;
 import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -138,8 +141,8 @@ public abstract class JakartaOpenApiOssControllerSupport extends JakartaOssContr
     @Operation(summary = "懒加载文件列表（分页）")
     @GetMapping("/object/list/lazy")
     public OssResponse<?> lazyList(
-            @RequestParam String path,
-            @RequestParam(defaultValue = "100") int maxKeys,
+            @NotBlank @RequestParam String path,
+            @RequestParam(defaultValue = "100") @Min(1) @Max(1000) int maxKeys,
             @RequestParam(required = false) String continuationToken) {
         return super.lazyList(path, maxKeys, continuationToken);
     }

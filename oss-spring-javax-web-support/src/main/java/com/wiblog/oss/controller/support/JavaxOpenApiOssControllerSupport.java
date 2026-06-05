@@ -13,6 +13,9 @@ import org.springframework.web.multipart.MultipartFile;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
+import javax.validation.constraints.Max;
+import javax.validation.constraints.Min;
+import javax.validation.constraints.NotBlank;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
@@ -138,8 +141,8 @@ public abstract class JavaxOpenApiOssControllerSupport extends JavaxOssControlle
     @Operation(summary = "懒加载文件列表（分页）")
     @GetMapping("/object/list/lazy")
     public OssResponse<?> lazyList(
-            @RequestParam String path,
-            @RequestParam(defaultValue = "100") int maxKeys,
+            @NotBlank @RequestParam String path,
+            @RequestParam(defaultValue = "100") @Min(1) @Max(1000) int maxKeys,
             @RequestParam(required = false) String continuationToken) {
         return super.lazyList(path, maxKeys, continuationToken);
     }

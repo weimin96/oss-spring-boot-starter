@@ -236,7 +236,9 @@ public class QueryOperations extends Operations implements OssQueryService {
     public LazyDataList<ObjectInfo> lazyList(String bucketName, String path,
                                              int maxKeys, String continuationToken) {
         if (maxKeys <= 0) {
-            maxKeys = 1000;
+            maxKeys = LIST_MAX_KEYS;
+        } else if (maxKeys > LIST_MAX_KEYS) {
+            maxKeys = LIST_MAX_KEYS;
         }
         LazyDataList<ObjectInfo> resultList = new LazyDataList<>();
 
@@ -465,15 +467,9 @@ public class QueryOperations extends Operations implements OssQueryService {
      */
     @Override
     public String getContent(String bucketName, String objectName) {
-        try {
-            return client.getObject(buildGetRequest(bucketName, objectName),
-                            AsyncResponseTransformer.toBytes())
-                    .thenApply(rb -> StandardCharsets.UTF_8.decode(rb.asByteBuffer()).toString())
-                    .join();
-        } catch (NoSuchKeyException e) {
-            log.error("File not found: [{}]", objectName);
-            return null;
-        }
+        return handleRequest(() -> client.getObject(buildGetRequest(bucketName, objectName),
+                        AsyncResponseTransformer.toBytes())
+                .thenApply(rb -> StandardCharsets.UTF_8.decode(rb.asByteBuffer()).toString()));
     }
 
     /**
@@ -546,14 +542,19 @@ public class QueryOperations extends Operations implements OssQueryService {
     @Override
     public File getFile(String bucketName, String objectName, String localFilePath) {
         File outputFile = new File(localFilePath);
-        outputFile.getParentFile().mkdirs();
+        File parentFile = outputFile.getParentFile();
+        if (parentFile != null) {
+            parentFile.mkdirs();
+        }
         if (!Util.checkIsFile(localFilePath)) {
             outputFile.mkdirs();
             outputFile = new File(Util.formatPath(localFilePath) + Util.getFilename(objectName));
         }
         File finalFile = outputFile;
-        handleRequest(() -> client.getObject(buildGetRequest(bucketName, objectName),
-                AsyncResponseTransformer.toFile(finalFile)));
+        requireSuccessfulRequest(() -> client.getObject(buildGetRequest(bucketName, objectName),
+                        AsyncResponseTransformer.toFile(finalFile)),
+                "OBJECT_DOWNLOAD_FAILED",
+                "下载对象失败：" + normalizeObjectKey(objectName));
         return outputFile;
     }
 
@@ -982,10 +983,17 @@ public class QueryOperations extends Operations implements OssQueryService {
     private void serveRangeContent(OssPreviewContext context, String objectName,
                                    long fileSize, String rangeHeader) throws IOException {
         long[] range = parseRange(rangeHeader, fileSize);
+        if (range == null) {
+            context.setStatus(416);
+            context.setHeader("Content-Range", "bytes */" + fileSize);
+            context.setContentLengthLong(0);
+            return;
+        }
         long start = range[0], end = range[1];
         long contentLength = end - start + 1;
+        String normalizedRangeHeader = "bytes=" + start + "-" + end;
 
-        InputStream inputStream = getInputStream(ossProperties.getBucketName(), objectName, rangeHeader);
+        InputStream inputStream = getInputStream(ossProperties.getBucketName(), objectName, normalizedRangeHeader);
         if (inputStream == null) {
             context.sendNotFound();
             return;
@@ -1001,11 +1009,43 @@ public class QueryOperations extends Operations implements OssQueryService {
     }
 
     private static long[] parseRange(String rangeHeader, long fileSize) {
-        String rangeValue = rangeHeader.split("=")[1];
-        String[] parts = rangeValue.split("-");
-        long start = Long.parseLong(parts[0]);
-        long end = parts.length > 1 && !parts[1].isEmpty()
-                ? Long.parseLong(parts[1]) : fileSize - 1;
+        if (fileSize <= 0 || rangeHeader == null || !rangeHeader.startsWith("bytes=")) {
+            return null;
+        }
+        String rangeValue = rangeHeader.substring("bytes=".length()).trim();
+        int dashIndex = rangeValue.indexOf('-');
+        if (dashIndex < 0 || rangeValue.indexOf(',', dashIndex) >= 0) {
+            return null;
+        }
+        String startPart = rangeValue.substring(0, dashIndex).trim();
+        String endPart = rangeValue.substring(dashIndex + 1).trim();
+        if (startPart.isEmpty() && endPart.isEmpty()) {
+            return null;
+        }
+
+        long start;
+        long end;
+        try {
+            if (startPart.isEmpty()) {
+                long suffixLength = Long.parseLong(endPart);
+                if (suffixLength <= 0) {
+                    return null;
+                }
+                start = Math.max(0L, fileSize - suffixLength);
+                end = fileSize - 1;
+            } else {
+                start = Long.parseLong(startPart);
+                end = endPart.isEmpty() ? fileSize - 1 : Long.parseLong(endPart);
+            }
+        } catch (NumberFormatException exception) {
+            return null;
+        }
+        if (start < 0 || start >= fileSize || end < start) {
+            return null;
+        }
+        if (end >= fileSize) {
+            end = fileSize - 1;
+        }
         return new long[]{start, end};
     }
 
