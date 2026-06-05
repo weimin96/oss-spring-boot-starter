@@ -50,6 +50,10 @@
             <groupId>io.github.weimin96</groupId>
             <artifactId>oss-spring-javax-web-support</artifactId>
         </dependency>
+        <dependency>
+            <groupId>io.swagger.core.v3</groupId>
+            <artifactId>swagger-annotations</artifactId>
+        </dependency>
         <!-- Spring Boot 2 Web（provided：宿主应用必须提供） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
