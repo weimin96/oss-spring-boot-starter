@@ -3,6 +3,7 @@ package com.wiblog.oss.service;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.UnzipResult;
 import com.wiblog.oss.config.OssClientOptions;
+import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.util.Util;
 import lombok.extern.slf4j.Slf4j;
 import software.amazon.awssdk.core.async.AsyncRequestBody;
@@ -113,7 +114,7 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
             }
         } catch (IOException e) {
             log.error("Stream unzip failed for [{}]: {}", zipObjectKey, e.getMessage(), e);
-            throw new com.wiblog.oss.exception.OssException("UNZIP_ERROR",
+            throw new OssException("UNZIP_ERROR",
                     "Stream unzip failed: " + e.getMessage(), e);
         }
 
@@ -182,7 +183,7 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
             }
         } catch (IOException e) {
             log.error("Stream unzip (custom handler) failed for [{}]: {}", zipObjectKey, e.getMessage(), e);
-            throw new com.wiblog.oss.exception.OssException("UNZIP_ERROR",
+            throw new OssException("UNZIP_ERROR",
                     "Stream unzip failed: " + e.getMessage(), e);
         }
 
@@ -261,7 +262,7 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
             }
         } catch (IOException e) {
             log.error("Filtered stream unzip failed for [{}]: {}", zipObjectKey, e.getMessage(), e);
-            throw new com.wiblog.oss.exception.OssException("UNZIP_ERROR",
+            throw new OssException("UNZIP_ERROR",
                     "Stream unzip failed: " + e.getMessage(), e);
         }
 
@@ -277,14 +278,16 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
                 .bucket(bucketName)
                 .key(objectKey)
                 .build();
-        byte[] bytes = handleRequest(() ->
+        byte[] bytes = requireSuccessfulRequest(() ->
                 client.getObject(req, AsyncResponseTransformer.toBytes())
                         .thenApply(responseBytes -> {
                             ByteBuffer byteBuffer = responseBytes.asByteBuffer();
                             byte[] buffer = new byte[byteBuffer.remaining()];
                             byteBuffer.get(buffer);
                             return buffer;
-                        }));
+                        }),
+                "UNZIP_SOURCE_READ_FAILED",
+                "读取 ZIP 对象失败：" + objectKey);
         return new ByteArrayInputStream(bytes);
     }
 
@@ -312,7 +315,9 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
                 .contentType(Util.getContentType(key))
                 .contentLength((long) data.length)
                 .build();
-        handleRequest(() -> client.putObject(putReq, AsyncRequestBody.fromBytes(data)));
+        requireSuccessfulRequest(() -> client.putObject(putReq, AsyncRequestBody.fromBytes(data)),
+                "UNZIP_ENTRY_UPLOAD_FAILED",
+                "上传解压条目失败：" + key);
         log.debug("Uploaded unzipped entry: [{}/{}] ({} bytes)", bucket, key, data.length);
     }
 
