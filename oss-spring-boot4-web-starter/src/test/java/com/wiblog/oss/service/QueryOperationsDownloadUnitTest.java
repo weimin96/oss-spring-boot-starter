@@ -3,7 +3,7 @@ package com.wiblog.oss.service;
 import com.wiblog.oss.config.OssClientOptions;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import software.amazon.awssdk.core.ResponseBytes;
+import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -13,6 +13,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -115,28 +116,30 @@ class QueryOperationsDownloadUnitTest {
     }
 
     private static void stubObjectContent(S3AsyncClient client, byte[] objectBytes) {
-        ResponseBytes<GetObjectResponse> responseBytes = ResponseBytes.fromByteArray(
-                GetObjectResponse.builder().build(), objectBytes);
-        CompletableFuture<ResponseBytes<GetObjectResponse>> future = CompletableFuture.completedFuture(responseBytes);
+        ResponseInputStream<GetObjectResponse> responseInputStream = new ResponseInputStream<>(
+                GetObjectResponse.builder().build(), new ByteArrayInputStream(objectBytes));
+        CompletableFuture<ResponseInputStream<GetObjectResponse>> future =
+                CompletableFuture.completedFuture(responseInputStream);
         doReturn(future).when(client).getObject(
-                any(GetObjectRequest.class), anyObjectBytesTransformer());
+                any(GetObjectRequest.class), anyBlockingInputStreamTransformer());
     }
 
     private static void stubObjectMissing(S3AsyncClient client) {
-        CompletableFuture<ResponseBytes<GetObjectResponse>> future = new CompletableFuture<>();
+        CompletableFuture<ResponseInputStream<GetObjectResponse>> future = new CompletableFuture<>();
         future.completeExceptionally(NoSuchKeyException.builder().message("missing").build());
         doReturn(future).when(client).getObject(
-                any(GetObjectRequest.class), anyObjectBytesTransformer());
+                any(GetObjectRequest.class), anyBlockingInputStreamTransformer());
     }
 
     private static GetObjectRequest verifySingleGetObjectRequest(S3AsyncClient client) {
         org.mockito.ArgumentCaptor<GetObjectRequest> requestCaptor =
                 org.mockito.ArgumentCaptor.forClass(GetObjectRequest.class);
-        verify(client).getObject(requestCaptor.capture(), anyObjectBytesTransformer());
+        verify(client).getObject(requestCaptor.capture(), anyBlockingInputStreamTransformer());
         return requestCaptor.getValue();
     }
 
-    private static AsyncResponseTransformer<GetObjectResponse, ResponseBytes<GetObjectResponse>> anyObjectBytesTransformer() {
+    private static AsyncResponseTransformer<GetObjectResponse, ResponseInputStream<GetObjectResponse>>
+    anyBlockingInputStreamTransformer() {
         return any();
     }
 
