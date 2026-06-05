@@ -4,23 +4,103 @@ import com.wiblog.oss.bean.chunk.ChunkPartInfo;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
+import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
+import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListPartsRequest;
 import software.amazon.awssdk.services.s3.model.ListPartsResponse;
 import software.amazon.awssdk.services.s3.model.Part;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.transfer.s3.S3TransferManager;
+import software.amazon.awssdk.transfer.s3.model.FileUpload;
+import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
 
+import java.io.File;
+import java.io.IOException;
 import java.lang.reflect.Proxy;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PutOperationsTest {
+
+    @Test
+    void putObjectForKeyKeepsExtensionlessObjectKey(@TempDir Path tempDir) throws IOException {
+        File sourceFile = tempDir.resolve("README").toFile();
+        Files.write(sourceFile.toPath(), new byte[]{1});
+        final UploadFileRequest[] uploadRequest = new UploadFileRequest[1];
+        S3TransferManager transferManager = transferManager(new TransferHandler() {
+            @Override
+            public Object handle(String methodName, Object[] args) {
+                if ("uploadFile".equals(methodName)) {
+                    uploadRequest[0] = (UploadFileRequest) args[0];
+                    return fileUpload();
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        operations(s3Client(noS3Calls()), transferManager)
+                .putObjectForKey("bucket", "README", sourceFile);
+
+        assertEquals("README", uploadRequest[0].putObjectRequest().key());
+    }
+
+    @Test
+    void copyFileKeepsExtensionlessObjectKeys() {
+        final CopyObjectRequest[] copyRequest = new CopyObjectRequest[1];
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("copyObject".equals(methodName)) {
+                    copyRequest[0] = (CopyObjectRequest) args[0];
+                    return completed(CopyObjectResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        operations(client).copyFile("bucket", "bucket", "README", "LICENSE");
+
+        assertEquals("README", copyRequest[0].sourceKey());
+        assertEquals("LICENSE", copyRequest[0].destinationKey());
+    }
+
+    @Test
+    void moveKeepsExtensionlessSourceKeyWhenDeleting() {
+        final CopyObjectRequest[] copyRequest = new CopyObjectRequest[1];
+        final DeleteObjectRequest[] deleteRequest = new DeleteObjectRequest[1];
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("copyObject".equals(methodName)) {
+                    copyRequest[0] = (CopyObjectRequest) args[0];
+                    return completed(CopyObjectResponse.builder().build());
+                }
+                if ("deleteObject".equals(methodName)) {
+                    deleteRequest[0] = buildDeleteObjectRequest((Consumer<?>) args[0]);
+                    return completed(DeleteObjectResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        operations(client).move("bucket", "README", "archive");
+
+        assertEquals("README", copyRequest[0].sourceKey());
+        assertEquals("archive/README", copyRequest[0].destinationKey());
+        assertEquals("README", deleteRequest[0].key());
+    }
 
     @Test
     void createBucketFailsWhenCreateRequestFails() {
@@ -150,6 +230,20 @@ class PutOperationsTest {
         return new PutOperations(options, client, null);
     }
 
+    private static PutOperations operations(S3AsyncClient client, S3TransferManager transferManager) {
+        OssClientOptions options = new OssClientOptions("http://localhost:9000", "access-key", "secret-key", "minio", "bucket");
+        return new PutOperations(options, client, transferManager);
+    }
+
+    private static S3Handler noS3Calls() {
+        return new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                throw unsupported(methodName);
+            }
+        };
+    }
+
     private static S3AsyncClient s3Client(S3Handler handler) {
         return (S3AsyncClient) Proxy.newProxyInstance(
                 S3AsyncClient.class.getClassLoader(),
@@ -164,6 +258,38 @@ class PutOperationsTest {
                     }
                     return handler.handle(methodName, args);
                 });
+    }
+
+    private static S3TransferManager transferManager(TransferHandler handler) {
+        return (S3TransferManager) Proxy.newProxyInstance(
+                S3TransferManager.class.getClassLoader(),
+                new Class<?>[]{S3TransferManager.class},
+                (proxy, method, args) -> {
+                    String methodName = method.getName();
+                    if ("close".equals(methodName)) {
+                        return null;
+                    }
+                    return handler.handle(methodName, args);
+                });
+    }
+
+    private static FileUpload fileUpload() {
+        return (FileUpload) Proxy.newProxyInstance(
+                FileUpload.class.getClassLoader(),
+                new Class<?>[]{FileUpload.class},
+                (proxy, method, args) -> {
+                    if ("completionFuture".equals(method.getName())) {
+                        return CompletableFuture.completedFuture(null);
+                    }
+                    throw unsupported(method.getName());
+                });
+    }
+
+    @SuppressWarnings("unchecked")
+    private static DeleteObjectRequest buildDeleteObjectRequest(Consumer<?> requestConsumer) {
+        DeleteObjectRequest.Builder builder = DeleteObjectRequest.builder();
+        ((Consumer<DeleteObjectRequest.Builder>) requestConsumer).accept(builder);
+        return builder.build();
     }
 
     private static CompletableFuture<Object> completed(Object value) {
@@ -182,5 +308,9 @@ class PutOperationsTest {
 
     private interface S3Handler {
         CompletableFuture<?> handle(String methodName, Object[] args);
+    }
+
+    private interface TransferHandler {
+        Object handle(String methodName, Object[] args);
     }
 }

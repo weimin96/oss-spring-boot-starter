@@ -7,6 +7,7 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3Configuration;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.presigner.S3Presigner;
@@ -84,7 +85,7 @@ public class PresignOperations extends Operations implements OssPresignService {
     public String generateGetPresignedUrl(String bucketName, String objectName, Duration expiration) {
         GetObjectRequest getRequest = GetObjectRequest.builder()
                 .bucket(bucketName)
-                .key(Util.formatPath(objectName))
+                .key(Util.normalizeObjectKey(objectName))
                 .build();
 
         GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
@@ -141,7 +142,7 @@ public class PresignOperations extends Operations implements OssPresignService {
                                           Map<String, String> metadata) {
         PutObjectRequest.Builder putBuilder = PutObjectRequest.builder()
                 .bucket(bucketName)
-                .key(Util.formatPath(objectName))
+                .key(Util.normalizeObjectKey(objectName))
                 .contentType(contentType);
 
         if (metadata != null && !metadata.isEmpty()) {
@@ -182,9 +183,16 @@ public class PresignOperations extends Operations implements OssPresignService {
         S3Presigner.Builder builder = S3Presigner.builder()
                 .credentialsProvider(credentials)
                 .region(Region.US_EAST_1)
-                .endpointOverride(URI.create(props.getEndpoint()));
+                .endpointOverride(URI.create(props.getEndpoint()))
+                .serviceConfiguration(S3Configuration.builder()
+                        .pathStyleAccessEnabled(shouldForcePathStyle(props))
+                        .build());
 
         return builder.build();
+    }
+
+    private static boolean shouldForcePathStyle(OssClientOptions props) {
+        return "minio".equalsIgnoreCase(props.getType());
     }
 }
 

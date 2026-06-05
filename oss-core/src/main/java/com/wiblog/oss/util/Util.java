@@ -83,6 +83,26 @@ public final class Util {
     }
 
     /**
+     * 对象 key 规范化。
+     * <p>
+     * 对象存储的 key 可以没有扩展名，不能用目录规则自动补 `/`。
+     * 这里仅统一分隔符并移除前导 `/`，保留调用方给出的真实 key。
+     *
+     * @param objectKey 原始对象 key
+     * @return 规范化后的对象 key
+     */
+    public static String normalizeObjectKey(String objectKey) {
+        if (isBlank(objectKey) || "/".equals(objectKey)) {
+            return "";
+        }
+        String normalizedKey = objectKey.trim().replace('\\', '/');
+        while (normalizedKey.startsWith("/")) {
+            normalizedKey = normalizedKey.substring(1);
+        }
+        return normalizedKey;
+    }
+
+    /**
      * 获取 MIME 类型。
      * 改进：使用静态单例 Tika，原代码每次 new Tika()。
      *

@@ -134,7 +134,7 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
-        objectName = formatPath(objectName);
+        objectName = Util.normalizeObjectKey(objectName);
         // 先缓冲，获得精确长度
         byte[] data = toByteArray(stream);
         long fileSize = data.length;
@@ -207,7 +207,7 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public ObjectInfo putObjectForKey(String bucketName, String objectName, File file) {
-        objectName = formatPath(objectName);
+        objectName = Util.normalizeObjectKey(objectName);
         PutObjectRequest putReq = PutObjectRequest.builder()
                 .bucket(bucketName).key(objectName)
                 .contentType(Util.getContentType(objectName))
@@ -327,12 +327,12 @@ public class PutOperations extends Operations implements OssPutService {
     @Override
     public void copyFile(String sourceBucket, String destBucket, String sourceKey, String destKey) {
         CopyObjectRequest req = CopyObjectRequest.builder()
-                .sourceBucket(sourceBucket).sourceKey(formatPath(sourceKey))
-                .destinationBucket(destBucket).destinationKey(formatPath(destKey))
+                .sourceBucket(sourceBucket).sourceKey(Util.normalizeObjectKey(sourceKey))
+                .destinationBucket(destBucket).destinationKey(Util.normalizeObjectKey(destKey))
                 .build();
         requireSuccessfulRequest(() -> client.copyObject(req),
                 "OBJECT_COPY_FAILED",
-                "复制对象失败：" + formatPath(sourceKey));
+                "复制对象失败：" + Util.normalizeObjectKey(sourceKey));
     }
 
     /**
@@ -360,9 +360,9 @@ public class PutOperations extends Operations implements OssPutService {
         String filename = Util.getFilename(sourceObjectName);
         String destKey = Util.formatPath(destinationDirectory) + filename;
         copyFile(bucketName, bucketName, sourceObjectName, destKey);
-        requireSuccessfulRequest(() -> client.deleteObject(x -> x.bucket(bucketName).key(formatPath(sourceObjectName)).build()),
+        requireSuccessfulRequest(() -> client.deleteObject(x -> x.bucket(bucketName).key(Util.normalizeObjectKey(sourceObjectName)).build()),
                 "OBJECT_DELETE_FAILED",
-                "删除源对象失败：" + formatPath(sourceObjectName));
+                "删除源对象失败：" + Util.normalizeObjectKey(sourceObjectName));
     }
 
     // ----------------------------------------------------------------
