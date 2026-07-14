@@ -180,6 +180,20 @@ spring:
 | `oss.event.suffix`       | String  | 空字符串    | 只监听指定对象后缀                      |
 | `oss.event.reconnect-interval` | Duration | `5s` | 事件连接断开后的重连间隔                  |
 
+## 客户端行为
+
+底层使用标准 Java `S3AsyncClient`、Netty 异步 HTTP client 和 `S3TransferManager`。`oss.max-connections` 控制 HTTP
+最大并发连接数，`oss.connection-timeout` 只限制建立连接所需时间，不限制一次完整的对象操作。
+
+`oss.api-call-timeout` 是一次 API 调用包含所有重试和重试间隔的总时限；`oss.api-call-attempt-timeout` 是单次尝试的时限，必须小于
+或等于调用总时限。大对象或低带宽环境应根据实际传输时间调高这两个值。
+
+客户端默认启用 multipart。对象达到 `oss.multipart-threshold-in-mb` 后进入 multipart 处理，单个分片不小于
+`oss.part-size-in-mb`。请求校验和计算与响应校验均使用 `WHEN_REQUIRED`，避免对不要求 checksum 的 S3 兼容服务改变协议行为。
+
+Spring 容器销毁 `OssTemplate` 时会依次关闭 Presigner、Transfer Manager 和 S3 client。纯 Java 场景应在应用停止时调用
+`OssTemplate.stop()`；即使某个资源关闭失败，其余资源仍会继续释放。
+
 ## 存储类型
 
 | `oss.type` | 对象存储              | URL 拼接方式                                           |

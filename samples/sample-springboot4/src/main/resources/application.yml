@@ -15,6 +15,14 @@ oss:
   secret-key: ${OSS_SECRET_KEY:minioadmin}
   # 存储类型（minio / cos / obs 等）
   type: ${OSS_TYPE:minio}
+  # Netty HTTP 连接与 API 调用超时，时间单位为毫秒
+  max-connections: ${OSS_MAX_CONNECTIONS:50}
+  connection-timeout: ${OSS_CONNECTION_TIMEOUT:10000}
+  api-call-timeout: ${OSS_API_CALL_TIMEOUT:600000}
+  api-call-attempt-timeout: ${OSS_API_CALL_ATTEMPT_TIMEOUT:120000}
+  # 标准 Java Async Client multipart 参数，大小单位为 MB
+  multipart-threshold-in-mb: ${OSS_MULTIPART_THRESHOLD_IN_MB:10}
+  part-size-in-mb: ${OSS_PART_SIZE_IN_MB:10}
   # 启用内置 HTTP 端点（/oss/**）
   http:
     enable: true
