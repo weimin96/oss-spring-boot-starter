@@ -228,6 +228,8 @@ class PutOperationsTest extends AbstractServiceDynamicPropertyTest {
         assertThat(ossTemplate.query().checkExist(sourceKey)).isTrue();
         assertThat(ossTemplate.query().checkExist(copiedKey)).isFalse();
         assertThat(ossTemplate.query().checkExist(directory + "/moved/source.txt")).isTrue();
+        assertThat(ossTemplate.query().getContent(directory + "/moved/source.txt")).isEqualTo("copy-move");
+        assertThat(ossTemplate.query().listObjects(".oss-staging/move/")).isEmpty();
     }
 
     @Test

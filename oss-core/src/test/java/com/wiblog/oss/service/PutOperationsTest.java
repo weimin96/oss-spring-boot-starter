@@ -207,17 +207,22 @@ class PutOperationsTest {
 
     @Test
     void moveKeepsExtensionlessSourceKeyWhenDeleting() {
-        final CopyObjectRequest[] copyRequest = new CopyObjectRequest[1];
-        final DeleteObjectRequest[] deleteRequest = new DeleteObjectRequest[1];
+        List<CopyObjectRequest> copyRequests = new ArrayList<>();
+        List<HeadObjectRequest> headRequests = new ArrayList<>();
+        List<DeleteObjectRequest> deleteRequests = new ArrayList<>();
         S3AsyncClient client = s3Client(new S3Handler() {
             @Override
             public CompletableFuture<?> handle(String methodName, Object[] args) {
                 if ("copyObject".equals(methodName)) {
-                    copyRequest[0] = (CopyObjectRequest) args[0];
+                    copyRequests.add((CopyObjectRequest) args[0]);
                     return completed(CopyObjectResponse.builder().build());
                 }
+                if ("headObject".equals(methodName)) {
+                    headRequests.add((HeadObjectRequest) args[0]);
+                    return completed(headResponse(6L, "checksum"));
+                }
                 if ("deleteObject".equals(methodName)) {
-                    deleteRequest[0] = buildDeleteObjectRequest((Consumer<?>) args[0]);
+                    deleteRequests.add(buildDeleteObjectRequest((Consumer<?>) args[0]));
                     return completed(DeleteObjectResponse.builder().build());
                 }
                 throw unsupported(methodName);
@@ -226,9 +231,16 @@ class PutOperationsTest {
 
         operations(client).move("bucket", "README", "archive");
 
-        assertEquals("README", copyRequest[0].sourceKey());
-        assertEquals("archive/README", copyRequest[0].destinationKey());
-        assertEquals("README", deleteRequest[0].key());
+        assertEquals(2, copyRequests.size());
+        assertEquals("README", copyRequests.get(0).sourceKey());
+        assertEquals(true, copyRequests.get(0).destinationKey().startsWith(".oss-staging/move/"));
+        assertEquals(copyRequests.get(0).destinationKey(), copyRequests.get(1).sourceKey());
+        assertEquals("archive/README", copyRequests.get(1).destinationKey());
+        assertEquals(3, headRequests.size());
+        assertEquals(ChecksumMode.ENABLED, headRequests.get(0).checksumMode());
+        assertEquals(2, deleteRequests.size());
+        assertEquals(copyRequests.get(0).destinationKey(), deleteRequests.get(0).key());
+        assertEquals("README", deleteRequests.get(1).key());
     }
 
     @Test
@@ -278,15 +290,18 @@ class PutOperationsTest {
 
     @Test
     void moveDoesNotDeleteSourceWhenCopyFails() {
-        final boolean[] deleteRequested = new boolean[]{false};
+        List<DeleteObjectRequest> deleteRequests = new ArrayList<>();
         S3AsyncClient client = s3Client(new S3Handler() {
             @Override
             public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(headResponse(6L, null));
+                }
                 if ("copyObject".equals(methodName)) {
                     return failed(S3Exception.builder().message("missing source").build());
                 }
                 if ("deleteObject".equals(methodName)) {
-                    deleteRequested[0] = true;
+                    deleteRequests.add(buildDeleteObjectRequest((Consumer<?>) args[0]));
                     return completed(DeleteObjectResponse.builder().build());
                 }
                 throw unsupported(methodName);
@@ -294,7 +309,165 @@ class PutOperationsTest {
         });
 
         assertThrows(OssException.class, () -> operations(client).move("bucket", "source.txt", "archive"));
-        assertEquals(false, deleteRequested[0]);
+        assertEquals(1, deleteRequests.size());
+        assertEquals(true, deleteRequests.get(0).key().startsWith(".oss-staging/move/"));
+    }
+
+    @Test
+    void moveDoesNotCopyToDestinationWhenStagingChecksumDiffers() {
+        List<CopyObjectRequest> copyRequests = new ArrayList<>();
+        List<DeleteObjectRequest> deleteRequests = new ArrayList<>();
+        final int[] headCount = new int[]{0};
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    headCount[0]++;
+                    return completed(headResponse(6L,
+                            headCount[0] == 1 ? "source-checksum" : "staging-checksum"));
+                }
+                if ("copyObject".equals(methodName)) {
+                    copyRequests.add((CopyObjectRequest) args[0]);
+                    return completed(CopyObjectResponse.builder().build());
+                }
+                if ("deleteObject".equals(methodName)) {
+                    deleteRequests.add(buildDeleteObjectRequest((Consumer<?>) args[0]));
+                    return completed(DeleteObjectResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).move("bucket", "source.txt", "archive"));
+
+        assertEquals("MOVE_STAGING_INVALID", failure.getCode());
+        assertEquals(1, copyRequests.size());
+        assertEquals(1, deleteRequests.size());
+        assertEquals(copyRequests.get(0).destinationKey(), deleteRequests.get(0).key());
+    }
+
+    @Test
+    void moveKeepsSourceAndCleansStagingWhenDestinationCopyFails() {
+        List<CopyObjectRequest> copyRequests = new ArrayList<>();
+        List<DeleteObjectRequest> deleteRequests = new ArrayList<>();
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(headResponse(6L, null));
+                }
+                if ("copyObject".equals(methodName)) {
+                    copyRequests.add((CopyObjectRequest) args[0]);
+                    return copyRequests.size() == 1
+                            ? completed(CopyObjectResponse.builder().build())
+                            : failed(S3Exception.builder().message("destination unavailable").build());
+                }
+                if ("deleteObject".equals(methodName)) {
+                    deleteRequests.add(buildDeleteObjectRequest((Consumer<?>) args[0]));
+                    return completed(DeleteObjectResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        assertThrows(OssException.class, () -> operations(client).move("bucket", "source.txt", "archive"));
+
+        assertEquals(2, copyRequests.size());
+        assertEquals(1, deleteRequests.size());
+        assertEquals(copyRequests.get(0).destinationKey(), deleteRequests.get(0).key());
+    }
+
+    @Test
+    void moveKeepsSourceWhenDestinationValidationFails() {
+        List<DeleteObjectRequest> deleteRequests = new ArrayList<>();
+        final int[] headCount = new int[]{0};
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    headCount[0]++;
+                    return completed(headResponse(headCount[0] == 3 ? 5L : 6L, null));
+                }
+                if ("copyObject".equals(methodName)) {
+                    return completed(CopyObjectResponse.builder().build());
+                }
+                if ("deleteObject".equals(methodName)) {
+                    deleteRequests.add(buildDeleteObjectRequest((Consumer<?>) args[0]));
+                    return completed(DeleteObjectResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).move("bucket", "source.txt", "archive"));
+
+        assertEquals("MOVE_DESTINATION_INVALID", failure.getCode());
+        assertEquals(1, deleteRequests.size());
+        assertEquals(true, deleteRequests.get(0).key().startsWith(".oss-staging/move/"));
+    }
+
+    @Test
+    void moveDoesNotDeleteSourceWhenStagingCleanupFails() {
+        List<DeleteObjectRequest> deleteRequests = new ArrayList<>();
+        S3AsyncClient client = successfulMoveClient(deleteRequests, true, false);
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).move("bucket", "source.txt", "archive"));
+
+        assertEquals("MOVE_STAGING_DELETE_FAILED", failure.getCode());
+        assertEquals(2, deleteRequests.size());
+        assertEquals(true, deleteRequests.get(0).key().startsWith(".oss-staging/move/"));
+        assertEquals(deleteRequests.get(0).key(), deleteRequests.get(1).key());
+        assertEquals(1, failure.getSuppressed().length);
+    }
+
+    @Test
+    void moveReportsSourceDeleteFailureAfterStagingWasRemoved() {
+        List<DeleteObjectRequest> deleteRequests = new ArrayList<>();
+        S3AsyncClient client = successfulMoveClient(deleteRequests, false, true);
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).move("bucket", "source.txt", "archive"));
+
+        assertEquals("MOVE_SOURCE_DELETE_FAILED", failure.getCode());
+        assertEquals(2, deleteRequests.size());
+        assertEquals(true, deleteRequests.get(0).key().startsWith(".oss-staging/move/"));
+        assertEquals("source.txt", deleteRequests.get(1).key());
+    }
+
+    @Test
+    void moveToCurrentDirectoryIsIdempotent() {
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(headResponse(6L, null));
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        operations(client).move("bucket", "archive/source.txt", "archive");
+    }
+
+    @Test
+    void moveToCurrentDirectoryStillRequiresSourceToExist() {
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return failed(S3Exception.builder().message("missing source").build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).move("bucket", "archive/source.txt", "archive"));
+
+        assertEquals("MOVE_SOURCE_HEAD_FAILED", failure.getCode());
     }
 
     @Test
@@ -362,6 +535,38 @@ class PutOperationsTest {
     private static PutOperations operations(S3AsyncClient client, S3TransferManager transferManager) {
         OssClientOptions options = new OssClientOptions("http://localhost:9000", "access-key", "secret-key", "minio", "bucket");
         return new PutOperations(options, client, transferManager);
+    }
+
+    private static S3AsyncClient successfulMoveClient(List<DeleteObjectRequest> deleteRequests,
+                                                      boolean failStagingDelete, boolean failSourceDelete) {
+        return s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(headResponse(6L, "checksum"));
+                }
+                if ("copyObject".equals(methodName)) {
+                    return completed(CopyObjectResponse.builder().build());
+                }
+                if ("deleteObject".equals(methodName)) {
+                    DeleteObjectRequest request = buildDeleteObjectRequest((Consumer<?>) args[0]);
+                    deleteRequests.add(request);
+                    boolean stagingDelete = request.key().startsWith(".oss-staging/move/");
+                    if ((stagingDelete && failStagingDelete) || (!stagingDelete && failSourceDelete)) {
+                        return failed(S3Exception.builder().message("delete failed").build());
+                    }
+                    return completed(DeleteObjectResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+    }
+
+    private static HeadObjectResponse headResponse(long size, String checksum) {
+        return HeadObjectResponse.builder()
+                .contentLength(size)
+                .checksumSHA256(checksum)
+                .build();
     }
 
     private static S3Handler noS3Calls() {

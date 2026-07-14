@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -38,6 +39,7 @@ import java.util.stream.Collectors;
 public class PutOperations extends Operations implements OssPutService {
 
     private static final int LIST_PARTS_MAX_PARTS = 1000;
+    private static final String MOVE_STAGING_PREFIX = ".oss-staging/move/";
 
     /**
      * 创建上传操作门面。
@@ -435,7 +437,8 @@ public class PutOperations extends Operations implements OssPutService {
     /**
      * 在指定 Bucket 内移动对象到目标目录。
      *
-     * <p>对象存储不支持真正的 rename，这里通过”复制到新位置再删除旧对象”来实现移动语义。</p>
+     * <p>对象存储不支持真正的 rename。这里先复制到内部 staging key 并校验，
+     * 再复制到最终位置；只有最终对象校验成功且 staging 已清理后才删除源对象。</p>
      *
      * @param bucketName           Bucket 名称
      * @param sourceObjectName     源对象 key
@@ -443,12 +446,73 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public void move(String bucketName, String sourceObjectName, String destinationDirectory) {
+        String sourceKey = Util.normalizeObjectKey(sourceObjectName);
         String filename = Util.getFilename(sourceObjectName);
         String destKey = Util.formatPath(destinationDirectory) + filename;
-        copyFile(bucketName, bucketName, sourceObjectName, destKey);
-        requireSuccessfulRequest(() -> client.deleteObject(x -> x.bucket(bucketName).key(Util.normalizeObjectKey(sourceObjectName)).build()),
-                "OBJECT_DELETE_FAILED",
-                "删除源对象失败：" + Util.normalizeObjectKey(sourceObjectName));
+        destKey = Util.normalizeObjectKey(destKey);
+        StoredObject source = headMoveObject(bucketName, sourceKey, "MOVE_SOURCE_HEAD_FAILED", "读取源对象失败：");
+        if (sourceKey.equals(destKey)) {
+            return;
+        }
+
+        String stagingKey = MOVE_STAGING_PREFIX + UUID.randomUUID().toString();
+        boolean stagingCleanupRequired = true;
+        try {
+            copyFile(bucketName, bucketName, sourceKey, stagingKey);
+            StoredObject staging = headMoveObject(bucketName, stagingKey,
+                    "MOVE_STAGING_HEAD_FAILED", "读取 staging 对象失败：");
+            verifyMoveCopy(source, staging, "MOVE_STAGING_INVALID", "staging 对象校验失败：");
+
+            copyFile(bucketName, bucketName, stagingKey, destKey);
+            StoredObject destination = headMoveObject(bucketName, destKey,
+                    "MOVE_DESTINATION_HEAD_FAILED", "读取最终对象失败：");
+            verifyMoveCopy(source, destination, "MOVE_DESTINATION_INVALID", "最终对象校验失败：");
+
+            deleteMoveObject(bucketName, stagingKey,
+                    "MOVE_STAGING_DELETE_FAILED", "删除 staging 对象失败：");
+            stagingCleanupRequired = false;
+            deleteMoveObject(bucketName, sourceKey,
+                    "MOVE_SOURCE_DELETE_FAILED", "删除源对象失败：");
+        } catch (RuntimeException failure) {
+            if (stagingCleanupRequired) {
+                cleanupMoveStaging(bucketName, stagingKey, failure);
+            }
+            throw failure;
+        }
+    }
+
+    private StoredObject headMoveObject(String bucketName, String key, String errorCode, String messagePrefix) {
+        HeadObjectResponse response = requireSuccessfulRequest(() -> client.headObject(HeadObjectRequest.builder()
+                        .bucket(bucketName)
+                        .key(key)
+                        .checksumMode(ChecksumMode.ENABLED)
+                        .build()),
+                errorCode, messagePrefix + key);
+        return buildStoredObject(bucketName, key, response);
+    }
+
+    private void verifyMoveCopy(StoredObject source, StoredObject copied,
+                                String errorCode, String messagePrefix) {
+        boolean sizeMatches = source.size() == copied.size();
+        boolean checksumMatches = Util.isBlank(source.checksumSha256())
+                || source.checksumSha256().equals(copied.checksumSha256());
+        if (!sizeMatches || !checksumMatches) {
+            throw new OssException(errorCode, messagePrefix + copied.key());
+        }
+    }
+
+    private void deleteMoveObject(String bucketName, String key, String errorCode, String messagePrefix) {
+        requireSuccessfulRequest(() -> client.deleteObject(request -> request.bucket(bucketName).key(key).build()),
+                errorCode, messagePrefix + key);
+    }
+
+    private void cleanupMoveStaging(String bucketName, String stagingKey, RuntimeException failure) {
+        try {
+            deleteMoveObject(bucketName, stagingKey,
+                    "MOVE_STAGING_DELETE_FAILED", "删除 staging 对象失败：");
+        } catch (RuntimeException cleanupFailure) {
+            failure.addSuppressed(cleanupFailure);
+        }
     }
 
     // ----------------------------------------------------------------
