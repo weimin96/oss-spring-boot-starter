@@ -77,7 +77,7 @@ Spring Boot 3 基础 Java API 示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-starter</artifactId>
-    <version>3.1.1</version>
+    <version>3.2.0</version>
 </dependency>
 ```
 
@@ -87,7 +87,7 @@ Spring Boot 3 内置 REST 接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-web-starter</artifactId>
-    <version>3.1.1</version>
+    <version>3.2.0</version>
 </dependency>
 ```
 
@@ -97,7 +97,37 @@ Spring Boot 3 OpenAPI 注解接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-openapi-starter</artifactId>
-    <version>3.1.1</version>
+    <version>3.2.0</version>
+</dependency>
+```
+
+Spring Boot 4 基础 Java API 示例：
+
+```xml
+<dependency>
+    <groupId>io.github.weimin96</groupId>
+    <artifactId>oss-spring-boot4-starter</artifactId>
+    <version>3.2.0</version>
+</dependency>
+```
+
+Spring Boot 4 内置 REST 接口示例：
+
+```xml
+<dependency>
+    <groupId>io.github.weimin96</groupId>
+    <artifactId>oss-spring-boot4-web-starter</artifactId>
+    <version>3.2.0</version>
+</dependency>
+```
+
+Spring Boot 4 OpenAPI 注解接口示例：
+
+```xml
+<dependency>
+    <groupId>io.github.weimin96</groupId>
+    <artifactId>oss-spring-boot4-openapi-starter</artifactId>
+    <version>3.2.0</version>
 </dependency>
 ```
 
@@ -239,6 +269,50 @@ public class FileController {
     }
 }
 ```
+
+对象命令上传示例：
+
+```java
+Map<String, String> metadata = Collections.singletonMap("source", "archive-job");
+Map<String, String> tags = Collections.singletonMap("environment", "production");
+
+try (InputStream inputStream = Files.newInputStream(file)) {
+    PutObjectCommand command = new PutObjectCommand(
+            "archive-bucket",
+            "uploads/demo.bin",
+            inputStream,
+            Files.size(file),
+            "application/octet-stream",
+            metadata,
+            tags,
+            checksumSha256,
+            false
+    );
+    StoredObject storedObject = ossTemplate.put().putObject(command);
+}
+```
+
+`checksumSha256` 使用 Base64 编码的 SHA-256。未知长度流上传时将 `contentLength` 设为 `null`，客户端会根据 multipart 配置流式处理。
+`createOnly=true` 会发送 `If-None-Match: *`，其原子条件写语义取决于目标 S3 兼容服务是否支持。
+
+复制与元数据查询示例：
+
+```java
+StoredObject copied = ossTemplate.put().copyObject(new CopyObjectCommand(
+        "source-bucket",
+        "uploads/demo.bin",
+        "archive-bucket",
+        "archive/demo.bin"
+));
+
+StoredObject metadata = ossTemplate.query().headObject(
+        "archive-bucket",
+        "archive/demo.bin"
+);
+```
+
+`move()` 保持允许覆盖目标对象的兼容语义。内部使用 `.oss-staging/move/` 随机 key 完成 staging-copy-delete，校验 staging
+和最终对象后再删除源对象；如果 staging、复制、校验或清理失败，源对象会保留并显式抛出异常。
 
 查询与预签名示例：
 

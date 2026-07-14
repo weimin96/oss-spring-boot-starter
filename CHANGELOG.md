@@ -2,6 +2,33 @@
 
 本项目所有重要的变更都将记录在此文件中。
 
+## [v3.2.0] - 2026-07-14
+
+## 特性
+
+### 对象命令 API
+- 新增 Java 8 兼容的 `PutObjectCommand`、`CopyObjectCommand` 和 `StoredObject` 领域对象。
+- 新增 `putObject(PutObjectCommand)`、`copyObject(CopyObjectCommand)` 和 `headObject(bucket, key)` 接口。
+- 保留现有 `putObjectForKey()` 调用方式，并通过默认方法适配对象命令 API。
+- 上传命令支持指定 Bucket、未知长度流、content type、metadata、tags、SHA-256 checksum 和 `createOnly`。
+
+### 客户端配置
+- 将底层客户端从专用 CRT S3 客户端切换为标准 Java `S3AsyncClient`，并启用 Java multipart。
+- 将连接超时和最大并发连接数映射到 Netty 异步 HTTP 客户端。
+- 新增 API 调用总超时、单次尝试超时和 multipart 阈值配置，移除不再生效的 CRT 吞吐量配置。
+- checksum 计算与验证固定为 `WHEN_REQUIRED`，兼容不要求 checksum 的 S3 实现。
+- 关闭客户端时依次释放 Presigner、Transfer Manager 和 S3 client，单个资源关闭失败不再阻断后续资源释放。
+
+### 对象移动
+- 将对象移动调整为 staging-copy-delete 流程，最终对象校验成功且 staging 清理完成后才删除源对象。
+- staging 和最终对象校验 size，并在源对象提供 SHA-256 checksum 时同步校验 checksum。
+- 移动失败时保留源对象，staging 清理失败通过 suppressed exception 保留完整失败信息。
+
+### 测试
+- 补充多 Bucket、未知长度流、metadata、tags、checksum、并发同 key、`HeadObject` 和自动 multipart 的 MinIO 集成测试。
+- 增加显式启用的 1 GB 以上 multipart 慢速测试。
+- 补充 staging-copy-delete 成功、校验失败、复制失败和清理失败路径测试。
+
 ## [v3.1.2] - 2026-06-05
 
 ## 修复
@@ -18,13 +45,6 @@
 
 ### 模块边界
 - 修复普通 Web Starter 传递 Swagger 注解依赖的问题。
-
-### 客户端配置
-- 将底层客户端从专用 CRT S3 客户端切换为标准 Java `S3AsyncClient`，并启用 Java multipart。
-- 修复 `oss.connection-timeout` 和 `oss.max-connections` 未映射到底层 HTTP 客户端的问题。
-- 新增 API 调用总超时、单次尝试超时和 multipart 阈值配置，移除不再生效的 CRT 吞吐量配置。
-- checksum 计算与验证固定为 `WHEN_REQUIRED`，兼容不要求 checksum 的 S3 实现。
-- 关闭客户端时依次释放 Presigner、Transfer Manager 和 S3 client，单个资源关闭失败不再阻断后续资源释放。
 
 ## [v3.1.1] - 2026-06-04
 
