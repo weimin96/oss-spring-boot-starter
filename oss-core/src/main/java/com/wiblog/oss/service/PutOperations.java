@@ -1,6 +1,9 @@
 package com.wiblog.oss.service;
 
+import com.wiblog.oss.bean.CopyObjectCommand;
 import com.wiblog.oss.bean.ObjectInfo;
+import com.wiblog.oss.bean.PutObjectCommand;
+import com.wiblog.oss.bean.StoredObject;
 import com.wiblog.oss.bean.chunk.*;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
@@ -11,6 +14,7 @@ import software.amazon.awssdk.core.async.BlockingInputStreamAsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
+import software.amazon.awssdk.transfer.s3.model.CompletedUpload;
 import software.amazon.awssdk.transfer.s3.model.Upload;
 import software.amazon.awssdk.transfer.s3.model.UploadDirectoryRequest;
 import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
@@ -131,26 +135,78 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public ObjectInfo putObjectForKey(String bucketName, String objectName, InputStream stream) {
-        objectName = Util.normalizeObjectKey(objectName);
-        BlockingInputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingInputStream(null);
-        PutObjectRequest putReq = PutObjectRequest.builder()
-                .bucket(bucketName).key(objectName)
-                .contentType(Util.getContentType(objectName))
-                .build();
-        UploadRequest uploadReq = UploadRequest.builder()
-                .requestBody(body).putObjectRequest(putReq).build();
+        String objectKey = Util.normalizeObjectKey(objectName);
+        StoredObject storedObject = putObject(new PutObjectCommand(
+                bucketName, objectKey, stream, null, Util.getContentType(objectKey),
+                null, null, null, false));
+        return buildObjectInfo(storedObject.key(), new Date(), storedObject.size());
+    }
 
-        long fileSize;
-        try {
-            Upload upload = transferManager.upload(uploadReq);
-            fileSize = body.writeInputStream(stream);
-            upload.completionFuture().join();
-        } catch (RuntimeException e) {
-            body.cancel();
-            throw OssException.uploadFailed(objectName, e);
+    @Override
+    public StoredObject putObject(PutObjectCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("上传命令不能为空");
+        }
+        if (Util.isBlank(command.key())) {
+            throw new IllegalArgumentException("对象 key 不能为空");
+        }
+        if (command.input() == null) {
+            throw new IllegalArgumentException("对象输入流不能为空");
+        }
+        if (command.contentLength() != null && command.contentLength() < 0) {
+            throw new IllegalArgumentException("对象内容长度不能为负数");
         }
 
-        return buildObjectInfo(objectName, new Date(), fileSize);
+        String bucket = Util.isBlank(command.bucket()) ? ossProperties.getBucketName() : command.bucket();
+        String key = Util.normalizeObjectKey(command.key());
+        BlockingInputStreamAsyncRequestBody body = AsyncRequestBody.forBlockingInputStream(command.contentLength());
+        PutObjectRequest.Builder requestBuilder = PutObjectRequest.builder()
+                .bucket(bucket)
+                .key(key)
+                .contentType(Util.isBlank(command.contentType()) ? Util.getContentType(key) : command.contentType());
+        if (command.contentLength() != null) {
+            requestBuilder.contentLength(command.contentLength());
+        }
+        if (command.metadata() != null && !command.metadata().isEmpty()) {
+            requestBuilder.metadata(command.metadata());
+        }
+        if (command.tags() != null && !command.tags().isEmpty()) {
+            List<Tag> tags = command.tags().entrySet().stream()
+                    .map(entry -> Tag.builder().key(entry.getKey()).value(entry.getValue()).build())
+                    .collect(Collectors.toList());
+            requestBuilder.tagging(Tagging.builder().tagSet(tags).build());
+        }
+        if (!Util.isBlank(command.checksumSha256())) {
+            requestBuilder.checksumSHA256(command.checksumSha256());
+        }
+        if (command.createOnly()) {
+            requestBuilder.ifNoneMatch("*");
+        }
+        UploadRequest uploadReq = UploadRequest.builder()
+                .requestBody(body)
+                .putObjectRequest(requestBuilder.build())
+                .build();
+
+        long fileSize;
+        PutObjectResponse response;
+        try {
+            Upload upload = transferManager.upload(uploadReq);
+            fileSize = body.writeInputStream(command.input());
+            CompletedUpload completedUpload = upload.completionFuture().join();
+            if (completedUpload == null || completedUpload.response() == null) {
+                throw new OssException("OBJECT_UPLOAD_FAILED", "上传响应为空：" + key);
+            }
+            response = completedUpload.response();
+        } catch (RuntimeException e) {
+            body.cancel();
+            if (e instanceof OssException) {
+                throw e;
+            }
+            throw OssException.uploadFailed(key, e);
+        }
+
+        return new StoredObject(bucket, key, fileSize, response.eTag(),
+                response.versionId(), response.checksumSHA256());
     }
 
     // ----------------------------------------------------------------
@@ -332,6 +388,37 @@ public class PutOperations extends Operations implements OssPutService {
         requireSuccessfulRequest(() -> client.copyObject(req),
                 "OBJECT_COPY_FAILED",
                 "复制对象失败：" + Util.normalizeObjectKey(sourceKey));
+    }
+
+    @Override
+    public StoredObject copyObject(CopyObjectCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("复制命令不能为空");
+        }
+        if (Util.isBlank(command.sourceKey()) || Util.isBlank(command.destinationKey())) {
+            throw new IllegalArgumentException("源对象 key 和目标对象 key 不能为空");
+        }
+        String sourceBucket = Util.isBlank(command.sourceBucket())
+                ? ossProperties.getBucketName() : command.sourceBucket();
+        String destinationBucket = Util.isBlank(command.destinationBucket())
+                ? ossProperties.getBucketName() : command.destinationBucket();
+        String sourceKey = Util.normalizeObjectKey(command.sourceKey());
+        String destinationKey = Util.normalizeObjectKey(command.destinationKey());
+        CopyObjectRequest request = CopyObjectRequest.builder()
+                .sourceBucket(sourceBucket)
+                .sourceKey(sourceKey)
+                .destinationBucket(destinationBucket)
+                .destinationKey(destinationKey)
+                .build();
+        requireSuccessfulRequest(() -> client.copyObject(request),
+                "OBJECT_COPY_FAILED", "复制对象失败：" + sourceKey);
+        HeadObjectResponse response = requireSuccessfulRequest(() -> client.headObject(HeadObjectRequest.builder()
+                        .bucket(destinationBucket)
+                        .key(destinationKey)
+                        .checksumMode(ChecksumMode.ENABLED)
+                        .build()),
+                "OBJECT_HEAD_FAILED", "读取复制结果失败：" + destinationKey);
+        return buildStoredObject(destinationBucket, destinationKey, response);
     }
 
     /**

@@ -2,6 +2,7 @@ package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
+import com.wiblog.oss.bean.StoredObject;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.service.strategy.DomainStrategy;
@@ -176,6 +177,14 @@ public abstract class Operations {
                 .uploadTime(Date.from(object.lastModified()))
                 .size(object.contentLength())
                 .ext(Util.getExtension(key)).build();
+    }
+
+    protected StoredObject buildStoredObject(String bucket, String key, HeadObjectResponse object) {
+        if (object == null || object.contentLength() == null) {
+            throw new OssException("INVALID_HEAD_RESPONSE", "对象元数据缺少内容长度：" + key);
+        }
+        return new StoredObject(bucket, key, object.contentLength(), object.eTag(),
+                object.versionId(), object.checksumSHA256());
     }
 
     /**

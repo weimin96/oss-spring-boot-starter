@@ -2,6 +2,7 @@ package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.bean.ObjectInfo;
+import com.wiblog.oss.bean.StoredObject;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import org.junit.jupiter.api.Test;
@@ -9,6 +10,7 @@ import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
+import software.amazon.awssdk.services.s3.model.ChecksumMode;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
@@ -34,6 +36,33 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class QueryOperationsTest {
+
+    @Test
+    void headObjectReturnsStableStorageMetadata() {
+        List<HeadObjectRequest> requests = new ArrayList<>();
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    requests.add((HeadObjectRequest) args[0]);
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(42L)
+                            .eTag("etag-1")
+                            .versionId("version-1")
+                            .checksumSHA256("checksum-1")
+                            .build());
+                }
+                throw unsupported(methodName);
+            }
+        }));
+
+        StoredObject result = operations.headObject("bucket", "/docs/readme.txt");
+
+        assertEquals("docs/readme.txt", requests.get(0).key());
+        assertEquals(ChecksumMode.ENABLED, requests.get(0).checksumMode());
+        assertEquals(new StoredObject("bucket", "docs/readme.txt", 42L,
+                "etag-1", "version-1", "checksum-1"), result);
+    }
 
     @Test
     void lazyListCapsMaxKeysAtS3Limit() {

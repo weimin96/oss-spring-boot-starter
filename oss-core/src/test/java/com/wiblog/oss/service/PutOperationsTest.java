@@ -1,5 +1,8 @@
 package com.wiblog.oss.service;
 
+import com.wiblog.oss.bean.CopyObjectCommand;
+import com.wiblog.oss.bean.PutObjectCommand;
+import com.wiblog.oss.bean.StoredObject;
 import com.wiblog.oss.bean.chunk.ChunkPartInfo;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
@@ -8,14 +11,19 @@ import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
+import software.amazon.awssdk.services.s3.model.ChecksumMode;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
+import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
+import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListPartsRequest;
 import software.amazon.awssdk.services.s3.model.ListPartsResponse;
 import software.amazon.awssdk.services.s3.model.Part;
+import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
+import software.amazon.awssdk.transfer.s3.model.CompletedUpload;
 import software.amazon.awssdk.transfer.s3.model.Upload;
 import software.amazon.awssdk.transfer.s3.model.UploadFileRequest;
 import software.amazon.awssdk.transfer.s3.model.UploadRequest;
@@ -24,6 +32,7 @@ import org.reactivestreams.Subscription;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.lang.reflect.Proxy;
@@ -31,7 +40,10 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Consumer;
 
@@ -40,6 +52,16 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class PutOperationsTest {
+
+    @Test
+    void putObjectForKeyInputStreamMethodsRemainDefaultInterfaceAdapters() throws NoSuchMethodException {
+        assertEquals(true, OssPutService.class
+                .getMethod("putObjectForKey", String.class, InputStream.class)
+                .isDefault());
+        assertEquals(true, OssPutService.class
+                .getMethod("putObjectForKey", String.class, String.class, InputStream.class)
+                .isDefault());
+    }
 
     @Test
     void putObjectForKeyKeepsExtensionlessObjectKey(@TempDir Path tempDir) throws IOException {
@@ -85,6 +107,82 @@ class PutOperationsTest {
         assertEquals("large-object", uploadRequest[0].putObjectRequest().key());
         assertEquals(false, uploadRequest[0].requestBody().contentLength().isPresent());
         assertEquals(4, uploadedBytes.size());
+    }
+
+    @Test
+    void putObjectMapsCommandAndReturnsStorageResult() {
+        final UploadRequest[] uploadRequest = new UploadRequest[1];
+        final ByteArrayOutputStream uploadedBytes = new ByteArrayOutputStream();
+        PutObjectResponse response = PutObjectResponse.builder()
+                .eTag("etag-1")
+                .versionId("version-1")
+                .checksumSHA256("server-checksum")
+                .build();
+        S3TransferManager transferManager = transferManager(new TransferHandler() {
+            @Override
+            public Object handle(String methodName, Object[] args) {
+                if ("upload".equals(methodName)) {
+                    uploadRequest[0] = (UploadRequest) args[0];
+                    return upload(consumeRequestBody(uploadRequest[0], uploadedBytes), response);
+                }
+                throw unsupported(methodName);
+            }
+        });
+        Map<String, String> tags = new LinkedHashMap<>();
+        tags.put("environment", "dev");
+
+        StoredObject result = operations(s3Client(noS3Calls()), transferManager).putObject(new PutObjectCommand(
+                "archive", "/docs/readme.txt", new ByteArrayInputStream(new byte[]{1, 2, 3}), 3L,
+                "text/plain", Collections.singletonMap("owner", "team"), tags,
+                "client-checksum", true));
+
+        assertEquals("archive", uploadRequest[0].putObjectRequest().bucket());
+        assertEquals("docs/readme.txt", uploadRequest[0].putObjectRequest().key());
+        assertEquals(3L, uploadRequest[0].putObjectRequest().contentLength());
+        assertEquals("text/plain", uploadRequest[0].putObjectRequest().contentType());
+        assertEquals("team", uploadRequest[0].putObjectRequest().metadata().get("owner"));
+        assertEquals("environment=dev", uploadRequest[0].putObjectRequest().tagging());
+        assertEquals("client-checksum", uploadRequest[0].putObjectRequest().checksumSHA256());
+        assertEquals("*", uploadRequest[0].putObjectRequest().ifNoneMatch());
+        assertEquals(3, uploadedBytes.size());
+        assertEquals(new StoredObject("archive", "docs/readme.txt", 3L,
+                "etag-1", "version-1", "server-checksum"), result);
+    }
+
+    @Test
+    void copyObjectReturnsHeadMetadataForDestination() {
+        final CopyObjectRequest[] copyRequest = new CopyObjectRequest[1];
+        final HeadObjectRequest[] headRequest = new HeadObjectRequest[1];
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("copyObject".equals(methodName)) {
+                    copyRequest[0] = (CopyObjectRequest) args[0];
+                    return completed(CopyObjectResponse.builder().build());
+                }
+                if ("headObject".equals(methodName)) {
+                    headRequest[0] = (HeadObjectRequest) args[0];
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(12L)
+                            .eTag("etag-copy")
+                            .versionId("version-copy")
+                            .checksumSHA256("checksum-copy")
+                            .build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        StoredObject result = operations(client).copyObject(
+                new CopyObjectCommand("source", "/a.txt", "destination", "/b.txt"));
+
+        assertEquals("a.txt", copyRequest[0].sourceKey());
+        assertEquals("b.txt", copyRequest[0].destinationKey());
+        assertEquals("destination", headRequest[0].bucket());
+        assertEquals("b.txt", headRequest[0].key());
+        assertEquals(ChecksumMode.ENABLED, headRequest[0].checksumMode());
+        assertEquals(new StoredObject("destination", "b.txt", 12L,
+                "etag-copy", "version-copy", "checksum-copy"), result);
     }
 
     @Test
@@ -317,12 +415,16 @@ class PutOperationsTest {
     }
 
     private static Upload upload(CompletableFuture<Void> consumed) {
+        return upload(consumed, PutObjectResponse.builder().build());
+    }
+
+    private static Upload upload(CompletableFuture<Void> consumed, PutObjectResponse response) {
         return (Upload) Proxy.newProxyInstance(
                 Upload.class.getClassLoader(),
                 new Class<?>[]{Upload.class},
                 (proxy, method, args) -> {
                     if ("completionFuture".equals(method.getName())) {
-                        return consumed.thenApply(ignored -> null);
+                        return consumed.thenApply(ignored -> CompletedUpload.builder().response(response).build());
                     }
                     throw unsupported(method.getName());
                 });

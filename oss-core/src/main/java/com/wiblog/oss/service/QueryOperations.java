@@ -4,6 +4,7 @@ import com.wiblog.oss.bean.BucketInfo;
 import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
+import com.wiblog.oss.bean.StoredObject;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import com.wiblog.oss.util.Util;
@@ -441,6 +442,24 @@ public class QueryOperations extends Operations implements OssQueryService {
                 .bucket(bucketName).key(objectKey).build();
         HeadObjectResponse response = handleRequest(() -> client.headObject(req));
         return buildObjectInfo(objectKey, response);
+    }
+
+    @Override
+    public StoredObject headObject(String bucket, String key) {
+        if (Util.isBlank(bucket)) {
+            throw new IllegalArgumentException("Bucket 名称不能为空");
+        }
+        if (Util.isBlank(key)) {
+            throw new IllegalArgumentException("对象 key 不能为空");
+        }
+        String objectKey = normalizeObjectKey(key);
+        HeadObjectResponse response = requireSuccessfulRequest(() -> client.headObject(HeadObjectRequest.builder()
+                        .bucket(bucket)
+                        .key(objectKey)
+                        .checksumMode(ChecksumMode.ENABLED)
+                        .build()),
+                "OBJECT_HEAD_FAILED", "读取对象元数据失败：" + objectKey);
+        return buildStoredObject(bucket, objectKey, response);
     }
 
     // ----------------------------------------------------------------

@@ -4,6 +4,7 @@ import com.wiblog.oss.bean.BucketInfo;
 import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
+import com.wiblog.oss.bean.StoredObject;
 
 import java.io.File;
 import java.io.IOException;
@@ -52,6 +53,8 @@ public interface OssQueryService {
     ObjectInfo getObjectInfo(String objectName);
 
     ObjectInfo getObjectInfo(String bucketName, String objectName);
+
+    StoredObject headObject(String bucket, String key);
 
     String getContent(String objectName);
 
