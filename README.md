@@ -128,7 +128,9 @@ oss:
   type: minio
   max-connections: 50
   connection-timeout: 10000
-  throughput-in-gbps: 20.0
+  api-call-timeout: 600000
+  api-call-attempt-timeout: 120000
+  multipart-threshold-in-mb: 10
   part-size-in-mb: 10
   http:
     enable: true
@@ -165,8 +167,10 @@ spring:
 | `oss.type`               | String  | 无       | 存储类型，常用值为 `minio`、`cos`、`obs`   |
 | `oss.max-connections`    | int     | `50`    | 最大连接数配置项                        |
 | `oss.connection-timeout` | long    | `10000` | 连接超时时间，单位毫秒                     |
-| `oss.throughput-in-gbps` | double  | `20.0`  | AWS CRT S3 客户端目标吞吐量             |
-| `oss.part-size-in-mb`    | int     | `10`    | 分片大小，最小值为 5 MB                  |
+| `oss.api-call-timeout` | long | `600000` | 单次 API 调用总超时时间，单位毫秒 |
+| `oss.api-call-attempt-timeout` | long | `120000` | 单次 API 尝试超时时间，单位毫秒，不能超过调用总超时 |
+| `oss.multipart-threshold-in-mb` | int | `10` | 启用 multipart 的对象大小阈值，最小值为 5 MB |
+| `oss.part-size-in-mb`    | int     | `10`    | multipart 最小分片大小，最小值为 5 MB                  |
 | `oss.http.enable`        | boolean | `false` | 是否注册内置 REST 接口                  |
 | `oss.http.prefix`        | String  | 空字符串    | REST 接口路径前缀                     |
 | `oss.event.enable`       | boolean | `false` | 是否启用 MinIO 对象事件监听              |

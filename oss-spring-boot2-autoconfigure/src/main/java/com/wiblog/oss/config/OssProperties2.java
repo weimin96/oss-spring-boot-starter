@@ -7,6 +7,7 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.validation.annotation.Validated;
 
 import javax.validation.Valid;
+import javax.validation.constraints.AssertTrue;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import java.time.Duration;
@@ -48,10 +49,17 @@ public class OssProperties2 {
     @Min(value = 1, message = "oss.max-connections 最小为 1")
     private int maxConnections = 50;
 
-    @Min(value = 0, message = "oss.connection-timeout 不能为负数")
+    @Min(value = 1, message = "oss.connection-timeout 最小为 1ms")
     private long connectionTimeout = 10_000;
 
-    private double throughputInGbps = 20.0;
+    @Min(value = 1, message = "oss.api-call-timeout 最小为 1ms")
+    private long apiCallTimeout = 600_000;
+
+    @Min(value = 1, message = "oss.api-call-attempt-timeout 最小为 1ms")
+    private long apiCallAttemptTimeout = 120_000;
+
+    @Min(value = 5, message = "oss.multipart-threshold-in-mb 最小为 5MB")
+    private int multipartThresholdInMb = 10;
 
     @Min(value = 5, message = "oss.part-size-in-mb 最小为 5MB")
     private int partSizeInMb = 10;
@@ -78,7 +86,9 @@ public class OssProperties2 {
         options.setType(type);
         options.setMaxConnections(maxConnections);
         options.setConnectionTimeout(connectionTimeout);
-        options.setThroughputInGbps(throughputInGbps);
+        options.setApiCallTimeout(apiCallTimeout);
+        options.setApiCallAttemptTimeout(apiCallAttemptTimeout);
+        options.setMultipartThresholdInMb(multipartThresholdInMb);
         options.setPartSizeInMb(partSizeInMb);
 
         Http httpOptions = new Http();
@@ -95,6 +105,11 @@ public class OssProperties2 {
         eventOptions.setReconnectInterval(event.getReconnectInterval());
         options.setEvent(eventOptions);
         return options;
+    }
+
+    @AssertTrue(message = "oss.api-call-attempt-timeout 不能大于 oss.api-call-timeout")
+    public boolean isApiCallAttemptTimeoutValid() {
+        return apiCallAttemptTimeout <= apiCallTimeout;
     }
 
     /**

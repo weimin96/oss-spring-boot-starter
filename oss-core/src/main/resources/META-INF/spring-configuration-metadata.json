@@ -64,7 +64,7 @@
       "type": "java.lang.Integer",
       "sourceType": "com.wiblog.oss.config.OssClientOptions",
       "defaultValue": 50,
-      "description": "最大连接数，最小为 1。该值作为客户端连接容量配置保留，便于后续统一接入底层连接池参数。"
+      "description": "Netty 异步 HTTP 客户端最大并发连接数，最小为 1。"
     },
     {
       "name": "oss.connection-timeout",
@@ -74,18 +74,32 @@
       "description": "连接超时时间，单位为毫秒，不能为负数。"
     },
     {
-      "name": "oss.throughput-in-gbps",
-      "type": "java.lang.Double",
+      "name": "oss.api-call-timeout",
+      "type": "java.lang.Long",
       "sourceType": "com.wiblog.oss.config.OssClientOptions",
-      "defaultValue": 20.0,
-      "description": "S3 CRT 异步客户端目标吞吐量，单位为 Gbps。"
+      "defaultValue": 600000,
+      "description": "单次 API 调用的总超时时间，单位为毫秒，包含重试和重试间隔。"
+    },
+    {
+      "name": "oss.api-call-attempt-timeout",
+      "type": "java.lang.Long",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "defaultValue": 120000,
+      "description": "单次 API 尝试的超时时间，单位为毫秒，必须小于等于 API 调用总超时。"
+    },
+    {
+      "name": "oss.multipart-threshold-in-mb",
+      "type": "java.lang.Integer",
+      "sourceType": "com.wiblog.oss.config.OssClientOptions",
+      "defaultValue": 10,
+      "description": "标准 Java S3 异步客户端启用 multipart 的对象大小阈值，单位为 MB，最小为 5。"
     },
     {
       "name": "oss.part-size-in-mb",
       "type": "java.lang.Integer",
       "sourceType": "com.wiblog.oss.config.OssClientOptions",
       "defaultValue": 10,
-      "description": "S3 Transfer Manager 分片上传最小分片大小，单位为 MB，最小为 5。"
+      "description": "标准 Java S3 异步客户端 multipart 最小分片大小，单位为 MB，最小为 5。"
     },
     {
       "name": "oss.http.enable",

@@ -8,12 +8,16 @@ import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.core.checksums.RequestChecksumCalculation;
 import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
+import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
+import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.services.s3.multipart.MultipartConfiguration;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 
 import java.net.URI;
+import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 
 /**
@@ -61,16 +65,42 @@ public class OssTemplate {
      * 部分组件仍引用旧客户端的竞态状态。</p>
      */
     public synchronized void start() {
-        this.client = buildClient();
-        this.transferManager = S3TransferManager.builder().s3Client(this.client).build();
-        ensureBucketExists();
-        this.putOperations = new PutOperations(ossProperties, client, transferManager);
-        this.queryOperations = new QueryOperations(ossProperties, client, transferManager);
-        this.deleteOperations = new DeleteOperations(ossProperties, client, transferManager);
-        this.streamUnzipOperations = new StreamUnzipOperations(ossProperties, client, transferManager);
-        this.presignOperations = new PresignOperations(ossProperties, client, transferManager);
-        this.taggingOperations = new TaggingOperations(ossProperties, client, transferManager);
-        this.bucketOperations = new BucketOperations(ossProperties, client, transferManager);
+        if (this.client != null || this.transferManager != null || this.presignOperations != null) {
+            stop();
+        }
+
+        S3AsyncClient newClient = buildClient(ossProperties);
+        S3TransferManager newTransferManager = null;
+        PresignOperations newPresignOperations = null;
+        try {
+            newTransferManager = S3TransferManager.builder().s3Client(newClient).build();
+            ensureBucketExists(newClient);
+            PutOperations newPutOperations = new PutOperations(ossProperties, newClient, newTransferManager);
+            QueryOperations newQueryOperations = new QueryOperations(ossProperties, newClient, newTransferManager);
+            DeleteOperations newDeleteOperations = new DeleteOperations(ossProperties, newClient, newTransferManager);
+            StreamUnzipOperations newStreamUnzipOperations =
+                    new StreamUnzipOperations(ossProperties, newClient, newTransferManager);
+            newPresignOperations = new PresignOperations(ossProperties, newClient, newTransferManager);
+            TaggingOperations newTaggingOperations = new TaggingOperations(ossProperties, newClient, newTransferManager);
+            BucketOperations newBucketOperations = new BucketOperations(ossProperties, newClient, newTransferManager);
+
+            this.client = newClient;
+            this.transferManager = newTransferManager;
+            this.putOperations = newPutOperations;
+            this.queryOperations = newQueryOperations;
+            this.deleteOperations = newDeleteOperations;
+            this.streamUnzipOperations = newStreamUnzipOperations;
+            this.presignOperations = newPresignOperations;
+            this.taggingOperations = newTaggingOperations;
+            this.bucketOperations = newBucketOperations;
+        } catch (RuntimeException exception) {
+            try {
+                closeAll(newPresignOperations, newTransferManager, newClient);
+            } catch (RuntimeException closeException) {
+                exception.addSuppressed(closeException);
+            }
+            throw exception;
+        }
         log.info("OSS initialized - endpoint={}, bucket={}, type={}",
                 ossProperties.getEndpoint(), ossProperties.getBucketName(), ossProperties.getType());
     }
@@ -82,19 +112,44 @@ public class OssTemplate {
      * 是为了先释放上层依赖，再释放底层连接资源，避免后续清理过程访问到已关闭的客户端。</p>
      */
     public synchronized void stop() {
-        if (this.presignOperations != null) {
-            this.presignOperations.close();
-            this.presignOperations = null;
-        }
-        if (this.transferManager != null) {
-            this.transferManager.close();
-            this.transferManager = null;
-        }
-        if (this.client != null) {
-            this.client.close();
-            this.client = null;
-        }
+        PresignOperations currentPresignOperations = this.presignOperations;
+        S3TransferManager currentTransferManager = this.transferManager;
+        S3AsyncClient currentClient = this.client;
+        this.presignOperations = null;
+        this.transferManager = null;
+        this.client = null;
+        this.putOperations = null;
+        this.queryOperations = null;
+        this.deleteOperations = null;
+        this.streamUnzipOperations = null;
+        this.taggingOperations = null;
+        this.bucketOperations = null;
+        closeAll(currentPresignOperations, currentTransferManager, currentClient);
         log.info("OSS client closed");
+    }
+
+    static void closeAll(AutoCloseable... resources) {
+        RuntimeException firstFailure = null;
+        for (AutoCloseable resource : resources) {
+            if (resource == null) {
+                continue;
+            }
+            try {
+                resource.close();
+            } catch (Exception exception) {
+                RuntimeException failure = exception instanceof RuntimeException
+                        ? (RuntimeException) exception
+                        : new OssException("OSS_CLOSE_FAILED", "关闭 OSS 资源失败", exception);
+                if (firstFailure == null) {
+                    firstFailure = failure;
+                } else {
+                    firstFailure.addSuppressed(failure);
+                }
+            }
+        }
+        if (firstFailure != null) {
+            throw firstFailure;
+        }
     }
 
     // ----------------------------------------------------------------
@@ -181,25 +236,53 @@ public class OssTemplate {
     // 私有：构建客户端
     // ----------------------------------------------------------------
 
-    private S3AsyncClient buildClient() {
+    static S3AsyncClient buildClient(OssClientOptions ossProperties) {
+        validateClientOptions(ossProperties);
         StaticCredentialsProvider credentials = StaticCredentialsProvider.create(
                 AwsBasicCredentials.create(ossProperties.getAccessKey(), ossProperties.getSecretKey()));
+        long partSizeInBytes = (long) ossProperties.getPartSizeInMb() * 1024 * 1024;
+        long multipartThresholdInBytes = (long) ossProperties.getMultipartThresholdInMb() * 1024 * 1024;
 
-        return S3AsyncClient.crtBuilder()
+        return S3AsyncClient.builder()
                 .credentialsProvider(credentials)
                 .endpointOverride(URI.create(ossProperties.getEndpoint()))
                 .region(Region.US_EAST_1)
-                // MinIO 需要显式使用 Path-Style，避免被解析为 bucket.localhost 一类的地址。
-                .forcePathStyle(shouldForcePathStyle())
-                .targetThroughputInGbps(ossProperties.getThroughputInGbps())
-                .minimumPartSizeInBytes((long) ossProperties.getPartSizeInMb() * 1024 * 1024)
-                // 仅在协议明确要求时启用校验，避免旧开关废弃后改变 MinIO 等兼容实现的交互行为。
+                .forcePathStyle(shouldForcePathStyle(ossProperties))
+                .httpClientBuilder(NettyNioAsyncHttpClient.builder()
+                        .connectionTimeout(Duration.ofMillis(ossProperties.getConnectionTimeout()))
+                        .maxConcurrency(ossProperties.getMaxConnections()))
+                .overrideConfiguration(ClientOverrideConfiguration.builder()
+                        .apiCallTimeout(Duration.ofMillis(ossProperties.getApiCallTimeout()))
+                        .apiCallAttemptTimeout(Duration.ofMillis(ossProperties.getApiCallAttemptTimeout()))
+                        .build())
+                .multipartEnabled(true)
+                .multipartConfiguration(MultipartConfiguration.builder()
+                        .thresholdInBytes(multipartThresholdInBytes)
+                        .minimumPartSizeInBytes(partSizeInBytes)
+                        .build())
                 .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
                 .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
                 .build();
     }
 
-    private void ensureBucketExists() {
+    private static void validateClientOptions(OssClientOptions ossProperties) {
+        if (ossProperties.getConnectionTimeout() <= 0) {
+            throw new IllegalArgumentException("connectionTimeout 必须大于 0");
+        }
+        if (ossProperties.getMaxConnections() <= 0) {
+            throw new IllegalArgumentException("maxConnections 必须大于 0");
+        }
+        if (ossProperties.getApiCallAttemptTimeout() <= 0
+                || ossProperties.getApiCallTimeout() <= 0
+                || ossProperties.getApiCallAttemptTimeout() > ossProperties.getApiCallTimeout()) {
+            throw new IllegalArgumentException("API attempt timeout 必须大于 0 且不能超过 API call timeout");
+        }
+        if (ossProperties.getMultipartThresholdInMb() < 5 || ossProperties.getPartSizeInMb() < 5) {
+            throw new IllegalArgumentException("multipart threshold 和 part size 不能小于 5MB");
+        }
+    }
+
+    private void ensureBucketExists(S3AsyncClient s3Client) {
         String bucketName = ossProperties.getBucketName();
         if (Util.isBlank(bucketName)) {
             return;
@@ -207,14 +290,14 @@ public class OssTemplate {
 
         HeadBucketRequest headRequest = HeadBucketRequest.builder().bucket(bucketName).build();
         try {
-            CompletableFuture<HeadBucketResponse> future = this.client.headBucket(headRequest);
+            CompletableFuture<HeadBucketResponse> future = s3Client.headBucket(headRequest);
             future.join();
         } catch (Exception exception) {
             Throwable cause = exception.getCause() != null ? exception.getCause() : exception;
             if (isBucketMissing(cause)) {
                 if (ossProperties.isAutoCreateBucket()) {
                     log.info("Bucket [{}] not found, creating automatically...", bucketName);
-                    this.client.createBucket(CreateBucketRequest.builder().bucket(bucketName).build()).join();
+                    s3Client.createBucket(CreateBucketRequest.builder().bucket(bucketName).build()).join();
                 } else {
                     throw OssException.bucketNotFound(bucketName);
                 }
@@ -228,7 +311,7 @@ public class OssTemplate {
     /**
      * MinIO 与本地 S3 兼容服务通常要求 Path-Style，否则 SDK 会把 bucket 拼到主机名里。
      */
-    private boolean shouldForcePathStyle() {
+    private static boolean shouldForcePathStyle(OssClientOptions ossProperties) {
         return "minio".equalsIgnoreCase(ossProperties.getType());
     }
 

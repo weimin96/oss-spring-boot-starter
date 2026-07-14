@@ -75,7 +75,6 @@
 
         <!-- AWS SDK -->
         <aws.java.sdk.version>2.42.34</aws.java.sdk.version>
-        <aws-crt.version>0.45.0</aws-crt.version>
         <aws.lambda.java.version>1.4.0</aws.lambda.java.version>
 
         <!-- 通用依赖版本 -->
@@ -241,9 +240,9 @@
                 <version>${aws.java.sdk.version}</version>
             </dependency>
             <dependency>
-                <groupId>software.amazon.awssdk.crt</groupId>
-                <artifactId>aws-crt</artifactId>
-                <version>${aws-crt.version}</version>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>netty-nio-client</artifactId>
+                <version>${aws.java.sdk.version}</version>
             </dependency>
             <dependency>
                 <groupId>com.amazonaws</groupId>

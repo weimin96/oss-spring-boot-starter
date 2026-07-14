@@ -44,8 +44,8 @@
             <artifactId>s3-transfer-manager</artifactId>
         </dependency>
         <dependency>
-            <groupId>software.amazon.awssdk.crt</groupId>
-            <artifactId>aws-crt</artifactId>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>netty-nio-client</artifactId>
         </dependency>
         <dependency>
             <groupId>com.amazonaws</groupId>

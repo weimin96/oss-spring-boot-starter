@@ -29,7 +29,7 @@ import java.util.Map;
  * @author panwm
  */
 @Slf4j
-public class PresignOperations extends Operations implements OssPresignService {
+public class PresignOperations extends Operations implements OssPresignService, AutoCloseable {
 
     /**
      * 默认预签名有效期（1 小时）。
