@@ -13,7 +13,6 @@ import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.async.BlockingInputStreamAsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
-import software.amazon.awssdk.utils.http.SdkHttpUtils;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.CompletedUpload;
 import software.amazon.awssdk.transfer.s3.model.Upload;
@@ -399,7 +398,6 @@ public class PutOperations extends Operations implements OssPutService {
         HeadObjectResponse source = headCopyObject(target.sourceBucket, target.sourceKey, false,
                 "OBJECT_COPY_SOURCE_HEAD_FAILED", "读取复制源对象失败：");
         long sourceSize = requireCopyObjectSize(source, target.sourceKey);
-        requireCopySourceIdentity(source, target.sourceKey);
 
         executeCopy(target, source, sourceSize);
 
@@ -439,6 +437,7 @@ public class PutOperations extends Operations implements OssPutService {
     }
 
     private void executeCopy(CopyTarget target, HeadObjectResponse source, long sourceSize) {
+        requireCopySourceIdentity(source, target.sourceKey);
         if (sourceSize <= SINGLE_COPY_MAX_BYTES) {
             copySingleObject(target, source);
         } else {
@@ -459,7 +458,7 @@ public class PutOperations extends Operations implements OssPutService {
 
     private void copyMultipartObject(CopyTarget target, HeadObjectResponse source, long sourceSize) {
         long partSize = calculateCopyPartSize(sourceSize);
-        String tagging = loadSourceTagging(target, source);
+        Tagging tagging = loadSourceTagging(target, source);
         CreateMultipartUploadRequest.Builder createRequest = CreateMultipartUploadRequest.builder()
                 .bucket(target.destinationBucket)
                 .key(target.destinationKey)
@@ -471,7 +470,7 @@ public class PutOperations extends Operations implements OssPutService {
                 .expires(source.expires())
                 .metadata(source.metadata())
                 .websiteRedirectLocation(source.websiteRedirectLocation());
-        if (!Util.isBlank(tagging)) {
+        if (tagging != null) {
             createRequest.tagging(tagging);
         }
         if (source.storageClass() != null && source.storageClass() != StorageClass.UNKNOWN_TO_SDK_VERSION) {
@@ -556,7 +555,7 @@ public class PutOperations extends Operations implements OssPutService {
                 errorCode, messagePrefix + key);
     }
 
-    private String loadSourceTagging(CopyTarget target, HeadObjectResponse source) {
+    private Tagging loadSourceTagging(CopyTarget target, HeadObjectResponse source) {
         GetObjectTaggingRequest.Builder request = GetObjectTaggingRequest.builder()
                 .bucket(target.sourceBucket)
                 .key(target.sourceKey);
@@ -570,10 +569,7 @@ public class PutOperations extends Operations implements OssPutService {
         if (response.tagSet().isEmpty()) {
             return null;
         }
-        return response.tagSet().stream()
-                .map(tag -> SdkHttpUtils.formDataEncode(tag.key()) + "="
-                        + SdkHttpUtils.formDataEncode(tag.value()))
-                .collect(Collectors.joining("&"));
+        return Tagging.builder().tagSet(response.tagSet()).build();
     }
 
     private long calculateCopyPartSize(long objectSize) {

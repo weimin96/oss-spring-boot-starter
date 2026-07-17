@@ -17,6 +17,7 @@ import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Request;
 import software.amazon.awssdk.services.s3.model.ListObjectsV2Response;
+import software.amazon.awssdk.services.s3.model.NoSuchBucketException;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -223,6 +224,24 @@ class QueryOperationsTest {
                 () -> operations.getInputStream("bucket", "missing.txt"));
 
         assertEquals("OBJECT_NOT_FOUND", failure.getCode());
+    }
+
+    @Test
+    void getInputStreamMapsMissingBucketToDomainError() {
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("getObject".equals(methodName)) {
+                    return failed(NoSuchBucketException.builder().message("missing bucket").build());
+                }
+                throw unsupported(methodName);
+            }
+        }));
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations.getInputStream("missing-bucket", "object"));
+
+        assertEquals("BUCKET_NOT_FOUND", failure.getCode());
     }
 
     @Test

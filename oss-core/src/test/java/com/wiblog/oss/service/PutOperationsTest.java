@@ -663,6 +663,29 @@ class PutOperationsTest {
     }
 
     @Test
+    void moveRejectsSourceWithoutStableIdentityBeforeCopy() {
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(6L)
+                            .build());
+                }
+                if ("copyObject".equals(methodName)) {
+                    throw new AssertionError("缺少稳定标识时不应发起复制");
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).move("bucket", "source.txt", "archive"));
+
+        assertEquals("OBJECT_COPY_SOURCE_IDENTITY_MISSING", failure.getCode());
+    }
+
+    @Test
     void listPartsUsesS3MaxPageSizeAndReadsAllPages() {
         List<ListPartsRequest> requests = new ArrayList<>();
         S3AsyncClient client = s3Client(new S3Handler() {
@@ -757,6 +780,7 @@ class PutOperationsTest {
     private static HeadObjectResponse headResponse(long size, String checksum) {
         return HeadObjectResponse.builder()
                 .contentLength(size)
+                .eTag("etag")
                 .checksumSHA256(checksum)
                 .build();
     }

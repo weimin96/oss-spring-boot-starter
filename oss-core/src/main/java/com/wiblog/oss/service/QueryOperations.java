@@ -576,11 +576,16 @@ public class QueryOperations extends Operations implements OssQueryService {
         try {
             return executeRequestStrict(() -> client.getObject(
                     request, AsyncResponseTransformer.toBlockingInputStream()));
+        } catch (NoSuchBucketException e) {
+            throw OssException.bucketNotFound(request.bucket());
         } catch (NoSuchKeyException e) {
             throw OssException.objectNotFound(request.key());
         } catch (S3Exception e) {
             String errorCode = e.awsErrorDetails() == null
                     ? null : e.awsErrorDetails().errorCode();
+            if ("NoSuchBucket".equals(errorCode)) {
+                throw OssException.bucketNotFound(request.bucket());
+            }
             if (e.statusCode() == 404 || "NoSuchKey".equals(errorCode)) {
                 throw OssException.objectNotFound(request.key());
             }
