@@ -73,6 +73,22 @@ class OssProperties2Test {
     }
 
     @Test
+    @DisplayName("分片大小超过 S3 上限应触发校验")
+    void partSizeAboveS3LimitProducesViolation() {
+        OssProperties2 properties = new OssProperties2();
+        properties.setEndpoint("http://localhost:9000");
+        properties.setAccessKey("ak");
+        properties.setSecretKey("sk");
+        properties.setPartSizeInMb(5121);
+
+        Set<String> violationMessages = validator.validate(properties).stream()
+                .map(ConstraintViolation::getMessage)
+                .collect(Collectors.toSet());
+
+        assertThat(violationMessages).contains("oss.part-size-in-mb 最大为 5120MB");
+    }
+
+    @Test
     @DisplayName("默认值应保持稳定")
     void defaultsStayStable() {
         OssProperties2 properties = new OssProperties2();

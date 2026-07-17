@@ -195,12 +195,12 @@ spring:
 | `oss.access-key`         | String  | 无       | 访问密钥 ID，启用后必填                   |
 | `oss.secret-key`         | String  | 无       | 访问密钥，启用后必填                      |
 | `oss.type`               | String  | 无       | 存储类型，常用值为 `minio`、`cos`、`obs`   |
-| `oss.max-connections`    | int     | `50`    | 最大连接数配置项                        |
+| `oss.max-connections`    | int     | `50`    | 最大连接数；分片服务端复制并发度取该值与 8 的较小值 |
 | `oss.connection-timeout` | long    | `10000` | 连接超时时间，单位毫秒                     |
 | `oss.api-call-timeout` | long | `600000` | 单次 API 调用总超时时间，单位毫秒 |
 | `oss.api-call-attempt-timeout` | long | `120000` | 单次 API 尝试超时时间，单位毫秒，不能超过调用总超时 |
 | `oss.multipart-threshold-in-mb` | int | `10` | 启用 multipart 的对象大小阈值，最小值为 5 MB |
-| `oss.part-size-in-mb`    | int     | `10`    | multipart 最小分片大小，最小值为 5 MB                  |
+| `oss.part-size-in-mb`    | int     | `10`    | multipart 分片大小基准，范围为 5–5120 MB，也用于分片服务端复制 |
 | `oss.http.enable`        | boolean | `false` | 是否注册内置 REST 接口                  |
 | `oss.http.prefix`        | String  | 空字符串    | REST 接口路径前缀                     |
 | `oss.event.enable`       | boolean | `false` | 是否启用 MinIO 对象事件监听              |
@@ -219,7 +219,8 @@ spring:
 或等于调用总时限。大对象或低带宽环境应根据实际传输时间调高这两个值。
 
 客户端默认启用 multipart。对象达到 `oss.multipart-threshold-in-mb` 后进入 multipart 处理，单个分片不小于
-`oss.part-size-in-mb`。请求校验和计算与响应校验均使用 `WHEN_REQUIRED`，避免对不要求 checksum 的 S3 兼容服务改变协议行为。
+`oss.part-size-in-mb`。该配置也作为分片服务端复制的基础分片大小；当对象过大时会自动增大分片，确保不超过 10,000 个分片。
+分片大小必须位于 5–5120 MB。请求校验和计算与响应校验均使用 `WHEN_REQUIRED`，避免对不要求 checksum 的 S3 兼容服务改变协议行为。
 
 Spring 容器销毁 `OssTemplate` 时会依次关闭 Presigner、Transfer Manager 和 S3 client。纯 Java 场景应在应用停止时调用
 `OssTemplate.stop()`；即使某个资源关闭失败，其余资源仍会继续释放。
@@ -312,8 +313,9 @@ StoredObject metadata = ossTemplate.query().headObject(
 ```
 
 复制在当前客户端可访问的 Bucket 之间由对象存储服务端完成，不经过应用进程中转。源对象不超过 5 GB 时使用单次
-`CopyObject`；超过 5 GB 时自动切换为 multipart upload 和 `UploadPartCopy`，动态计算分片大小并限制在 10,000 个分片内。
-分片复制会保留源对象的常用 HTTP 元数据、自定义元数据和标签；任一分片或完成阶段失败时会中止 multipart upload。
+`CopyObject`；超过 5 GB 时自动切换为 multipart upload 和 `UploadPartCopy`。基础分片大小取自 `oss.part-size-in-mb`，
+并在必要时自动增大以限制在 10,000 个分片内。分片按受控窗口并发提交，并发度为 `min(oss.max-connections, 8)`。
+分片复制会保留源对象的常用 HTTP 元数据、自定义元数据和标签；当前并发窗口全部结束后才会进入下一批，任一分片或完成阶段失败时会中止 multipart upload。
 源对象与目标对象不能完全相同，且当前实现不支持跨 endpoint 服务端复制。对象大小超过约 48.8 TiB 时会显式拒绝。
 
 受限流式读取示例：

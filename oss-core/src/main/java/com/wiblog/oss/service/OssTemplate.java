@@ -280,6 +280,9 @@ public class OssTemplate {
         if (ossProperties.getMultipartThresholdInMb() < 5 || ossProperties.getPartSizeInMb() < 5) {
             throw new IllegalArgumentException("multipart threshold 和 part size 不能小于 5MB");
         }
+        if (ossProperties.getPartSizeInMb() > 5120) {
+            throw new IllegalArgumentException("part size 不能大于 5120MB");
+        }
     }
 
     private void ensureBucketExists(S3AsyncClient s3Client) {

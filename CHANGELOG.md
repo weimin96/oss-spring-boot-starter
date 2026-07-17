@@ -16,7 +16,8 @@
 
 ### 服务端复制
 - 对象不超过 5 GB 时使用单次 `CopyObject`，超过阈值时自动切换为 multipart upload 与 `UploadPartCopy`。
-- 动态计算分片大小，限制在 10,000 个分片内，并支持最大约 48.8 TiB 的 S3 对象。
+- 使用 `oss.part-size-in-mb` 作为基础分片大小，必要时自动增大，限制在 10,000 个分片内，并支持最大约 48.8 TiB 的 S3 对象。
+- 分片复制按 `min(oss.max-connections, 8)` 受控并发提交，当前窗口结束后再进入下一批。
 - 分片复制保留常用 HTTP 元数据、自定义 metadata 和对象标签。
 - 复制时优先固定源对象版本，否则使用 ETag 条件，避免复制过程中源内容发生变化。
 - 任一分片或完成阶段失败时自动中止 multipart upload，并保留中止失败的 suppressed exception。
@@ -27,6 +28,8 @@
 - 大对象移动与普通复制统一执行源版本或 ETag 一致性校验。
 - 对象流式读取不再把 `NoSuchBucket` 错误误报为对象不存在。
 - 分片复制使用 AWS SDK `Tagging` 模型传递标签，移除手工 URL 编码。
+- 复制错误区分对象或 Bucket 不存在、权限不足、源对象变化和服务端复制能力不支持。
+- `oss.part-size-in-mb` 增加 5120 MB 上限校验，并同步到 Boot 2/3/4 配置绑定。
 
 ## [v3.2.0] - 2026-07-14
 

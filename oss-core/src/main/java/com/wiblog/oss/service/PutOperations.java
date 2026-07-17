@@ -28,6 +28,10 @@ import java.util.Comparator;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.ExecutionException;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 /**
@@ -40,10 +44,11 @@ public class PutOperations extends Operations implements OssPutService {
 
     private static final int LIST_PARTS_MAX_PARTS = 1000;
     private static final int MAX_COPY_PARTS = 10000;
+    private static final int MAX_COPY_CONCURRENCY = 8;
     private static final long SINGLE_COPY_MAX_BYTES = 5_000_000_000L;
+    private static final long MIN_COPY_PART_SIZE = 5L * 1024 * 1024;
     private static final long MAX_COPY_PART_SIZE = 5L * 1024 * 1024 * 1024;
     private static final long MAX_COPY_OBJECT_BYTES = MAX_COPY_PART_SIZE * MAX_COPY_PARTS;
-    private static final long DEFAULT_COPY_PART_SIZE = 64L * 1024 * 1024;
     private static final long COPY_PART_SIZE_ALIGNMENT = 1024L * 1024;
     private static final String MOVE_STAGING_PREFIX = ".oss-staging/move/";
 
@@ -452,7 +457,7 @@ public class PutOperations extends Operations implements OssPutService {
                 .destinationBucket(target.destinationBucket)
                 .destinationKey(target.destinationKey);
         applyCopySourceCondition(request, source);
-        requireSuccessfulRequest(() -> client.copyObject(request.build()),
+        executeCopyRequest(() -> client.copyObject(request.build()),
                 "OBJECT_COPY_FAILED", "复制对象失败：" + target.sourceKey);
     }
 
@@ -477,7 +482,7 @@ public class PutOperations extends Operations implements OssPutService {
             createRequest.storageClass(source.storageClass());
         }
 
-        CreateMultipartUploadResponse created = requireSuccessfulRequest(
+        CreateMultipartUploadResponse created = executeCopyRequest(
                 () -> client.createMultipartUpload(createRequest.build()),
                 "OBJECT_MULTIPART_COPY_INIT_FAILED",
                 "初始化分片复制失败：" + target.destinationKey);
@@ -489,43 +494,12 @@ public class PutOperations extends Operations implements OssPutService {
         String uploadId = created.uploadId();
         boolean completed = false;
         try {
-            List<CompletedPart> completedParts = new ArrayList<>();
-            long offset = 0;
-            int partNumber = 1;
-            while (offset < sourceSize) {
-                long currentPartSize = Math.min(partSize, sourceSize - offset);
-                long end = offset + currentPartSize - 1;
-                UploadPartCopyRequest.Builder request = UploadPartCopyRequest.builder()
-                        .sourceBucket(target.sourceBucket)
-                        .sourceKey(target.sourceKey)
-                        .destinationBucket(target.destinationBucket)
-                        .destinationKey(target.destinationKey)
-                        .uploadId(uploadId)
-                        .partNumber(partNumber)
-                        .copySourceRange("bytes=" + offset + "-" + end);
-                applyCopySourceCondition(request, source);
-
-                UploadPartCopyResponse response = requireSuccessfulRequest(
-                        () -> client.uploadPartCopy(request.build()),
-                        "OBJECT_MULTIPART_COPY_PART_FAILED",
-                        "复制对象分片失败：" + target.sourceKey + "，part=" + partNumber);
-                CopyPartResult partResult = response.copyPartResult();
-                if (partResult == null || Util.isBlank(partResult.eTag())) {
-                    throw new OssException("OBJECT_MULTIPART_COPY_PART_FAILED",
-                            "复制对象分片未返回 ETag：" + target.sourceKey + "，part=" + partNumber);
-                }
-                completedParts.add(CompletedPart.builder()
-                        .partNumber(partNumber)
-                        .eTag(partResult.eTag())
-                        .build());
-                offset = end + 1;
-                partNumber++;
-            }
-
+            List<CompletedPart> completedParts = copyMultipartParts(
+                    target, source, sourceSize, partSize, uploadId);
             CompletedMultipartUpload multipartUpload = CompletedMultipartUpload.builder()
                     .parts(completedParts)
                     .build();
-            requireSuccessfulRequest(() -> client.completeMultipartUpload(
+            executeCopyRequest(() -> client.completeMultipartUpload(
                             CompleteMultipartUploadRequest.builder()
                                     .bucket(target.destinationBucket)
                                     .key(target.destinationKey)
@@ -543,6 +517,102 @@ public class PutOperations extends Operations implements OssPutService {
         }
     }
 
+    private List<CompletedPart> copyMultipartParts(CopyTarget target, HeadObjectResponse source,
+                                                   long sourceSize, long partSize, String uploadId) {
+        List<CompletedPart> completedParts = new ArrayList<>();
+        int concurrency = calculateCopyConcurrency();
+        long offset = 0;
+        int partNumber = 1;
+        while (offset < sourceSize) {
+            List<CompletableFuture<CompletedPart>> batch = new ArrayList<>(concurrency);
+            while (offset < sourceSize && batch.size() < concurrency) {
+                long currentPartSize = Math.min(partSize, sourceSize - offset);
+                long end = offset + currentPartSize - 1;
+                int currentPartNumber = partNumber;
+                UploadPartCopyRequest.Builder request = UploadPartCopyRequest.builder()
+                        .sourceBucket(target.sourceBucket)
+                        .sourceKey(target.sourceKey)
+                        .destinationBucket(target.destinationBucket)
+                        .destinationKey(target.destinationKey)
+                        .uploadId(uploadId)
+                        .partNumber(currentPartNumber)
+                        .copySourceRange("bytes=" + offset + "-" + end);
+                applyCopySourceCondition(request, source);
+                batch.add(startCopyPart(request.build(), target.sourceKey, currentPartNumber));
+                offset = end + 1;
+                partNumber++;
+            }
+            awaitCopyPartBatch(batch, target.sourceKey);
+            for (CompletableFuture<CompletedPart> future : batch) {
+                completedParts.add(future.join());
+            }
+        }
+        return completedParts;
+    }
+
+    private CompletableFuture<CompletedPart> startCopyPart(UploadPartCopyRequest request,
+                                                            String sourceKey, int partNumber) {
+        CompletableFuture<UploadPartCopyResponse> responseFuture;
+        try {
+            responseFuture = client.uploadPartCopy(request);
+        } catch (RuntimeException failure) {
+            responseFuture = failedFuture(failure);
+        }
+        if (responseFuture == null) {
+            responseFuture = failedFuture(new OssException("OBJECT_MULTIPART_COPY_PART_FAILED",
+                    "复制对象分片未返回异步结果：" + sourceKey + "，part=" + partNumber));
+        }
+        return responseFuture.thenApply(response -> buildCompletedCopyPart(response, sourceKey, partNumber));
+    }
+
+    private CompletedPart buildCompletedCopyPart(UploadPartCopyResponse response,
+                                                  String sourceKey, int partNumber) {
+        CopyPartResult partResult = response == null ? null : response.copyPartResult();
+        if (partResult == null || Util.isBlank(partResult.eTag())) {
+            throw new OssException("OBJECT_MULTIPART_COPY_PART_FAILED",
+                    "复制对象分片未返回 ETag：" + sourceKey + "，part=" + partNumber);
+        }
+        return CompletedPart.builder()
+                .partNumber(partNumber)
+                .eTag(partResult.eTag())
+                .build();
+    }
+
+    private void awaitCopyPartBatch(List<CompletableFuture<CompletedPart>> batch, String sourceKey) {
+        CompletableFuture<?>[] futures = batch.toArray(new CompletableFuture<?>[batch.size()]);
+        try {
+            CompletableFuture.allOf(futures).get();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new OssException("OSS_INTERRUPTED", "复制对象分片时线程被中断：" + sourceKey, e);
+        } catch (ExecutionException e) {
+            Throwable cause = unwrapAsyncFailure(e.getCause());
+            if (cause instanceof OssException) {
+                throw (OssException) cause;
+            }
+            throw mapCopyFailure("OBJECT_MULTIPART_COPY_PART_FAILED",
+                    "复制对象分片失败：" + sourceKey, cause);
+        }
+    }
+
+    private Throwable unwrapAsyncFailure(Throwable failure) {
+        Throwable current = failure;
+        while (current instanceof CompletionException && current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
+    private <T> CompletableFuture<T> failedFuture(Throwable failure) {
+        CompletableFuture<T> future = new CompletableFuture<>();
+        future.completeExceptionally(failure);
+        return future;
+    }
+
+    private int calculateCopyConcurrency() {
+        return Math.max(1, Math.min(MAX_COPY_CONCURRENCY, ossProperties.getMaxConnections()));
+    }
+
     private HeadObjectResponse headCopyObject(String bucket, String key, boolean checksumEnabled,
                                               String errorCode, String messagePrefix) {
         HeadObjectRequest.Builder request = HeadObjectRequest.builder()
@@ -551,7 +621,7 @@ public class PutOperations extends Operations implements OssPutService {
         if (checksumEnabled) {
             request.checksumMode(ChecksumMode.ENABLED);
         }
-        return requireSuccessfulRequest(() -> client.headObject(request.build()),
+        return executeCopyRequest(() -> client.headObject(request.build()),
                 errorCode, messagePrefix + key);
     }
 
@@ -562,7 +632,7 @@ public class PutOperations extends Operations implements OssPutService {
         if (!Util.isBlank(source.versionId())) {
             request.versionId(source.versionId());
         }
-        GetObjectTaggingResponse response = requireSuccessfulRequest(() -> client.getObjectTagging(
+        GetObjectTaggingResponse response = executeCopyRequest(() -> client.getObjectTagging(
                         request.build()),
                 "OBJECT_MULTIPART_COPY_TAGGING_FAILED",
                 "读取源对象标签失败：" + target.sourceKey);
@@ -582,11 +652,68 @@ public class PutOperations extends Operations implements OssPutService {
         }
         long alignedPartSize = ((minimumPartSize + COPY_PART_SIZE_ALIGNMENT - 1)
                 / COPY_PART_SIZE_ALIGNMENT) * COPY_PART_SIZE_ALIGNMENT;
-        long partSize = Math.max(DEFAULT_COPY_PART_SIZE, alignedPartSize);
+        long configuredPartSize = (long) ossProperties.getPartSizeInMb() * 1024 * 1024;
+        if (configuredPartSize < MIN_COPY_PART_SIZE || configuredPartSize > MAX_COPY_PART_SIZE) {
+            throw OssException.configInvalid("part-size-in-mb");
+        }
+        long partSize = Math.max(configuredPartSize, alignedPartSize);
         if (partSize > MAX_COPY_PART_SIZE) {
             throw new OssException("OBJECT_COPY_TOO_LARGE", "对象大小超过分片复制支持范围");
         }
         return partSize;
+    }
+
+    private <T> T executeCopyRequest(Supplier<CompletableFuture<T>> requestSupplier,
+                                     String defaultCode, String message) {
+        try {
+            T response = executeRequestStrict(requestSupplier);
+            if (response == null) {
+                throw new OssException(defaultCode, message);
+            }
+            return response;
+        } catch (NoSuchKeyException e) {
+            throw new OssException("OBJECT_NOT_FOUND", message, e);
+        } catch (NoSuchBucketException e) {
+            throw new OssException("BUCKET_NOT_FOUND", message, e);
+        } catch (S3Exception e) {
+            throw mapCopyFailure(defaultCode, message, e);
+        } catch (OssException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new OssException(defaultCode, message, e);
+        }
+    }
+
+    private OssException mapCopyFailure(String defaultCode, String message, Throwable failure) {
+        Throwable cause = unwrapAsyncFailure(failure);
+        if (cause instanceof NoSuchKeyException) {
+            return new OssException("OBJECT_NOT_FOUND", message, cause);
+        }
+        if (cause instanceof NoSuchBucketException) {
+            return new OssException("BUCKET_NOT_FOUND", message, cause);
+        }
+        if (!(cause instanceof S3Exception)) {
+            return new OssException(defaultCode, message, cause);
+        }
+        S3Exception s3Exception = (S3Exception) cause;
+        String errorCode = s3Exception.awsErrorDetails() == null
+                ? null : s3Exception.awsErrorDetails().errorCode();
+        if ("NoSuchKey".equals(errorCode)) {
+            return new OssException("OBJECT_NOT_FOUND", message, s3Exception);
+        }
+        if ("NoSuchBucket".equals(errorCode)) {
+            return new OssException("BUCKET_NOT_FOUND", message, s3Exception);
+        }
+        if (s3Exception.statusCode() == 403 || "AccessDenied".equals(errorCode)) {
+            return new OssException("OBJECT_COPY_FORBIDDEN", message, s3Exception);
+        }
+        if (s3Exception.statusCode() == 412 || "PreconditionFailed".equals(errorCode)) {
+            return new OssException("OBJECT_COPY_SOURCE_CHANGED", message, s3Exception);
+        }
+        if (s3Exception.statusCode() == 501 || "NotImplemented".equals(errorCode)) {
+            return new OssException("OBJECT_COPY_UNSUPPORTED", message, s3Exception);
+        }
+        return new OssException(defaultCode, message, s3Exception);
     }
 
     private long requireCopyObjectSize(HeadObjectResponse response, String key) {
@@ -620,16 +747,20 @@ public class PutOperations extends Operations implements OssPutService {
     }
 
     private void abortMultipartCopy(CopyTarget target, String uploadId, RuntimeException failure) {
+        String message = "中止分片复制失败：" + target.destinationKey;
         try {
-            requireSuccessfulRequest(() -> client.abortMultipartUpload(AbortMultipartUploadRequest.builder()
+            AbortMultipartUploadResponse response = executeRequestStrict(() -> client.abortMultipartUpload(
+                    AbortMultipartUploadRequest.builder()
                             .bucket(target.destinationBucket)
                             .key(target.destinationKey)
                             .uploadId(uploadId)
-                            .build()),
-                    "OBJECT_MULTIPART_COPY_ABORT_FAILED",
-                    "中止分片复制失败：" + target.destinationKey);
-        } catch (RuntimeException abortFailure) {
-            failure.addSuppressed(abortFailure);
+                            .build()));
+            if (response == null) {
+                throw new OssException("OBJECT_MULTIPART_COPY_ABORT_FAILED", message);
+            }
+        } catch (RuntimeException abortCause) {
+            failure.addSuppressed(new OssException(
+                    "OBJECT_MULTIPART_COPY_ABORT_FAILED", message, abortCause));
         }
     }
 

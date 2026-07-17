@@ -49,7 +49,7 @@
 
 `ReadObjectRangeCommand` 使用 `offset + length` 表达单个字节区间。原始 Range 字符串重载仅用于兼容，新增代码优先使用类型化命令。
 
-服务端复制仅适用于当前 `S3AsyncClient` 可同时访问的源和目标。对象不超过 5 GB 时使用单次复制，超过阈值时自动使用 multipart copy；失败时必须中止未完成的 multipart upload。
+服务端复制仅适用于当前 `S3AsyncClient` 可同时访问的源和目标。对象不超过 5 GB 时使用单次复制，超过阈值时自动使用 multipart copy；分片大小复用 `partSizeInMb`，并发度不超过 `min(maxConnections, 8)`。失败时必须等待当前并发窗口收敛并中止未完成的 multipart upload。
 
 ## 自动配置规则
 

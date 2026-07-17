@@ -8,6 +8,7 @@ import org.springframework.validation.annotation.Validated;
 
 import javax.validation.Valid;
 import javax.validation.constraints.AssertTrue;
+import javax.validation.constraints.Max;
 import javax.validation.constraints.Min;
 import javax.validation.constraints.NotBlank;
 import java.time.Duration;
@@ -62,6 +63,7 @@ public class OssProperties2 {
     private int multipartThresholdInMb = 10;
 
     @Min(value = 5, message = "oss.part-size-in-mb 最小为 5MB")
+    @Max(value = 5120, message = "oss.part-size-in-mb 最大为 5120MB")
     private int partSizeInMb = 10;
 
     @Valid

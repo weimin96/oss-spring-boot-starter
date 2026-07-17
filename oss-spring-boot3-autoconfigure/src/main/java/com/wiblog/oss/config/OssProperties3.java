@@ -4,6 +4,7 @@ import com.wiblog.oss.config.OssClientOptions.Event;
 import com.wiblog.oss.config.OssClientOptions.Http;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
@@ -62,6 +63,7 @@ public class OssProperties3 {
     private int multipartThresholdInMb = 10;
 
     @Min(value = 5, message = "oss.part-size-in-mb 最小为 5MB")
+    @Max(value = 5120, message = "oss.part-size-in-mb 最大为 5120MB")
     private int partSizeInMb = 10;
 
     @Valid

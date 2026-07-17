@@ -47,6 +47,14 @@ class OssTemplateTest {
     }
 
     @Test
+    void partSizeAboveS3LimitIsRejectedBeforeClientCreation() {
+        OssClientOptions options = options();
+        options.setPartSizeInMb(5121);
+
+        assertThrows(IllegalArgumentException.class, () -> OssTemplate.buildClient(options));
+    }
+
+    @Test
     void closeAllContinuesAfterFailureAndPreservesEveryError() {
         List<String> closedResources = new ArrayList<>();
         AutoCloseable first = closeable("presigner", closedResources, new IllegalStateException("first"));
