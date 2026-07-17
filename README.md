@@ -318,7 +318,10 @@ StoredObject metadata = ossTemplate.query().headObject(
 分片复制会保留源对象的常用 HTTP 元数据、自定义元数据和标签；当前并发窗口全部结束后才会进入下一批，任一分片或完成阶段失败时会中止 multipart upload。
 同一窗口内有多个分片失败时，第一个失败作为主异常，其余失败通过 suppressed exception 保留。等待分片期间线程被中断时，
 实现会先等待当前窗口的在途请求全部结束，再恢复中断标记并中止 multipart upload，避免 abort 与仍在执行的分片请求竞态。
-源对象与目标对象不能完全相同，且当前实现不支持跨 endpoint 服务端复制。对象大小超过约 48.8 TiB 时会显式拒绝。
+复制当前版本时源对象与目标对象不能完全相同，且当前实现不支持跨 endpoint 服务端复制。对象大小超过约 48.8 TiB 时会显式拒绝。
+`CopyObjectCommand` 的五参数构造器可通过 `sourceVersionId` 固定历史版本；指定版本时允许复制回同一 Bucket/key，
+用于把历史版本恢复为新的当前版本。复制请求已经完成但目标 HEAD 或大小校验失败时抛出
+`OBJECT_COPY_COMPLETED_VERIFY_FAILED`，调用方应把目标状态视为“已复制但尚未确认”，不能直接按未写入重试。
 
 复制链路会在 DEBUG 级别记录执行计划，并在 INFO/WARN 级别记录完成或失败结果。日志包含源/目标、对象大小、复制策略、
 分片数、分片大小、并发度、耗时和领域错误码，可用于定位大对象复制性能与失败阶段。
@@ -348,7 +351,9 @@ mvn -pl oss-spring-boot3-web-starter -am -Dtest=PutOperationsTest -Dsurefire.fai
 ```
 
 `move()` 保持允许覆盖目标对象的兼容语义。内部使用 `.oss-staging/move/` 随机 key 完成 staging-copy-delete，校验 staging
-和最终对象后再删除源对象；如果 staging、复制、校验或清理失败，源对象会保留并显式抛出异常。
+和最终对象后再删除源对象。源对象删除使用最初读取到的 ETag 作为 `If-Match` 条件；源在移动期间被覆盖时抛出
+`MOVE_SOURCE_CHANGED` 并保留新源对象。兼容服务不支持条件删除时抛出 `MOVE_CONDITIONAL_DELETE_UNSUPPORTED`，
+此时目标可能已经写入，但源对象仍会保留。
 
 查询与预签名示例：
 
@@ -360,6 +365,10 @@ boolean exists = ossTemplate.query().checkExist("uploads/demo.txt");
 String downloadUrl = ossTemplate.presign()
         .generateGetPresignedUrl("uploads/demo.txt", Duration.ofMinutes(10));
 ```
+
+`checkExist()` 仅在对象存储明确返回 404/`NoSuchKey` 时返回 `false`。权限不足、Bucket 不存在、网络故障和服务端错误
+会抛出相应领域异常，避免把不可访问误判为不存在。目录列表、递归删除和 ZIP 目录操作使用独立的前缀规范化；
+`release.v1` 会被处理为 `release.v1/`，空目录前缀不允许递归删除，以防误删整个 Bucket。
 
 MinIO 文件变化监听示例：
 
@@ -439,8 +448,27 @@ public void downloadFolder(
 |--------|--------------------|-----------|
 | `POST` | `/multipart/init`  | 初始化分片上传任务 |
 | `POST` | `/multipart/chunk` | 上传单个分片    |
-| `POST` | `/multipart/merge` | 合并分片      |
+| `POST` | `/multipart/merge` | 校验并合并分片   |
 | `GET`  | `/multipart/parts` | 查询已上传分片列表 |
+
+`/multipart/merge` 的 JSON 请求必须同时包含：
+
+```json
+{
+  "filename": "large.bin",
+  "path": "uploads",
+  "uploadId": "upload-id",
+  "guid": "client-task-id",
+  "expectedPartCount": 1,
+  "expectedSize": 73400320,
+  "chunkTargetList": [
+    {"partNumber": 1, "etag": "etag-1"}
+  ]
+}
+```
+
+合并前会读取服务端真实分片清单，校验分片数量、连续编号、ETag 和总大小。缺少任一分片、客户端与服务端 ETag
+不一致或总大小不等于 `expectedSize` 时不会调用 `CompleteMultipartUpload`。
 
 ### 文件上传与删除
 
@@ -497,6 +525,12 @@ public void downloadFolder(
 | `POST` | `/unzip/filter`       | 按条目前缀过滤解压            |
 | `GET`  | `/presign/get`        | 生成下载预签名 URL          |
 | `GET`  | `/presign/put`        | 生成上传预签名 URL          |
+
+流式解压拒绝绝对路径、Windows 盘符和 `.`/`..` 路径段，并使用以下安全上限：最多 10,000 个条目、
+单条目最多 5 GiB、一次解压累计最多 50 GiB。达到上限时抛出 `UNZIP_LIMIT_EXCEEDED`，不会继续创建后续对象。
+
+Bucket 时间回滚仅允许在版本控制状态为 `Enabled` 时执行。恢复历史版本复用自动单次/分片复制链路，
+因此历史对象超过 5 GB 时会自动使用 multipart copy；`Suspended` 状态会被明确拒绝。
 
 ### 标签与 Bucket 管理
 

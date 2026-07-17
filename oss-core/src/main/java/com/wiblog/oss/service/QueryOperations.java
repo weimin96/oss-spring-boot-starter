@@ -187,7 +187,7 @@ public class QueryOperations extends Operations implements OssQueryService {
      */
     public List<S3Object> listObject(String bucketName, String path, String keyword) {
         List<S3Object> list = new ArrayList<>();
-        String prefix = Util.formatPath(path);
+        String prefix = Util.normalizeObjectPrefix(path);
 
         ListObjectsV2Request request = ListObjectsV2Request.builder()
                 .bucket(bucketName).maxKeys(LIST_MAX_KEYS).prefix(prefix).build();
@@ -245,7 +245,7 @@ public class QueryOperations extends Operations implements OssQueryService {
         LazyDataList<ObjectInfo> resultList = new LazyDataList<>();
 
         ListObjectsV2Request.Builder builder = ListObjectsV2Request.builder()
-                .bucket(bucketName).prefix(Util.formatPath(path))
+                .bucket(bucketName).prefix(Util.normalizeObjectPrefix(path))
                 .maxKeys(maxKeys).delimiter("/");
 
         if (continuationToken != null && !continuationToken.trim().isEmpty()) {
@@ -290,7 +290,7 @@ public class QueryOperations extends Operations implements OssQueryService {
     @Override
     public List<ObjectTreeNode> listNextLevel(String bucketName, String path) {
         List<ObjectTreeNode> resultList = new ArrayList<>();
-        String prefix = Util.formatPath(path);
+        String prefix = Util.normalizeObjectPrefix(path);
 
         ListObjectsV2Request request = ListObjectsV2Request.builder()
                 .bucket(bucketName).prefix(prefix)
@@ -331,7 +331,7 @@ public class QueryOperations extends Operations implements OssQueryService {
      */
     @Override
     public List<ObjectTreeNode> getFolderTreeList(String bucketName, String path) {
-        String prefix = Util.formatPath(path);
+        String prefix = Util.normalizeObjectPrefix(path);
         List<S3Object> list = new ArrayList<>();
 
         ListObjectsV2Request request = ListObjectsV2Request.builder()
@@ -365,7 +365,7 @@ public class QueryOperations extends Operations implements OssQueryService {
     @Override
     public List<ObjectInfo> listNextLevelFolder(String bucketName, String path) {
         List<ObjectInfo> resultList = new ArrayList<>();
-        String prefix = Util.formatPath(path);
+        String prefix = Util.normalizeObjectPrefix(path);
         ListObjectsV2Request request = ListObjectsV2Request.builder()
                 .bucket(bucketName).prefix(prefix).delimiter("/").build();
         Set<String> seen = new HashSet<>(64);
@@ -409,12 +409,41 @@ public class QueryOperations extends Operations implements OssQueryService {
      */
     @Override
     public boolean checkExist(String bucketName, String objectName) {
+        if (Util.isBlank(bucketName)) {
+            throw new IllegalArgumentException("Bucket 名称不能为空");
+        }
+        if (Util.isBlank(objectName)) {
+            throw new IllegalArgumentException("对象 key 不能为空");
+        }
+        String objectKey = normalizeObjectKey(objectName);
         try {
-            client.headObject(HeadObjectRequest.builder()
-                    .bucket(bucketName).key(objectName).build()).join();
+            executeRequestStrict(() -> client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName).key(objectKey).build()));
             return true;
-        } catch (Exception e) {
+        } catch (NoSuchKeyException exception) {
             return false;
+        } catch (NoSuchBucketException exception) {
+            throw OssException.bucketNotFound(bucketName);
+        } catch (S3Exception exception) {
+            String errorCode = exception.awsErrorDetails() == null
+                    ? null : exception.awsErrorDetails().errorCode();
+            if ("NoSuchBucket".equals(errorCode)) {
+                throw OssException.bucketNotFound(bucketName);
+            }
+            if (exception.statusCode() == 404 || "NoSuchKey".equals(errorCode)) {
+                return false;
+            }
+            if (exception.statusCode() == 403 || "AccessDenied".equals(errorCode)) {
+                throw new OssException("OBJECT_READ_FORBIDDEN",
+                        "没有对象读取权限：" + objectKey, exception);
+            }
+            throw new OssException("OBJECT_HEAD_FAILED",
+                    "检查对象是否存在失败：" + objectKey, exception);
+        } catch (OssException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new OssException("OBJECT_HEAD_FAILED",
+                    "检查对象是否存在失败：" + objectKey, exception);
         }
     }
 
@@ -999,7 +1028,7 @@ public class QueryOperations extends Operations implements OssQueryService {
         if (Util.isBlank(path) || "/".equals(path)) {
             throw new OssException("INVALID_PATH", "文件夹前缀不能为空");
         }
-        String prefix = Util.formatPath(path);
+        String prefix = Util.normalizeObjectPrefix(path);
         if (Util.isBlank(prefix)) {
             throw new OssException("INVALID_PATH", "文件夹前缀不能为空");
         }

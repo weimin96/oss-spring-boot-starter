@@ -47,8 +47,18 @@ public interface OssQueryService {
 
     List<ObjectInfo> listNextLevelFolder(String bucketName, String path);
 
+    /**
+     * 检查默认 Bucket 中对象是否存在。
+     *
+     * <p>仅在存储服务明确返回对象不存在时返回 {@code false}；权限、网络和服务端故障会显式抛出。</p>
+     */
     boolean checkExist(String objectName);
 
+    /**
+     * 检查指定 Bucket 中对象是否存在。
+     *
+     * <p>仅在存储服务明确返回对象不存在时返回 {@code false}；权限、网络和服务端故障会显式抛出。</p>
+     */
     boolean checkExist(String bucketName, String objectName);
 
     ObjectInfo getObjectInfo(String objectName);

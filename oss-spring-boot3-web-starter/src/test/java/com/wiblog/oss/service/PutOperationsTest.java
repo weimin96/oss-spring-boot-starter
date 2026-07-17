@@ -318,6 +318,8 @@ class PutOperationsTest extends AbstractServiceDynamicPropertyTest {
         chunkMerge.setPath(directory);
         chunkMerge.setGuid("guid-1");
         chunkMerge.setUploadId(uploadId);
+        chunkMerge.setExpectedPartCount(2);
+        chunkMerge.setExpectedSize((long) firstPartBytes.length + secondChunk.getContentLength());
         chunkMerge.setChunkTargetList(List.of(part2, part1));
 
         ObjectInfo merged = ossTemplate.put().merge(chunkMerge);

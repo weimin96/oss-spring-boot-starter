@@ -63,6 +63,45 @@ class QueryOperationsTest {
     }
 
     @Test
+    void checkExistReturnsFalseOnlyForMissingObject() {
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return failed(S3Exception.builder().statusCode(404).message("missing").build());
+                }
+                throw unsupported(methodName);
+            }
+        }));
+
+        assertEquals(false, operations.checkExist("bucket", "/missing.txt"));
+    }
+
+    @Test
+    void checkExistDoesNotHidePermissionFailure() {
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return failed(S3Exception.builder()
+                            .statusCode(403)
+                            .awsErrorDetails(AwsErrorDetails.builder()
+                                    .errorCode("AccessDenied")
+                                    .build())
+                            .message("forbidden")
+                            .build());
+                }
+                throw unsupported(methodName);
+            }
+        }));
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations.checkExist("bucket", "private.txt"));
+
+        assertEquals("OBJECT_READ_FORBIDDEN", failure.getCode());
+    }
+
+    @Test
     void headObjectReturnsStableStorageMetadata() {
         List<HeadObjectRequest> requests = new ArrayList<>();
         QueryOperations operations = operations(s3Client(new S3Handler() {
@@ -103,9 +142,10 @@ class QueryOperationsTest {
             }
         }));
 
-        LazyDataList<ObjectInfo> result = operations.lazyList("bucket", "docs", 9999, "token");
+        LazyDataList<ObjectInfo> result = operations.lazyList("bucket", "release.v1", 9999, "token");
 
         assertEquals(1, requests.size());
+        assertEquals("release.v1/", requests.get(0).prefix());
         assertEquals(1000, requests.get(0).maxKeys());
         assertEquals(1000, result.getMaxKeys());
     }

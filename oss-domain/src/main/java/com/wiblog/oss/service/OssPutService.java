@@ -65,13 +65,21 @@ public interface OssPutService {
      *
      * <p>源对象不超过单次复制阈值时使用 CopyObject；超过阈值时自动切换为
      * multipart upload 与 UploadPartCopy。分片大小和并发度由客户端配置约束，
-     * 源和目标必须由当前客户端访问；该接口不支持跨 endpoint 中转复制。</p>
+     * 源和目标必须由当前客户端访问；该接口不支持跨 endpoint 中转复制。
+     * 命令指定 sourceVersionId 时复制固定历史版本，并允许恢复到相同 Bucket/key。
+     * 复制请求成功但结果 HEAD 校验失败时会抛出明确的“已完成但未验证”异常。</p>
      *
      * @param command 对象复制命令
      * @return 复制完成后的目标对象信息
      */
     StoredObject copyObject(CopyObjectCommand command);
 
+    /**
+     * 在默认 Bucket 内安全移动对象。
+     *
+     * <p>最终删除源对象时使用源 ETag 条件；源在移动期间发生变化或存储服务不支持条件删除时，
+     * 目标可能已经复制完成，但源对象会被保留并显式报错。</p>
+     */
     void move(String sourceObjectName, String destinationDirectory);
 
     void move(String bucketName, String sourceObjectName, String destinationDirectory);
@@ -80,6 +88,12 @@ public interface OssPutService {
 
     ChunkTarget chunk(ChunkUploadCommand chunk);
 
+    /**
+     * 合并手工上传的分片。
+     *
+     * <p>命令必须提供 expectedPartCount 和 expectedSize。实现会回查服务端真实分片，
+     * 校验连续编号、ETag、分片数量与总大小后才提交合并。</p>
+     */
     ObjectInfo merge(ChunkMerge chunkMerge);
 
     List<ChunkPartInfo> listParts(String bucketName, String objectName, String uploadId);

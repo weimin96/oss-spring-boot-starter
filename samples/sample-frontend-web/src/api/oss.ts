@@ -35,6 +35,8 @@ interface MultipartMergeRequest {
     path: string
     uploadId: string
     guid: string
+    expectedPartCount: number
+    expectedSize: number
     chunkTargetList: ChunkTarget[]
     signal?: AbortSignal
 }
@@ -114,12 +116,18 @@ export const ossApi = {
          * POST /multipart/merge
          * 分片合并通过 JSON body 传递，与后端 `ChunkMerge` 对象结构保持一致。
          */
-        merge: ({filename, path, uploadId, guid, chunkTargetList, signal}: MultipartMergeRequest) =>
+        merge: ({
+            filename, path, uploadId, guid,
+            expectedPartCount, expectedSize, chunkTargetList, signal,
+        }: MultipartMergeRequest) =>
             request<ObjectInfo>({
                 method: 'POST',
                 url: '/multipart/merge',
                 signal,
-                data: {filename, path, uploadId, guid, chunkTargetList},
+                data: {
+                    filename, path, uploadId, guid,
+                    expectedPartCount, expectedSize, chunkTargetList,
+                },
             }),
 
         /** GET /multipart/parts */

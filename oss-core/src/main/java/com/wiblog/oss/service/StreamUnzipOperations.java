@@ -37,6 +37,9 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
      * 流式读取缓冲区大小。
      */
     private static final int BUFFER_SIZE = 64 * 1024;
+    private static final int MAX_UNZIP_ENTRIES = 10000;
+    private static final long MAX_UNZIP_ENTRY_BYTES = 5L * 1024 * 1024 * 1024;
+    private static final long MAX_UNZIP_TOTAL_BYTES = 50L * 1024 * 1024 * 1024;
 
     /**
      * 创建流式解压操作门面。
@@ -77,30 +80,34 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
     @Override
     public UnzipResult unzip(String sourceBucket, String zipObjectKey,
                              String targetBucket, String targetPath) {
-        String normalizedTargetPath = Util.formatPath(targetPath);
+        String normalizedTargetPath = Util.normalizeObjectPrefix(targetPath);
         log.info("Stream unzip: [{}/{}] -> [{}/{}]",
                 sourceBucket, zipObjectKey, targetBucket, normalizedTargetPath);
 
         List<ObjectInfo> succeeded = new ArrayList<ObjectInfo>();
         List<String> failed = new ArrayList<String>();
+        UnzipBudget budget = new UnzipBudget();
 
         try (InputStream s3Stream = fetchInputStream(sourceBucket, zipObjectKey);
              ZipInputStream zis = new ZipInputStream(new BufferedInputStream(s3Stream, BUFFER_SIZE))) {
 
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
+                String entryName = normalizeZipEntryName(entry.getName());
                 if (entry.isDirectory()) {
+                    budget.startEntry(entry);
                     zis.closeEntry();
                     continue;
                 }
 
-                String entryName = entry.getName();
-                String destKey = normalizedTargetPath + entryName;
+                String destKey = Util.normalizeObjectKey(normalizedTargetPath + entryName);
+                InputStream entryInputStream = openLimitedEntryStream(zis, entry, budget);
                 try {
-                    ObjectInfo info = uploadEntry(zis, entry, targetBucket, destKey);
+                    ObjectInfo info = uploadEntry(entryInputStream, entry, targetBucket, destKey);
                     succeeded.add(info);
                     log.debug("Unzipped entry [{}] -> [{}]", entryName, destKey);
                 } catch (Exception ex) {
+                    rethrowFatalUnzipFailure(ex);
                     log.warn("Failed to unzip entry [{}]: {}", entryName, ex.getMessage(), ex);
                     failed.add(entryName);
                 } finally {
@@ -149,20 +156,24 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
 
         List<ObjectInfo> succeeded = new ArrayList<ObjectInfo>();
         List<String> failed = new ArrayList<String>();
+        UnzipBudget budget = new UnzipBudget();
 
         try (InputStream s3Stream = fetchInputStream(bucketName, zipObjectKey);
              ZipInputStream zis = new ZipInputStream(new BufferedInputStream(s3Stream, BUFFER_SIZE))) {
 
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
+                String entryName = normalizeZipEntryName(entry.getName());
                 if (entry.isDirectory()) {
+                    budget.startEntry(entry);
                     zis.closeEntry();
                     continue;
                 }
 
-                String entryName = entry.getName();
+                InputStream entryInputStream = openLimitedEntryStream(zis, entry, budget);
                 try {
-                    handler.handle(entry, new NonClosingInputStream(zis));
+                    handler.handle(entry, entryInputStream);
+                    drain(entryInputStream);
                     succeeded.add(ObjectInfo.builder()
                             .name(Util.getFilename(entryName))
                             .uri(entryName)
@@ -170,6 +181,7 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
                             .build());
                     log.debug("Handled entry [{}]", entryName);
                 } catch (Exception ex) {
+                    rethrowFatalUnzipFailure(ex);
                     log.warn("Handler failed for entry [{}]: {}", entryName, ex.getMessage(), ex);
                     failed.add(entryName);
                 } finally {
@@ -218,37 +230,42 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
     @Override
     public UnzipResult unzipWithFilter(String sourceBucket, String zipObjectKey,
                                        String targetBucket, String entryPrefix, String targetPath) {
-        final String prefix = entryPrefix == null ? "" : entryPrefix;
-        final String normalizedTargetPath = Util.formatPath(targetPath);
+        final String prefix = normalizeZipEntryPrefix(entryPrefix);
+        final String normalizedTargetPath = Util.normalizeObjectPrefix(targetPath);
         List<ObjectInfo> succeeded = new ArrayList<ObjectInfo>();
         List<String> failed = new ArrayList<String>();
+        UnzipBudget budget = new UnzipBudget();
 
         try (InputStream s3Stream = fetchInputStream(sourceBucket, zipObjectKey);
              ZipInputStream zis = new ZipInputStream(new BufferedInputStream(s3Stream, BUFFER_SIZE))) {
 
             ZipEntry entry;
             while ((entry = zis.getNextEntry()) != null) {
+                String entryName = normalizeZipEntryName(entry.getName());
+                budget.startEntry(entry);
                 if (entry.isDirectory()) {
                     zis.closeEntry();
                     continue;
                 }
-
-                String entryName = entry.getName();
                 if (!entryName.startsWith(prefix)) {
                     zis.closeEntry();
                     continue;
                 }
 
+                InputStream entryInputStream = new QuotaInputStream(
+                        new NonClosingInputStream(zis), budget);
                 try {
                     String relativeName = prefix.isEmpty() ? entryName : entryName.substring(prefix.length());
-                    while (relativeName.startsWith("/")) {
-                        relativeName = relativeName.substring(1);
+                    if (Util.isBlank(relativeName)) {
+                        throw new OssException("UNZIP_ENTRY_INVALID",
+                                "过滤后的 ZIP 条目名称不能为空：" + entryName);
                     }
-                    String destKey = normalizedTargetPath + relativeName;
-                    ObjectInfo info = uploadEntry(zis, entry, targetBucket, destKey);
+                    String destKey = Util.normalizeObjectKey(normalizedTargetPath + relativeName);
+                    ObjectInfo info = uploadEntry(entryInputStream, entry, targetBucket, destKey);
                     succeeded.add(info);
                     log.debug("Filtered unzip entry [{}] -> [{}]", entryName, destKey);
                 } catch (Exception ex) {
+                    rethrowFatalUnzipFailure(ex);
                     log.warn("Failed to unzip filtered entry [{}]: {}", entryName, ex.getMessage(), ex);
                     failed.add(entryName);
                 } finally {
@@ -279,10 +296,10 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
                 "读取 ZIP 对象失败：" + objectKey);
     }
 
-    private ObjectInfo uploadEntry(ZipInputStream zis, ZipEntry entry,
+    private ObjectInfo uploadEntry(InputStream entryInputStream, ZipEntry entry,
                                    String targetBucket, String destKey) throws IOException {
         long knownSize = entry.getSize();
-        long actualSize = uploadStream(new NonClosingInputStream(zis), knownSize, targetBucket, destKey);
+        long actualSize = uploadStream(entryInputStream, knownSize, targetBucket, destKey);
 
         return ObjectInfo.builder()
                 .uri(destKey)
@@ -320,6 +337,143 @@ public class StreamUnzipOperations extends Operations implements OssUnzipService
         }
         log.debug("Uploaded unzipped entry: [{}/{}] ({} bytes)", bucket, key, actualSize);
         return actualSize;
+    }
+
+    private void drain(InputStream inputStream) throws IOException {
+        byte[] buffer = new byte[BUFFER_SIZE];
+        while (inputStream.read(buffer) != -1) {
+            // 读取剩余条目内容以确保配额统计覆盖整个条目。
+        }
+    }
+
+    private String normalizeZipEntryName(String rawEntryName) {
+        if (Util.isBlank(rawEntryName)) {
+            throw new OssException("UNZIP_ENTRY_INVALID", "ZIP 条目名称不能为空");
+        }
+        String normalized = rawEntryName.replace('\\', '/');
+        if (normalized.startsWith("/")
+                || (normalized.length() >= 2
+                && Character.isLetter(normalized.charAt(0))
+                && normalized.charAt(1) == ':')) {
+            throw new OssException("UNZIP_ENTRY_INVALID",
+                    "ZIP 条目不能使用绝对路径：" + rawEntryName);
+        }
+        StringBuilder safeName = new StringBuilder();
+        String[] segments = normalized.split("/");
+        for (String segment : segments) {
+            if (segment.isEmpty()) {
+                continue;
+            }
+            if (".".equals(segment) || "..".equals(segment)) {
+                throw new OssException("UNZIP_ENTRY_INVALID",
+                        "ZIP 条目包含非法路径段：" + rawEntryName);
+            }
+            if (safeName.length() > 0) {
+                safeName.append('/');
+            }
+            safeName.append(segment);
+        }
+        if (safeName.length() == 0) {
+            throw new OssException("UNZIP_ENTRY_INVALID",
+                    "ZIP 条目名称无效：" + rawEntryName);
+        }
+        return safeName.toString();
+    }
+
+    private String normalizeZipEntryPrefix(String entryPrefix) {
+        if (Util.isBlank(entryPrefix)) {
+            return "";
+        }
+        String rawPrefix = entryPrefix.trim().replace('\\', '/');
+        boolean directoryPrefix = rawPrefix.endsWith("/");
+        String normalized = normalizeZipEntryName(rawPrefix);
+        return directoryPrefix ? normalized + "/" : normalized;
+    }
+
+    private InputStream openLimitedEntryStream(ZipInputStream inputStream, ZipEntry entry,
+                                               UnzipBudget budget) {
+        budget.startEntry(entry);
+        return new QuotaInputStream(new NonClosingInputStream(inputStream), budget);
+    }
+
+    private void rethrowFatalUnzipFailure(Exception exception) {
+        Throwable current = exception;
+        while (current != null) {
+            if (current instanceof OssException) {
+                String code = ((OssException) current).getCode();
+                if ("UNZIP_LIMIT_EXCEEDED".equals(code) || "UNZIP_ENTRY_INVALID".equals(code)) {
+                    throw (OssException) current;
+                }
+            }
+            current = current.getCause();
+        }
+    }
+
+    private static final class UnzipBudget {
+        private int entryCount;
+        private long totalBytes;
+
+        private void startEntry(ZipEntry entry) {
+            entryCount++;
+            if (entryCount > MAX_UNZIP_ENTRIES) {
+                throw new OssException("UNZIP_LIMIT_EXCEEDED",
+                        "ZIP 条目数量超过限制：" + MAX_UNZIP_ENTRIES);
+            }
+            long declaredSize = entry.getSize();
+            if (declaredSize > MAX_UNZIP_ENTRY_BYTES) {
+                throw new OssException("UNZIP_LIMIT_EXCEEDED",
+                        "ZIP 单条目大小超过限制：" + entry.getName());
+            }
+            if (declaredSize >= 0 && declaredSize > MAX_UNZIP_TOTAL_BYTES - totalBytes) {
+                throw new OssException("UNZIP_LIMIT_EXCEEDED",
+                        "ZIP 解压总大小超过限制");
+            }
+        }
+
+        private void record(long bytes, long entryBytes) {
+            if (entryBytes > MAX_UNZIP_ENTRY_BYTES) {
+                throw new OssException("UNZIP_LIMIT_EXCEEDED",
+                        "ZIP 单条目实际大小超过限制");
+            }
+            if (bytes > MAX_UNZIP_TOTAL_BYTES - totalBytes) {
+                throw new OssException("UNZIP_LIMIT_EXCEEDED",
+                        "ZIP 解压总大小超过限制");
+            }
+            totalBytes += bytes;
+        }
+    }
+
+    private static final class QuotaInputStream extends FilterInputStream {
+        private final UnzipBudget budget;
+        private long entryBytes;
+
+        private QuotaInputStream(InputStream inputStream, UnzipBudget budget) {
+            super(inputStream);
+            this.budget = budget;
+        }
+
+        @Override
+        public int read() throws IOException {
+            int value = super.read();
+            if (value >= 0) {
+                record(1L);
+            }
+            return value;
+        }
+
+        @Override
+        public int read(byte[] bytes, int offset, int length) throws IOException {
+            int read = super.read(bytes, offset, length);
+            if (read > 0) {
+                record(read);
+            }
+            return read;
+        }
+
+        private void record(long bytes) {
+            entryBytes += bytes;
+            budget.record(bytes, entryBytes);
+        }
     }
 
     /**

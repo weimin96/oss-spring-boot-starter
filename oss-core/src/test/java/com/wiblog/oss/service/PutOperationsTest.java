@@ -1,9 +1,13 @@
 package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.CopyObjectCommand;
+import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.PutObjectCommand;
 import com.wiblog.oss.bean.StoredObject;
+import com.wiblog.oss.bean.chunk.ChunkMerge;
 import com.wiblog.oss.bean.chunk.ChunkPartInfo;
+import com.wiblog.oss.bean.chunk.ChunkTarget;
+import com.wiblog.oss.bean.chunk.ChunkUploadCommand;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import org.junit.jupiter.api.Test;
@@ -52,7 +56,9 @@ import java.lang.reflect.Proxy;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -208,7 +214,7 @@ class PutOperationsTest {
         assertNull(headRequests.get(0).checksumMode());
         assertEquals("destination", headRequests.get(1).bucket());
         assertEquals("b.txt", headRequests.get(1).key());
-        assertEquals(ChecksumMode.ENABLED, headRequests.get(1).checksumMode());
+        assertNull(headRequests.get(1).checksumMode());
         assertEquals(new StoredObject("destination", "b.txt", 12L,
                 "etag-copy", "version-copy", "checksum-copy"), result);
     }
@@ -636,6 +642,68 @@ class PutOperationsTest {
     }
 
     @Test
+    void copyObjectRestoresSpecificVersionToSameKey() {
+        List<HeadObjectRequest> headRequests = new ArrayList<>();
+        final CopyObjectRequest[] copyRequest = new CopyObjectRequest[1];
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    HeadObjectRequest request = (HeadObjectRequest) args[0];
+                    headRequests.add(request);
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(4L)
+                            .eTag("etag-v1")
+                            .versionId(request.versionId())
+                            .build());
+                }
+                if ("copyObject".equals(methodName)) {
+                    copyRequest[0] = (CopyObjectRequest) args[0];
+                    return completed(CopyObjectResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        StoredObject restored = operations(client).copyObject(new CopyObjectCommand(
+                "bucket", "history.txt", "bucket", "history.txt", "version-1"));
+
+        assertEquals("version-1", headRequests.get(0).versionId());
+        assertNull(headRequests.get(1).versionId());
+        assertEquals("version-1", copyRequest[0].sourceVersionId());
+        assertEquals(4L, restored.size());
+    }
+
+    @Test
+    void copyObjectReportsCompletedButUnverifiedState() {
+        final int[] headCount = new int[]{0};
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    headCount[0]++;
+                    if (headCount[0] == 1) {
+                        return completed(HeadObjectResponse.builder()
+                                .contentLength(1L)
+                                .eTag("source-etag")
+                                .build());
+                    }
+                    return failed(S3Exception.builder().statusCode(503).message("verify failed").build());
+                }
+                if ("copyObject".equals(methodName)) {
+                    return completed(CopyObjectResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class, () -> operations(client).copyObject(
+                new CopyObjectCommand("source", "source.txt", "destination", "target.txt")));
+
+        assertEquals("OBJECT_COPY_COMPLETED_VERIFY_FAILED", failure.getCode());
+    }
+
+    @Test
     void copyObjectRejectsSameSourceAndDestination() {
         PutOperations operations = operations(s3Client(noS3Calls()));
 
@@ -679,6 +747,7 @@ class PutOperationsTest {
         assertEquals(2, deleteRequests.size());
         assertEquals(copyRequests.get(0).destinationKey(), deleteRequests.get(0).key());
         assertEquals("README", deleteRequests.get(1).key());
+        assertEquals("etag", deleteRequests.get(1).ifMatch());
     }
 
     @Test
@@ -730,6 +799,41 @@ class PutOperationsTest {
         });
 
         assertThrows(OssException.class, () -> operations(client).copyFile("bucket", "bucket", "source.txt", "target.txt"));
+    }
+
+    @Test
+    void moveKeepsNewSourceWhenConditionalDeleteDetectsChange() {
+        List<DeleteObjectRequest> deleteRequests = new ArrayList<>();
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(headResponse(6L, "checksum"));
+                }
+                if ("copyObject".equals(methodName)) {
+                    return completed(CopyObjectResponse.builder().build());
+                }
+                if ("deleteObject".equals(methodName)) {
+                    DeleteObjectRequest request = buildDeleteObjectRequest((Consumer<?>) args[0]);
+                    deleteRequests.add(request);
+                    if ("source.txt".equals(request.key())) {
+                        return failed(S3Exception.builder()
+                                .statusCode(412)
+                                .message("source changed")
+                                .build());
+                    }
+                    return completed(DeleteObjectResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).move("bucket", "source.txt", "archive"));
+
+        assertEquals("MOVE_SOURCE_CHANGED", failure.getCode());
+        assertEquals(2, deleteRequests.size());
+        assertEquals("etag", deleteRequests.get(1).ifMatch());
     }
 
     @Test
@@ -938,6 +1042,82 @@ class PutOperationsTest {
     }
 
     @Test
+    void chunkRejectsDeclaredLengthThatDiffersFromBytes() {
+        ChunkUploadCommand command = new ChunkUploadCommand();
+        command.setChunkNumber(1);
+        command.setFilename("object.bin");
+        command.setPath("parts.v1");
+        command.setUploadId("upload-id");
+        command.setFileBytes(new byte[]{1, 2, 3});
+        command.setContentLength(2L);
+
+        assertThrows(IllegalArgumentException.class,
+                () -> operations(s3Client(noS3Calls())).chunk(command));
+    }
+
+    @Test
+    void mergeValidatesServerPartsBeforeCompletingUpload() {
+        final CompleteMultipartUploadRequest[] completeRequest = new CompleteMultipartUploadRequest[1];
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("listParts".equals(methodName)) {
+                    ListPartsRequest request = (ListPartsRequest) args[0];
+                    assertEquals("parts.v1/object.bin", request.key());
+                    return completed(ListPartsResponse.builder()
+                            .isTruncated(false)
+                            .parts(
+                                    Part.builder().partNumber(1).eTag("\"etag-1\"").size(3L).build(),
+                                    Part.builder().partNumber(2).eTag("etag-2").size(3L).build())
+                            .build());
+                }
+                if ("completeMultipartUpload".equals(methodName)) {
+                    completeRequest[0] = (CompleteMultipartUploadRequest) args[0];
+                    return completed(CompleteMultipartUploadResponse.builder().build());
+                }
+                if ("headObject".equals(methodName)) {
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(6L)
+                            .lastModified(Instant.parse("2026-07-18T00:00:00Z"))
+                            .build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+        ChunkMerge merge = chunkMerge(2, 6L);
+
+        ObjectInfo result = operations(client).merge(merge);
+
+        assertEquals(6L, result.getSize());
+        assertEquals(2, completeRequest[0].multipartUpload().parts().size());
+        assertEquals("etag-1", completeRequest[0].multipartUpload().parts().get(0).eTag());
+    }
+
+    @Test
+    void mergeRejectsMissingServerPart() {
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("listParts".equals(methodName)) {
+                    return completed(ListPartsResponse.builder()
+                            .isTruncated(false)
+                            .parts(Part.builder().partNumber(1).eTag("etag-1").size(3L).build())
+                            .build());
+                }
+                if ("completeMultipartUpload".equals(methodName)) {
+                    throw new AssertionError("分片缺失时不应发起合并");
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).merge(chunkMerge(2, 6L)));
+
+        assertEquals("MULTIPART_PART_COUNT_MISMATCH", failure.getCode());
+    }
+
+    @Test
     void listPartsUsesS3MaxPageSizeAndReadsAllPages() {
         List<ListPartsRequest> requests = new ArrayList<>();
         S3AsyncClient client = s3Client(new S3Handler() {
@@ -992,6 +1172,23 @@ class PutOperationsTest {
         });
 
         assertThrows(OssException.class, () -> operations(client).listParts("bucket", "object.txt", "upload-id"));
+    }
+
+    private static ChunkMerge chunkMerge(int expectedPartCount, long expectedSize) {
+        ChunkTarget first = new ChunkTarget();
+        first.setPartNumber(1);
+        first.setEtag("etag-1");
+        ChunkTarget second = new ChunkTarget();
+        second.setPartNumber(2);
+        second.setEtag("etag-2");
+        ChunkMerge merge = new ChunkMerge();
+        merge.setPath("parts.v1");
+        merge.setFilename("object.bin");
+        merge.setUploadId("upload-id");
+        merge.setExpectedPartCount(expectedPartCount);
+        merge.setExpectedSize(expectedSize);
+        merge.setChunkTargetList(Arrays.asList(first, second));
+        return merge;
     }
 
     private static OssClientOptions options() {

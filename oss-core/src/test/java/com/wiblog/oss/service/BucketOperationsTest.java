@@ -4,14 +4,58 @@ import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import org.junit.jupiter.api.Test;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.model.BucketVersioningStatus;
+import software.amazon.awssdk.services.s3.model.GetBucketVersioningResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import java.lang.reflect.Proxy;
 import java.util.concurrent.CompletableFuture;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class BucketOperationsTest {
+
+    @Test
+    void getVersioningStatusDoesNotHidePermissionFailure() {
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("getBucketVersioning".equals(methodName)) {
+                    return failed(S3Exception.builder()
+                            .statusCode(403)
+                            .message("denied")
+                            .build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).getVersioningStatus("bucket"));
+
+        assertEquals("BUCKET_VERSIONING_FORBIDDEN", failure.getCode());
+    }
+
+    @Test
+    void rewindRejectsSuspendedVersioning() {
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("getBucketVersioning".equals(methodName)) {
+                    return CompletableFuture.completedFuture(GetBucketVersioningResponse.builder()
+                            .status(BucketVersioningStatus.SUSPENDED)
+                            .build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).rewindBucket("bucket", "2026-07-17T00:00:00Z"));
+
+        assertEquals("BUCKET_VERSIONING_REQUIRED", failure.getCode());
+    }
 
     @Test
     void putBucketPolicyFailsWhenRequestFails() {

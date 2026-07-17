@@ -49,7 +49,11 @@
 
 `ReadObjectRangeCommand` 使用 `offset + length` 表达单个字节区间。原始 Range 字符串重载仅用于兼容，新增代码优先使用类型化命令。命令未指定 Bucket 时通过 `OssQueryService.getDefaultBucketName()` 解析；支持默认 Bucket 的第三方实现必须覆盖该方法。
 
-服务端复制仅适用于当前 `S3AsyncClient` 可同时访问的源和目标。对象不超过 5 GB 时使用单次复制，超过阈值时自动使用 multipart copy；分片大小复用 `partSizeInMb`，并发度不超过 `min(maxConnections, 8)`。失败或线程中断时必须等待当前并发窗口收敛，再中止未完成的 multipart upload；同一窗口的其他失败通过 suppressed exception 保留。
+服务端复制仅适用于当前 `S3AsyncClient` 可同时访问的源和目标。对象不超过 5 GB 时使用单次复制，超过阈值时自动使用 multipart copy；分片大小复用 `partSizeInMb`，并发度不超过 `min(maxConnections, 8)`。失败或线程中断时必须等待当前并发窗口收敛，再中止未完成的 multipart upload；同一窗口的其他失败通过 suppressed exception 保留。指定 `sourceVersionId` 时允许把历史版本复制回同一 key，Bucket 回滚必须复用这条路由。
+
+移动最终删除源对象必须使用源 ETag 的 `If-Match` 条件，不能无条件删除。对象列表、目录删除、ZIP 导出和解压目标目录必须使用 `Util.normalizeObjectPrefix()`，禁止通过扩展名判断目录；空前缀递归删除必须拒绝。
+
+手工分片合并必须要求 `expectedPartCount` 和 `expectedSize`，并以服务端 `ListParts` 结果校验连续编号、ETag、数量和总大小。ZIP 解压必须拒绝危险路径，并保持条目数、单条目大小和累计大小限制。
 
 ## 自动配置规则
 

@@ -111,7 +111,10 @@ public class DeleteOperations extends Operations implements OssDeleteService {
      */
     @Override
     public void removeFolder(String bucketName, String path) {
-        String normalizedPath = Util.formatPath(path);
+        String normalizedPath = Util.normalizeObjectPrefix(path);
+        if (Util.isBlank(normalizedPath)) {
+            throw new IllegalArgumentException("删除目录前缀不能为空");
+        }
         List<ObjectIdentifier> objectIdentifiers = collectObjectIdentifiersByPrefix(bucketName, normalizedPath);
         if (objectIdentifiers.isEmpty()) {
             throw new OssException("OBJECT_NOT_FOUND", "未找到文件夹或文件夹下没有对象：" + normalizedPath);
@@ -146,7 +149,8 @@ public class DeleteOperations extends Operations implements OssDeleteService {
                 .map(S3Error::key)
                 .collect(Collectors.toCollection(HashSet::new));
         if (failedKeys.isEmpty()) {
-            return;
+            throw new OssException("OBJECT_BATCH_DELETE_FAILED",
+                    "批量删除返回失败结果，但未提供失败对象 key：" + path);
         }
 
         log.warn("Batch delete had {} failed objects under path [{}], retrying individually",
@@ -183,11 +187,9 @@ public class DeleteOperations extends Operations implements OssDeleteService {
                 continue;
             }
 
-            if (looksLikeFolderTarget(rawTarget, normalizedTarget)) {
-                collectObjectIdentifiersByPrefix(bucketName, Util.formatPath(normalizedTarget)).stream()
-                        .map(ObjectIdentifier::key)
-                        .forEach(deleteKeys::add);
-            }
+            collectObjectIdentifiersByPrefix(bucketName, Util.normalizeObjectPrefix(normalizedTarget)).stream()
+                    .map(ObjectIdentifier::key)
+                    .forEach(deleteKeys::add);
         }
 
         return deleteKeys;
@@ -243,16 +245,37 @@ public class DeleteOperations extends Operations implements OssDeleteService {
     }
 
     private boolean objectExists(String bucketName, String objectKey) {
-        HeadObjectResponse response = handleRequest(() -> client.headObject(HeadObjectRequest.builder()
-                .bucket(bucketName)
-                .key(objectKey)
-                .build()));
-        return response != null;
-    }
-
-    private boolean looksLikeFolderTarget(String rawTarget, String normalizedTarget) {
-        String trimmedTarget = rawTarget == null ? "" : rawTarget.trim().replace('\\', '/');
-        return trimmedTarget.endsWith("/") || !Util.checkIsFile(normalizedTarget);
+        try {
+            executeRequestStrict(() -> client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(objectKey)
+                    .build()));
+            return true;
+        } catch (NoSuchKeyException exception) {
+            return false;
+        } catch (NoSuchBucketException exception) {
+            throw OssException.bucketNotFound(bucketName);
+        } catch (S3Exception exception) {
+            String errorCode = exception.awsErrorDetails() == null
+                    ? null : exception.awsErrorDetails().errorCode();
+            if ("NoSuchBucket".equals(errorCode)) {
+                throw OssException.bucketNotFound(bucketName);
+            }
+            if (exception.statusCode() == 404 || "NoSuchKey".equals(errorCode)) {
+                return false;
+            }
+            if (exception.statusCode() == 403 || "AccessDenied".equals(errorCode)) {
+                throw new OssException("OBJECT_DELETE_FORBIDDEN",
+                        "没有对象删除权限：" + objectKey, exception);
+            }
+            throw new OssException("OBJECT_DELETE_CHECK_FAILED",
+                    "删除前检查对象失败：" + objectKey, exception);
+        } catch (OssException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new OssException("OBJECT_DELETE_CHECK_FAILED",
+                    "删除前检查对象失败：" + objectKey, exception);
+        }
     }
 
     private ObjectIdentifier toObjectIdentifier(String key) {

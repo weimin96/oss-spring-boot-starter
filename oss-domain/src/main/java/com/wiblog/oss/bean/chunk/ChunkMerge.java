@@ -33,6 +33,16 @@ public class ChunkMerge {
     private String guid;
 
     /**
+     * 预期分片总数用于识别遗漏的尾部分片，必须与服务端真实分片清单一致。
+     */
+    private Integer expectedPartCount;
+
+    /**
+     * 预期文件总大小用于在合并前校验所有服务端分片的字节总量。
+     */
+    private Long expectedSize;
+
+    /**
      * 分片摘要列表必须按上传结果传入，合并阶段据此恢复稳定的部件顺序和 ETag 信息。
      */
     private List<ChunkTarget> chunkTargetList;

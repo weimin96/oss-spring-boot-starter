@@ -90,12 +90,35 @@ public class BucketOperations extends Operations implements OssBucketService {
      */
     @Override
     public String getVersioningStatus(String bucketName) {
-        GetBucketVersioningResponse resp = handleRequest(() ->
-                client.getBucketVersioning(GetBucketVersioningRequest.builder().bucket(bucketName).build()));
-        if (resp == null || resp.status() == null) {
-            return null;
+        if (bucketName == null || bucketName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Bucket 名称不能为空");
         }
-        return resp.status().toString();
+        try {
+            GetBucketVersioningResponse response = executeRequestStrict(() ->
+                    client.getBucketVersioning(GetBucketVersioningRequest.builder()
+                            .bucket(bucketName)
+                            .build()));
+            return response == null || response.status() == null
+                    ? null : response.status().toString();
+        } catch (NoSuchBucketException exception) {
+            throw OssException.bucketNotFound(bucketName);
+        } catch (S3Exception exception) {
+            String errorCode = extractS3ErrorCode(exception);
+            if ("NoSuchBucket".equals(errorCode)) {
+                throw OssException.bucketNotFound(bucketName);
+            }
+            if (exception.statusCode() == 403 || "AccessDenied".equals(errorCode)) {
+                throw new OssException("BUCKET_VERSIONING_FORBIDDEN",
+                        "没有查询 Bucket 版本控制状态的权限：" + bucketName, exception);
+            }
+            throw new OssException("BUCKET_VERSIONING_QUERY_FAILED",
+                    "查询 Bucket 版本控制状态失败：" + bucketName, exception);
+        } catch (OssException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new OssException("BUCKET_VERSIONING_QUERY_FAILED",
+                    "查询 Bucket 版本控制状态失败：" + bucketName, exception);
+        }
     }
 
     /**
@@ -176,11 +199,12 @@ public class BucketOperations extends Operations implements OssBucketService {
     public BucketRewindResult rewindBucket(String bucketName, String targetTime) {
         Instant targetInstant = parseTargetTime(targetTime);
         String versioningStatus = getVersioningStatus(bucketName);
-        if (versioningStatus == null) {
+        if (!BucketVersioningStatus.ENABLED.toString().equals(versioningStatus)) {
             throw new OssException("BUCKET_VERSIONING_REQUIRED",
-                    "Bucket 未开启版本控制，无法执行按时间回滚：" + bucketName);
+                    "Bucket 必须处于 Enabled 状态才能执行按时间回滚：" + bucketName);
         }
 
+        PutOperations copyOperations = new PutOperations(ossProperties, client, transferManager);
         Map<String, List<BucketHistoryEntry>> histories = collectBucketHistories(bucketName);
         long restoredObjectCount = 0L;
         long deletedObjectCount = 0L;
@@ -207,7 +231,7 @@ public class BucketOperations extends Operations implements OssBucketService {
                 continue;
             }
 
-            restoreVersionAsLatest(bucketName, targetState);
+            restoreVersionAsLatest(copyOperations, bucketName, targetState);
             restoredObjectCount++;
         }
 
@@ -883,16 +907,19 @@ public class BucketOperations extends Operations implements OssBucketService {
                 "回滚时删除当前对象失败：" + key);
     }
 
-    private void restoreVersionAsLatest(String bucketName, BucketHistoryEntry targetState) {
-        requireSuccessfulRequest(() -> client.copyObject(CopyObjectRequest.builder()
-                        .sourceBucket(bucketName)
-                        .sourceKey(targetState.getKey())
-                        .sourceVersionId(targetState.getVersionId())
-                        .destinationBucket(bucketName)
-                        .destinationKey(targetState.getKey())
-                        .build()),
-                "BUCKET_REWIND_RESTORE_FAILED",
-                "回滚时恢复历史版本失败：" + targetState.getKey());
+    private void restoreVersionAsLatest(PutOperations copyOperations, String bucketName,
+                                        BucketHistoryEntry targetState) {
+        try {
+            copyOperations.copyObject(new CopyObjectCommand(
+                    bucketName,
+                    targetState.getKey(),
+                    bucketName,
+                    targetState.getKey(),
+                    targetState.getVersionId()));
+        } catch (OssException exception) {
+            throw new OssException("BUCKET_REWIND_RESTORE_FAILED",
+                    "回滚时恢复历史版本失败：" + targetState.getKey(), exception);
+        }
     }
 
     private static final class BucketStatistics {

@@ -103,6 +103,24 @@ public final class Util {
     }
 
     /**
+     * 规范化对象前缀。
+     *
+     * <p>目录和前缀语义不能通过扩展名推断。该方法仅统一路径分隔符、移除前导斜杠，
+     * 并确保非空前缀以 {@code /} 结尾，从而避免 {@code release.v1} 误匹配
+     * {@code release.v10} 或 {@code release.v1-backup}。</p>
+     *
+     * @param prefix 原始目录或对象前缀
+     * @return 规范化后的前缀；根路径返回空字符串
+     */
+    public static String normalizeObjectPrefix(String prefix) {
+        String normalizedPrefix = normalizeObjectKey(prefix);
+        if (isBlank(normalizedPrefix)) {
+            return "";
+        }
+        return normalizedPrefix.endsWith("/") ? normalizedPrefix : normalizedPrefix + "/";
+    }
+
+    /**
      * 获取 MIME 类型。
      * 改进：使用静态单例 Tika，原代码每次 new Tika()。
      *

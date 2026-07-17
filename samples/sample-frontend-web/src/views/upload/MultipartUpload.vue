@@ -412,6 +412,8 @@ async function startUpload() {
       path: context.path,
       uploadId: context.uploadId,
       guid: context.guid,
+      expectedPartCount: totalChunks.value,
+      expectedSize: context.file.size,
       chunkTargetList,
       signal: context.signal,
     }))

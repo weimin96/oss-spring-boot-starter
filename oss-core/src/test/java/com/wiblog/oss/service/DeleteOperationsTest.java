@@ -3,6 +3,7 @@ package com.wiblog.oss.service;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
@@ -11,9 +12,47 @@ import java.lang.reflect.Proxy;
 import java.time.Instant;
 import java.util.concurrent.CompletableFuture;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class DeleteOperationsTest {
+
+    @Test
+    void removeFolderRejectsEmptyPrefixBeforeListingBucket() {
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                throw unsupported(methodName);
+            }
+        });
+
+        assertThrows(IllegalArgumentException.class,
+                () -> operations(client).removeFolder("bucket", ""));
+    }
+
+    @Test
+    void removeObjectDoesNotReportPermissionFailureAsMissing() {
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return failed(S3Exception.builder()
+                            .statusCode(403)
+                            .awsErrorDetails(AwsErrorDetails.builder()
+                                    .errorCode("AccessDenied")
+                                    .build())
+                            .message("denied")
+                            .build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations(client).removeObject("bucket", "object.txt"));
+
+        assertEquals("OBJECT_DELETE_FORBIDDEN", failure.getCode());
+    }
 
     @Test
     void removeObjectFailsWhenDeleteRequestFails() {

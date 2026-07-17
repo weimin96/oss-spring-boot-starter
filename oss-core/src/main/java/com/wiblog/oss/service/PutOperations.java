@@ -124,7 +124,7 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public ObjectInfo putObject(String bucketName, String path, String filename, InputStream in) {
-        return putObjectForKey(bucketName, formatPath(path) + filename, in);
+        return putObjectForKey(bucketName, Util.normalizeObjectPrefix(path) + filename, in);
     }
 
     /**
@@ -251,7 +251,7 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public ObjectInfo putObject(String bucketName, String path, String filename, File file) {
-        return putObjectForKey(bucketName, formatPath(path) + filename, file);
+        return putObjectForKey(bucketName, Util.normalizeObjectPrefix(path) + filename, file);
     }
 
     /**
@@ -313,12 +313,16 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public ObjectInfo mkdirs(String bucketName, String path) {
+        String directoryKey = Util.normalizeObjectPrefix(path);
+        if (Util.isBlank(directoryKey)) {
+            throw new IllegalArgumentException("目录路径不能为空");
+        }
         PutObjectRequest req = PutObjectRequest.builder()
-                .bucket(bucketName).key(formatPath(path)).build();
+                .bucket(bucketName).key(directoryKey).build();
         requireSuccessfulRequest(() -> client.putObject(req, AsyncRequestBody.empty()),
                 "DIRECTORY_CREATE_FAILED",
-                "创建目录失败：" + formatPath(path));
-        return buildObjectInfo(path, new Date(), 0);
+                "创建目录失败：" + directoryKey);
+        return buildObjectInfo(directoryKey, new Date(), 0);
     }
 
     /**
@@ -360,7 +364,7 @@ public class PutOperations extends Operations implements OssPutService {
         if (!folder.exists() || !folder.isDirectory()) {
             throw new IllegalArgumentException("目录不存在: " + folder.getPath());
         }
-        path = formatPath(path);
+        path = Util.normalizeObjectPrefix(path);
         if (isIncludeFolderName) {
             path += folder.getName() + "/";
         }
@@ -403,17 +407,19 @@ public class PutOperations extends Operations implements OssPutService {
         CopyTarget target = validateCopyCommand(command);
         long startedAt = System.nanoTime();
         try {
-            HeadObjectResponse source = headCopyObject(target.sourceBucket, target.sourceKey, false,
+            HeadObjectResponse source = headCopyObject(target.sourceBucket, target.sourceKey,
+                    target.sourceVersionId, false,
                     "OBJECT_COPY_SOURCE_HEAD_FAILED", "读取复制源对象失败：");
             long sourceSize = requireCopyObjectSize(source, target.sourceKey);
             CopyExecutionPlan plan = executeCopy(target, source, sourceSize);
 
-            HeadObjectResponse destination = headCopyObject(target.destinationBucket, target.destinationKey, true,
-                    "OBJECT_COPY_VERIFY_FAILED", "读取复制结果失败：");
+            HeadObjectResponse destination = headCopyObject(target.destinationBucket, target.destinationKey,
+                    null, false,
+                    "OBJECT_COPY_COMPLETED_VERIFY_FAILED", "复制已完成，但读取复制结果失败：");
             long destinationSize = requireCopyObjectSize(destination, target.destinationKey);
             if (sourceSize != destinationSize) {
-                throw new OssException("OBJECT_COPY_VERIFY_FAILED",
-                        "复制结果大小校验失败：" + target.destinationKey);
+                throw new OssException("OBJECT_COPY_COMPLETED_VERIFY_FAILED",
+                        "复制已完成，但复制结果大小校验失败：" + target.destinationKey);
             }
             StoredObject result = buildStoredObject(target.destinationBucket, target.destinationKey, destination);
             log.info("OSS server-side copy completed: source=[{}/{}], destination=[{}/{}], size={}, "
@@ -452,14 +458,18 @@ public class PutOperations extends Operations implements OssPutService {
         }
         String sourceKey = Util.normalizeObjectKey(command.sourceKey());
         String destinationKey = Util.normalizeObjectKey(command.destinationKey());
-        if (sourceBucket.equals(destinationBucket) && sourceKey.equals(destinationKey)) {
+        String sourceVersionId = Util.isBlank(command.sourceVersionId())
+                ? null : command.sourceVersionId();
+        if (sourceBucket.equals(destinationBucket)
+                && sourceKey.equals(destinationKey)
+                && sourceVersionId == null) {
             throw new IllegalArgumentException("源对象和目标对象不能相同");
         }
-        return new CopyTarget(sourceBucket, sourceKey, destinationBucket, destinationKey);
+        return new CopyTarget(sourceBucket, sourceKey, destinationBucket, destinationKey, sourceVersionId);
     }
 
     private CopyExecutionPlan executeCopy(CopyTarget target, HeadObjectResponse source, long sourceSize) {
-        requireCopySourceIdentity(source, target.sourceKey);
+        requireCopySourceIdentity(target, source);
         CopyExecutionPlan plan = createCopyExecutionPlan(sourceSize);
         log.debug("OSS server-side copy planned: source=[{}/{}], destination=[{}/{}], size={}, "
                         + "strategy={}, parts={}, partSize={}, concurrency={}",
@@ -480,7 +490,7 @@ public class PutOperations extends Operations implements OssPutService {
                 .sourceKey(target.sourceKey)
                 .destinationBucket(target.destinationBucket)
                 .destinationKey(target.destinationKey);
-        applyCopySourceCondition(request, source);
+        applyCopySourceCondition(request, target, source);
         executeCopyRequest(() -> client.copyObject(request.build()),
                 "OBJECT_COPY_FAILED", "复制对象失败：" + target.sourceKey);
     }
@@ -561,7 +571,7 @@ public class PutOperations extends Operations implements OssPutService {
                         .uploadId(uploadId)
                         .partNumber(currentPartNumber)
                         .copySourceRange("bytes=" + offset + "-" + end);
-                applyCopySourceCondition(request, source);
+                applyCopySourceCondition(request, target, source);
                 batch.add(startCopyPart(request.build(), target.sourceKey, currentPartNumber));
                 offset = end + 1;
                 partNumber++;
@@ -686,11 +696,15 @@ public class PutOperations extends Operations implements OssPutService {
         return Math.max(1, Math.min(MAX_COPY_CONCURRENCY, ossProperties.getMaxConnections()));
     }
 
-    private HeadObjectResponse headCopyObject(String bucket, String key, boolean checksumEnabled,
+    private HeadObjectResponse headCopyObject(String bucket, String key, String versionId,
+                                              boolean checksumEnabled,
                                               String errorCode, String messagePrefix) {
         HeadObjectRequest.Builder request = HeadObjectRequest.builder()
                 .bucket(bucket)
                 .key(key);
+        if (!Util.isBlank(versionId)) {
+            request.versionId(versionId);
+        }
         if (checksumEnabled) {
             request.checksumMode(ChecksumMode.ENABLED);
         }
@@ -702,8 +716,9 @@ public class PutOperations extends Operations implements OssPutService {
         GetObjectTaggingRequest.Builder request = GetObjectTaggingRequest.builder()
                 .bucket(target.sourceBucket)
                 .key(target.sourceKey);
-        if (!Util.isBlank(source.versionId())) {
-            request.versionId(source.versionId());
+        String sourceVersionId = resolveCopySourceVersion(target, source);
+        if (!Util.isBlank(sourceVersionId)) {
+            request.versionId(sourceVersionId);
         }
         GetObjectTaggingResponse response = executeCopyRequest(() -> client.getObjectTagging(
                         request.build()),
@@ -819,27 +834,36 @@ public class PutOperations extends Operations implements OssPutService {
         return response.contentLength();
     }
 
-    private void requireCopySourceIdentity(HeadObjectResponse source, String sourceKey) {
-        if (Util.isBlank(source.versionId()) && Util.isBlank(source.eTag())) {
+    private void requireCopySourceIdentity(CopyTarget target, HeadObjectResponse source) {
+        if (Util.isBlank(resolveCopySourceVersion(target, source)) && Util.isBlank(source.eTag())) {
             throw new OssException("OBJECT_COPY_SOURCE_IDENTITY_MISSING",
-                    "源对象缺少 versionId 或 ETag，无法保证复制一致性：" + sourceKey);
+                    "源对象缺少 versionId 或 ETag，无法保证复制一致性：" + target.sourceKey);
         }
     }
 
-    private void applyCopySourceCondition(CopyObjectRequest.Builder request, HeadObjectResponse source) {
-        if (!Util.isBlank(source.versionId())) {
-            request.sourceVersionId(source.versionId());
+    private void applyCopySourceCondition(CopyObjectRequest.Builder request,
+                                          CopyTarget target, HeadObjectResponse source) {
+        String sourceVersionId = resolveCopySourceVersion(target, source);
+        if (!Util.isBlank(sourceVersionId)) {
+            request.sourceVersionId(sourceVersionId);
         } else if (!Util.isBlank(source.eTag())) {
             request.copySourceIfMatch(source.eTag());
         }
     }
 
-    private void applyCopySourceCondition(UploadPartCopyRequest.Builder request, HeadObjectResponse source) {
-        if (!Util.isBlank(source.versionId())) {
-            request.sourceVersionId(source.versionId());
+    private void applyCopySourceCondition(UploadPartCopyRequest.Builder request,
+                                          CopyTarget target, HeadObjectResponse source) {
+        String sourceVersionId = resolveCopySourceVersion(target, source);
+        if (!Util.isBlank(sourceVersionId)) {
+            request.sourceVersionId(sourceVersionId);
         } else if (!Util.isBlank(source.eTag())) {
             request.copySourceIfMatch(source.eTag());
         }
+    }
+
+    private String resolveCopySourceVersion(CopyTarget target, HeadObjectResponse source) {
+        return !Util.isBlank(target.sourceVersionId)
+                ? target.sourceVersionId : source.versionId();
     }
 
     private void abortMultipartCopy(CopyTarget target, String uploadId, RuntimeException failure) {
@@ -882,13 +906,16 @@ public class PutOperations extends Operations implements OssPutService {
         private final String sourceKey;
         private final String destinationBucket;
         private final String destinationKey;
+        private final String sourceVersionId;
 
         private CopyTarget(String sourceBucket, String sourceKey,
-                           String destinationBucket, String destinationKey) {
+                           String destinationBucket, String destinationKey,
+                           String sourceVersionId) {
             this.sourceBucket = sourceBucket;
             this.sourceKey = sourceKey;
             this.destinationBucket = destinationBucket;
             this.destinationKey = destinationKey;
+            this.sourceVersionId = sourceVersionId;
         }
     }
 
@@ -917,7 +944,7 @@ public class PutOperations extends Operations implements OssPutService {
     public void move(String bucketName, String sourceObjectName, String destinationDirectory) {
         String sourceKey = Util.normalizeObjectKey(sourceObjectName);
         String filename = Util.getFilename(sourceObjectName);
-        String destKey = Util.formatPath(destinationDirectory) + filename;
+        String destKey = Util.normalizeObjectPrefix(destinationDirectory) + filename;
         destKey = Util.normalizeObjectKey(destKey);
         HeadObjectResponse sourceResponse = headMoveResponse(bucketName, sourceKey,
                 "MOVE_SOURCE_HEAD_FAILED", "读取源对象失败：");
@@ -929,14 +956,14 @@ public class PutOperations extends Operations implements OssPutService {
         String stagingKey = MOVE_STAGING_PREFIX + UUID.randomUUID().toString();
         boolean stagingCleanupRequired = true;
         try {
-            executeCopy(new CopyTarget(bucketName, sourceKey, bucketName, stagingKey),
+            executeCopy(new CopyTarget(bucketName, sourceKey, bucketName, stagingKey, null),
                     sourceResponse, source.size());
             HeadObjectResponse stagingResponse = headMoveResponse(bucketName, stagingKey,
                     "MOVE_STAGING_HEAD_FAILED", "读取 staging 对象失败：");
             StoredObject staging = buildStoredObject(bucketName, stagingKey, stagingResponse);
             verifyMoveCopy(source, staging, "MOVE_STAGING_INVALID", "staging 对象校验失败：");
 
-            executeCopy(new CopyTarget(bucketName, stagingKey, bucketName, destKey),
+            executeCopy(new CopyTarget(bucketName, stagingKey, bucketName, destKey, null),
                     stagingResponse, staging.size());
             StoredObject destination = headMoveObject(bucketName, destKey,
                     "MOVE_DESTINATION_HEAD_FAILED", "读取最终对象失败：");
@@ -945,8 +972,7 @@ public class PutOperations extends Operations implements OssPutService {
             deleteMoveObject(bucketName, stagingKey,
                     "MOVE_STAGING_DELETE_FAILED", "删除 staging 对象失败：");
             stagingCleanupRequired = false;
-            deleteMoveObject(bucketName, sourceKey,
-                    "MOVE_SOURCE_DELETE_FAILED", "删除源对象失败：");
+            deleteMoveSourceObject(bucketName, sourceKey, sourceResponse);
         } catch (RuntimeException failure) {
             if (stagingCleanupRequired) {
                 cleanupMoveStaging(bucketName, stagingKey, failure);
@@ -985,6 +1011,46 @@ public class PutOperations extends Operations implements OssPutService {
                 errorCode, messagePrefix + key);
     }
 
+    private void deleteMoveSourceObject(String bucketName, String sourceKey,
+                                        HeadObjectResponse sourceResponse) {
+        if (Util.isBlank(sourceResponse.eTag())) {
+            throw new OssException("MOVE_SOURCE_IDENTITY_MISSING",
+                    "源对象缺少 ETag，无法执行条件删除：" + sourceKey);
+        }
+        try {
+            DeleteObjectResponse response = executeRequestStrict(() -> client.deleteObject(request -> request
+                    .bucket(bucketName)
+                    .key(sourceKey)
+                    .ifMatch(sourceResponse.eTag())
+                    .build()));
+            if (response == null) {
+                throw new OssException("MOVE_SOURCE_DELETE_FAILED", "删除源对象失败：" + sourceKey);
+            }
+        } catch (S3Exception exception) {
+            String errorCode = exception.awsErrorDetails() == null
+                    ? null : exception.awsErrorDetails().errorCode();
+            if (exception.statusCode() == 412 || "PreconditionFailed".equals(errorCode)) {
+                throw new OssException("MOVE_SOURCE_CHANGED",
+                        "源对象在移动期间发生变化，已保留源对象：" + sourceKey, exception);
+            }
+            if (exception.statusCode() == 403 || "AccessDenied".equals(errorCode)) {
+                throw new OssException("MOVE_SOURCE_DELETE_FORBIDDEN",
+                        "没有源对象删除权限：" + sourceKey, exception);
+            }
+            if (exception.statusCode() == 501 || "NotImplemented".equals(errorCode)) {
+                throw new OssException("MOVE_CONDITIONAL_DELETE_UNSUPPORTED",
+                        "当前存储服务不支持安全的条件删除，已保留源对象：" + sourceKey, exception);
+            }
+            throw new OssException("MOVE_SOURCE_DELETE_FAILED",
+                    "删除源对象失败：" + sourceKey, exception);
+        } catch (OssException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw new OssException("MOVE_SOURCE_DELETE_FAILED",
+                    "删除源对象失败：" + sourceKey, exception);
+        }
+    }
+
     private void cleanupMoveStaging(String bucketName, String stagingKey, RuntimeException failure) {
         try {
             deleteMoveObject(bucketName, stagingKey,
@@ -1006,10 +1072,20 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public String initTask(ChunkTask chunkTask) {
-        String objectName = formatPath(chunkTask.getPath()) + chunkTask.getFilename();
-        CreateMultipartUploadResponse resp = client.createMultipartUpload(b -> b
-                .bucket(ossProperties.getBucketName()).key(objectName)).join();
-        return resp.uploadId();
+        if (chunkTask == null) {
+            throw new IllegalArgumentException("分片任务不能为空");
+        }
+        String objectName = buildChunkObjectName(chunkTask.getPath(), chunkTask.getFilename());
+        CreateMultipartUploadResponse response = executeRequestStrict(() ->
+                client.createMultipartUpload(CreateMultipartUploadRequest.builder()
+                        .bucket(ossProperties.getBucketName())
+                        .key(objectName)
+                        .build()));
+        if (response == null || Util.isBlank(response.uploadId())) {
+            throw new OssException("MULTIPART_INIT_FAILED",
+                    "初始化分片上传未返回 uploadId：" + objectName);
+        }
+        return response.uploadId();
     }
 
     /**
@@ -1020,23 +1096,33 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public ChunkTarget chunk(ChunkUploadCommand chunk) {
-        UploadPartRequest req = UploadPartRequest.builder()
+        validateChunkUploadCommand(chunk);
+        String objectName = buildChunkObjectName(chunk.getPath(), chunk.getFilename());
+        UploadPartRequest request = UploadPartRequest.builder()
                 .bucket(ossProperties.getBucketName())
-                .key(formatPath(chunk.getPath()) + chunk.getFilename())
+                .key(objectName)
                 .uploadId(chunk.getUploadId())
                 .partNumber(chunk.getChunkNumber())
                 .contentLength(chunk.getContentLength())
                 .build();
         try {
-            ByteBuffer buf = ByteBuffer.wrap(chunk.getFileBytes());
-            String etag = client.uploadPart(req, AsyncRequestBody.fromByteBuffer(buf)).join().eTag();
+            ByteBuffer buffer = ByteBuffer.wrap(chunk.getFileBytes());
+            UploadPartResponse response = executeRequestStrict(() ->
+                    client.uploadPart(request, AsyncRequestBody.fromByteBuffer(buffer)));
+            if (response == null || Util.isBlank(response.eTag())) {
+                throw new OssException("MULTIPART_PART_UPLOAD_FAILED",
+                        "分片上传未返回 ETag：" + objectName + "，part=" + chunk.getChunkNumber());
+            }
             ChunkTarget target = new ChunkTarget();
-            target.setEtag(etag.replace("\"", ""));
+            target.setEtag(normalizeEtag(response.eTag()));
             target.setPartNumber(chunk.getChunkNumber());
             return target;
-        } catch (Exception e) {
-            log.error("分片上传失败 file={} part={}", chunk.getFilename(), chunk.getChunkNumber(), e);
-            throw OssException.uploadFailed(chunk.getFilename(), e);
+        } catch (RuntimeException exception) {
+            log.error("分片上传失败 file={} part={}", chunk.getFilename(), chunk.getChunkNumber(), exception);
+            if (exception instanceof OssException) {
+                throw exception;
+            }
+            throw OssException.uploadFailed(chunk.getFilename(), exception);
         }
     }
 
@@ -1051,28 +1137,38 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public ObjectInfo merge(ChunkMerge chunkMerge) {
-        String objectName = formatPath(chunkMerge.getPath()) + chunkMerge.getFilename();
-        // 处理 null 或空列表的情况
-        List<ChunkTarget> chunkList = chunkMerge.getChunkTargetList();
-        if (chunkList == null || chunkList.isEmpty()) {
-            throw new IllegalArgumentException("分片列表不能为空，请确保所有分片已上传完成");
+        validateChunkMergeCommand(chunkMerge);
+        String bucketName = ossProperties.getBucketName();
+        String objectName = buildChunkObjectName(chunkMerge.getPath(), chunkMerge.getFilename());
+        List<CompletedPart> parts = validateMultipartMergeParts(
+                bucketName, objectName, chunkMerge);
+
+        CompleteMultipartUploadResponse completed = executeRequestStrict(() ->
+                client.completeMultipartUpload(CompleteMultipartUploadRequest.builder()
+                        .bucket(bucketName)
+                        .key(objectName)
+                        .uploadId(chunkMerge.getUploadId())
+                        .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())
+                        .build()));
+        if (completed == null) {
+            throw new OssException("MULTIPART_MERGE_FAILED", "合并分片失败：" + objectName);
         }
-        List<CompletedPart> parts = chunkMerge.getChunkTargetList().stream()
-                .map(p -> CompletedPart.builder().partNumber(p.getPartNumber()).eTag(p.getEtag()).build())
-                .sorted(Comparator.comparingInt(CompletedPart::partNumber))
-                .collect(Collectors.toList());
 
-        client.completeMultipartUpload(b -> b
-                .bucket(ossProperties.getBucketName()).key(objectName)
-                .uploadId(chunkMerge.getUploadId())
-                .multipartUpload(CompletedMultipartUpload.builder().parts(parts).build())).join();
-
-        // 合并成功后立即回查对象元数据，确保把最终文件大小返回给调用方，
-        // 避免前端拿到一个只有名称和 URL 的不完整结果。
-        HeadObjectResponse response = handleRequest(() -> client.headObject(HeadObjectRequest.builder()
-                .bucket(ossProperties.getBucketName())
-                .key(objectName)
-                .build()));
+        HeadObjectResponse response;
+        try {
+            response = executeRequestStrict(() -> client.headObject(HeadObjectRequest.builder()
+                    .bucket(bucketName)
+                    .key(objectName)
+                    .build()));
+        } catch (RuntimeException exception) {
+            throw new OssException("MULTIPART_MERGE_COMPLETED_VERIFY_FAILED",
+                    "分片合并已完成，但读取结果失败：" + objectName, exception);
+        }
+        if (response == null || response.contentLength() == null
+                || response.contentLength().longValue() != chunkMerge.getExpectedSize().longValue()) {
+            throw new OssException("MULTIPART_MERGE_COMPLETED_VERIFY_FAILED",
+                    "分片合并已完成，但结果大小校验失败：" + objectName);
+        }
         return buildObjectInfo(objectName, response);
     }
 
@@ -1086,27 +1182,41 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public List<ChunkPartInfo> listParts(String bucketName, String objectName, String uploadId) {
+        if (Util.isBlank(bucketName)) {
+            throw new IllegalArgumentException("Bucket 名称不能为空");
+        }
+        if (Util.isBlank(objectName)) {
+            throw new IllegalArgumentException("对象 key 不能为空");
+        }
+        if (Util.isBlank(uploadId)) {
+            throw new IllegalArgumentException("uploadId 不能为空");
+        }
+        String objectKey = Util.normalizeObjectKey(objectName);
         List<ChunkPartInfo> partInfos = new ArrayList<>();
         Integer partNumberMarker = null;
         boolean hasNextPage;
         do {
             ListPartsRequest.Builder requestBuilder = ListPartsRequest.builder()
                     .bucket(bucketName)
-                    .key(objectName)
+                    .key(objectKey)
                     .uploadId(uploadId)
                     .maxParts(LIST_PARTS_MAX_PARTS);
             if (partNumberMarker != null) {
                 requestBuilder.partNumberMarker(partNumberMarker);
             }
 
-            ListPartsResponse response = client.listParts(requestBuilder.build()).join();
+            ListPartsResponse response = executeRequestStrict(() ->
+                    client.listParts(requestBuilder.build()));
+            if (response == null) {
+                throw new OssException("LIST_PARTS_FAILED", "查询分片列表失败：" + objectKey);
+            }
             response.parts().forEach(part -> {
-                    ChunkPartInfo info = new ChunkPartInfo();
-                    info.setPartNumber(part.partNumber());
-                    info.setEtag(part.eTag());
-                    info.setSize(part.size());
-                    partInfos.add(info);
-                });
+                ChunkPartInfo info = new ChunkPartInfo();
+                info.setPartNumber(part.partNumber());
+                info.setEtag(normalizeEtag(part.eTag()));
+                info.setSize(part.size());
+                partInfos.add(info);
+            });
 
             hasNextPage = Boolean.TRUE.equals(response.isTruncated());
             partNumberMarker = response.nextPartNumberMarker();
@@ -1114,7 +1224,129 @@ public class PutOperations extends Operations implements OssPutService {
                 throw new OssException("LIST_PARTS_PAGINATION_ERROR", "List parts response is truncated but missing next part marker");
             }
         } while (hasNextPage);
+        partInfos.sort(Comparator.comparingInt(ChunkPartInfo::getPartNumber));
         return partInfos;
+    }
+
+    private String buildChunkObjectName(String path, String filename) {
+        if (Util.isBlank(filename)) {
+            throw new IllegalArgumentException("文件名不能为空");
+        }
+        String objectName = Util.normalizeObjectKey(
+                Util.normalizeObjectPrefix(path) + filename);
+        if (Util.isBlank(objectName)) {
+            throw new IllegalArgumentException("对象 key 不能为空");
+        }
+        return objectName;
+    }
+
+    private void validateChunkUploadCommand(ChunkUploadCommand chunk) {
+        if (chunk == null) {
+            throw new IllegalArgumentException("分片上传命令不能为空");
+        }
+        if (chunk.getChunkNumber() == null
+                || chunk.getChunkNumber() < 1
+                || chunk.getChunkNumber() > MAX_COPY_PARTS) {
+            throw new IllegalArgumentException("分片编号必须位于 1 到 10000 之间");
+        }
+        if (Util.isBlank(chunk.getUploadId())) {
+            throw new IllegalArgumentException("uploadId 不能为空");
+        }
+        if (chunk.getFileBytes() == null || chunk.getFileBytes().length == 0) {
+            throw new IllegalArgumentException("分片内容不能为空");
+        }
+        if (chunk.getContentLength() != chunk.getFileBytes().length) {
+            throw new IllegalArgumentException("分片内容长度与实际字节数不一致");
+        }
+        buildChunkObjectName(chunk.getPath(), chunk.getFilename());
+    }
+
+    private void validateChunkMergeCommand(ChunkMerge chunkMerge) {
+        if (chunkMerge == null) {
+            throw new IllegalArgumentException("分片合并命令不能为空");
+        }
+        if (Util.isBlank(chunkMerge.getUploadId())) {
+            throw new IllegalArgumentException("uploadId 不能为空");
+        }
+        if (chunkMerge.getExpectedPartCount() == null
+                || chunkMerge.getExpectedPartCount() < 1
+                || chunkMerge.getExpectedPartCount() > MAX_COPY_PARTS) {
+            throw new IllegalArgumentException("expectedPartCount 必须位于 1 到 10000 之间");
+        }
+        if (chunkMerge.getExpectedSize() == null || chunkMerge.getExpectedSize() <= 0) {
+            throw new IllegalArgumentException("expectedSize 必须大于 0");
+        }
+        if (chunkMerge.getChunkTargetList() == null || chunkMerge.getChunkTargetList().isEmpty()) {
+            throw new IllegalArgumentException("分片列表不能为空，请确保所有分片已上传完成");
+        }
+        if (chunkMerge.getChunkTargetList().size() != chunkMerge.getExpectedPartCount()) {
+            throw new OssException("MULTIPART_PART_COUNT_MISMATCH",
+                    "客户端分片数量与 expectedPartCount 不一致");
+        }
+        buildChunkObjectName(chunkMerge.getPath(), chunkMerge.getFilename());
+    }
+
+    private List<CompletedPart> validateMultipartMergeParts(String bucketName, String objectName,
+                                                             ChunkMerge chunkMerge) {
+        List<ChunkTarget> requestedParts = new ArrayList<>(chunkMerge.getChunkTargetList());
+        requestedParts.sort(Comparator.comparingInt(target -> {
+            if (target == null || target.getPartNumber() == null) {
+                return Integer.MAX_VALUE;
+            }
+            return target.getPartNumber();
+        }));
+        List<ChunkPartInfo> uploadedParts = listParts(
+                bucketName, objectName, chunkMerge.getUploadId());
+        if (uploadedParts.size() != chunkMerge.getExpectedPartCount()) {
+            throw new OssException("MULTIPART_PART_COUNT_MISMATCH",
+                    "服务端已上传分片数量与 expectedPartCount 不一致：" + objectName);
+        }
+
+        long uploadedSize = 0L;
+        List<CompletedPart> completedParts = new ArrayList<>(uploadedParts.size());
+        for (int index = 0; index < uploadedParts.size(); index++) {
+            int expectedPartNumber = index + 1;
+            ChunkTarget requested = requestedParts.get(index);
+            ChunkPartInfo uploaded = uploadedParts.get(index);
+            if (requested == null || requested.getPartNumber() == null
+                    || requested.getPartNumber() != expectedPartNumber
+                    || uploaded.getPartNumber() == null
+                    || uploaded.getPartNumber() != expectedPartNumber) {
+                throw new OssException("MULTIPART_PART_SEQUENCE_INVALID",
+                        "分片编号必须从 1 开始连续排列：" + objectName);
+            }
+            String requestedEtag = normalizeEtag(requested.getEtag());
+            String uploadedEtag = normalizeEtag(uploaded.getEtag());
+            if (Util.isBlank(requestedEtag) || !requestedEtag.equals(uploadedEtag)) {
+                throw new OssException("MULTIPART_PART_ETAG_MISMATCH",
+                        "分片 ETag 与服务端记录不一致：" + objectName
+                                + "，part=" + expectedPartNumber);
+            }
+            if (uploaded.getSize() == null || uploaded.getSize() <= 0) {
+                throw new OssException("MULTIPART_PART_SIZE_INVALID",
+                        "服务端分片大小无效：" + objectName
+                                + "，part=" + expectedPartNumber);
+            }
+            try {
+                uploadedSize = Math.addExact(uploadedSize, uploaded.getSize());
+            } catch (ArithmeticException exception) {
+                throw new OssException("MULTIPART_SIZE_OVERFLOW",
+                        "分片总大小超出 long 范围：" + objectName, exception);
+            }
+            completedParts.add(CompletedPart.builder()
+                    .partNumber(expectedPartNumber)
+                    .eTag(uploaded.getEtag())
+                    .build());
+        }
+        if (uploadedSize != chunkMerge.getExpectedSize()) {
+            throw new OssException("MULTIPART_SIZE_MISMATCH",
+                    "服务端分片总大小与 expectedSize 不一致：" + objectName);
+        }
+        return completedParts;
+    }
+
+    private String normalizeEtag(String etag) {
+        return etag == null ? null : etag.trim().replace("\"", "");
     }
 
     // ----------------------------------------------------------------

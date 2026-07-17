@@ -19,4 +19,12 @@ class UtilTest {
         assertEquals("docs/", Util.formatPath("docs"));
         assertEquals("docs/readme.txt", Util.formatPath("docs/readme.txt"));
     }
+
+    @Test
+    void normalizeObjectPrefixAlwaysKeepsDirectoryBoundary() {
+        assertEquals("release.v1/", Util.normalizeObjectPrefix("release.v1"));
+        assertEquals("release.v1/", Util.normalizeObjectPrefix("/release.v1/"));
+        assertEquals("docs/api/", Util.normalizeObjectPrefix("\\docs\\api"));
+        assertEquals("", Util.normalizeObjectPrefix("/"));
+    }
 }
