@@ -4,6 +4,7 @@ import com.wiblog.oss.bean.BucketInfo;
 import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
+import com.wiblog.oss.bean.ReadObjectRangeCommand;
 import com.wiblog.oss.bean.StoredObject;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
@@ -511,9 +512,42 @@ public class QueryOperations extends Operations implements OssQueryService {
      */
     @Override
     public InputStream getInputStream(String bucketName, String objectName) {
-        return handleRequest(() ->
-                client.getObject(buildGetRequest(bucketName, objectName),
-                        AsyncResponseTransformer.toBlockingInputStream()));
+        return openObjectStream(buildGetRequest(bucketName, objectName));
+    }
+
+    /**
+     * 获取对象指定字节区间的输入流。
+     *
+     * @param command 字节区间读取命令
+     * @return 对应区间的输入流
+     */
+    @Override
+    public InputStream getInputStream(ReadObjectRangeCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("读取命令不能为空");
+        }
+        if (Util.isBlank(command.key())) {
+            throw new IllegalArgumentException("对象 key 不能为空");
+        }
+        if (command.offset() < 0) {
+            throw new IllegalArgumentException("读取偏移量不能小于 0");
+        }
+        if (command.length() <= 0) {
+            throw new IllegalArgumentException("读取长度必须大于 0");
+        }
+        if (command.offset() > Long.MAX_VALUE - (command.length() - 1)) {
+            throw new IllegalArgumentException("读取区间超出 long 范围");
+        }
+
+        String bucketName = Util.isBlank(command.bucket())
+                ? ossProperties.getBucketName() : command.bucket();
+        long end = command.offset() + command.length() - 1;
+        GetObjectRequest request = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(normalizeObjectKey(command.key()))
+                .range("bytes=" + command.offset() + "-" + end)
+                .build();
+        return openObjectStream(request);
     }
 
     /**
@@ -524,12 +558,48 @@ public class QueryOperations extends Operations implements OssQueryService {
      * @param range      字节区间，例如 `bytes=0-1023`
      * @return 对应区间的输入流
      */
+    @Deprecated
     @Override
     public InputStream getInputStream(String bucketName, String objectName, String range) {
-        GetObjectRequest req = GetObjectRequest.builder()
-                .bucket(bucketName).key(normalizeObjectKey(objectName)).range(range).build();
-        return handleRequest(() ->
-                client.getObject(req, AsyncResponseTransformer.toBlockingInputStream()));
+        if (Util.isBlank(range)) {
+            throw new IllegalArgumentException("读取区间不能为空");
+        }
+        GetObjectRequest request = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(normalizeObjectKey(objectName))
+                .range(range)
+                .build();
+        return openObjectStream(request);
+    }
+
+    private InputStream openObjectStream(GetObjectRequest request) {
+        try {
+            return executeRequestStrict(() -> client.getObject(
+                    request, AsyncResponseTransformer.toBlockingInputStream()));
+        } catch (NoSuchKeyException e) {
+            throw OssException.objectNotFound(request.key());
+        } catch (S3Exception e) {
+            String errorCode = e.awsErrorDetails() == null
+                    ? null : e.awsErrorDetails().errorCode();
+            if (e.statusCode() == 404 || "NoSuchKey".equals(errorCode)) {
+                throw OssException.objectNotFound(request.key());
+            }
+            if (e.statusCode() == 416 || "InvalidRange".equals(errorCode)) {
+                throw new OssException("OBJECT_RANGE_NOT_SATISFIABLE",
+                        "对象读取区间无效：" + request.key(), e);
+            }
+            if (e.statusCode() == 403 || "AccessDenied".equals(errorCode)) {
+                throw new OssException("OBJECT_READ_FORBIDDEN",
+                        "没有对象读取权限：" + request.key(), e);
+            }
+            throw new OssException("OBJECT_READ_FAILED",
+                    "读取对象失败：" + request.key(), e);
+        } catch (OssException e) {
+            throw e;
+        } catch (RuntimeException e) {
+            throw new OssException("OBJECT_READ_FAILED",
+                    "读取对象失败：" + request.key(), e);
+        }
     }
 
     // ----------------------------------------------------------------
@@ -1002,9 +1072,9 @@ public class QueryOperations extends Operations implements OssQueryService {
         }
         long start = range[0], end = range[1];
         long contentLength = end - start + 1;
-        String normalizedRangeHeader = "bytes=" + start + "-" + end;
 
-        InputStream inputStream = getInputStream(ossProperties.getBucketName(), objectName, normalizedRangeHeader);
+        InputStream inputStream = getInputStream(new ReadObjectRangeCommand(
+                ossProperties.getBucketName(), objectName, start, contentLength));
         if (inputStream == null) {
             context.sendNotFound();
             return;

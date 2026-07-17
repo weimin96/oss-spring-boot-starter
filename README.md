@@ -311,6 +311,27 @@ StoredObject metadata = ossTemplate.query().headObject(
 );
 ```
 
+复制在当前客户端可访问的 Bucket 之间由对象存储服务端完成，不经过应用进程中转。源对象不超过 5 GB 时使用单次
+`CopyObject`；超过 5 GB 时自动切换为 multipart upload 和 `UploadPartCopy`，动态计算分片大小并限制在 10,000 个分片内。
+分片复制会保留源对象的常用 HTTP 元数据、自定义元数据和标签；任一分片或完成阶段失败时会中止 multipart upload。
+源对象与目标对象不能完全相同，且当前实现不支持跨 endpoint 服务端复制。对象大小超过约 48.8 TiB 时会显式拒绝。
+
+受限流式读取示例：
+
+```java
+try (InputStream inputStream = ossTemplate.query().getInputStream(
+        new ReadObjectRangeCommand(
+                "archive-bucket",
+                "archive/demo.bin",
+                1024L,
+                4096L))) {
+    // 从偏移量 1024 开始，最多读取 4096 字节。
+}
+```
+
+`ReadObjectRangeCommand` 使用 `offset + length` 表达单个字节区间，并在请求前校验负数、零长度和 long 溢出。
+调用方必须关闭返回的 `InputStream`，以释放底层 HTTP 连接。原始 `bytes=...` 字符串重载仅为兼容保留，已经标记为过时。
+
 `move()` 保持允许覆盖目标对象的兼容语义。内部使用 `.oss-staging/move/` 随机 key 完成 staging-copy-delete，校验 staging
 和最终对象后再删除源对象；如果 staging、复制、校验或清理失败，源对象会保留并显式抛出异常。
 

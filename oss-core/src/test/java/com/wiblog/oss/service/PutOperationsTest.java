@@ -9,18 +9,30 @@ import com.wiblog.oss.exception.OssException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.AbortMultipartUploadResponse;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
 import software.amazon.awssdk.services.s3.model.CopyObjectResponse;
+import software.amazon.awssdk.services.s3.model.CopyPartResult;
 import software.amazon.awssdk.services.s3.model.ChecksumMode;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadRequest;
+import software.amazon.awssdk.services.s3.model.CreateMultipartUploadResponse;
 import software.amazon.awssdk.services.s3.model.DeleteObjectRequest;
 import software.amazon.awssdk.services.s3.model.DeleteObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
 import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
+import software.amazon.awssdk.services.s3.model.GetObjectTaggingRequest;
+import software.amazon.awssdk.services.s3.model.GetObjectTaggingResponse;
 import software.amazon.awssdk.services.s3.model.ListPartsRequest;
 import software.amazon.awssdk.services.s3.model.ListPartsResponse;
 import software.amazon.awssdk.services.s3.model.Part;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
+import software.amazon.awssdk.services.s3.model.Tag;
+import software.amazon.awssdk.services.s3.model.UploadPartCopyRequest;
+import software.amazon.awssdk.services.s3.model.UploadPartCopyResponse;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.FileUpload;
 import software.amazon.awssdk.transfer.s3.model.CompletedUpload;
@@ -60,6 +72,12 @@ class PutOperationsTest {
                 .isDefault());
         assertEquals(true, OssPutService.class
                 .getMethod("putObjectForKey", String.class, String.class, InputStream.class)
+                .isDefault());
+        assertEquals(true, OssPutService.class
+                .getMethod("copyFile", String.class, String.class)
+                .isDefault());
+        assertEquals(true, OssPutService.class
+                .getMethod("copyFile", String.class, String.class, String.class, String.class)
                 .isDefault());
     }
 
@@ -152,7 +170,7 @@ class PutOperationsTest {
     @Test
     void copyObjectReturnsHeadMetadataForDestination() {
         final CopyObjectRequest[] copyRequest = new CopyObjectRequest[1];
-        final HeadObjectRequest[] headRequest = new HeadObjectRequest[1];
+        List<HeadObjectRequest> headRequests = new ArrayList<>();
         S3AsyncClient client = s3Client(new S3Handler() {
             @Override
             public CompletableFuture<?> handle(String methodName, Object[] args) {
@@ -161,7 +179,7 @@ class PutOperationsTest {
                     return completed(CopyObjectResponse.builder().build());
                 }
                 if ("headObject".equals(methodName)) {
-                    headRequest[0] = (HeadObjectRequest) args[0];
+                    headRequests.add((HeadObjectRequest) args[0]);
                     return completed(HeadObjectResponse.builder()
                             .contentLength(12L)
                             .eTag("etag-copy")
@@ -177,10 +195,15 @@ class PutOperationsTest {
                 new CopyObjectCommand("source", "/a.txt", "destination", "/b.txt"));
 
         assertEquals("a.txt", copyRequest[0].sourceKey());
+        assertEquals("version-copy", copyRequest[0].sourceVersionId());
         assertEquals("b.txt", copyRequest[0].destinationKey());
-        assertEquals("destination", headRequest[0].bucket());
-        assertEquals("b.txt", headRequest[0].key());
-        assertEquals(ChecksumMode.ENABLED, headRequest[0].checksumMode());
+        assertEquals(2, headRequests.size());
+        assertEquals("source", headRequests.get(0).bucket());
+        assertEquals("a.txt", headRequests.get(0).key());
+        assertNull(headRequests.get(0).checksumMode());
+        assertEquals("destination", headRequests.get(1).bucket());
+        assertEquals("b.txt", headRequests.get(1).key());
+        assertEquals(ChecksumMode.ENABLED, headRequests.get(1).checksumMode());
         assertEquals(new StoredObject("destination", "b.txt", 12L,
                 "etag-copy", "version-copy", "checksum-copy"), result);
     }
@@ -191,6 +214,12 @@ class PutOperationsTest {
         S3AsyncClient client = s3Client(new S3Handler() {
             @Override
             public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(1L)
+                            .eTag("etag")
+                            .build());
+                }
                 if ("copyObject".equals(methodName)) {
                     copyRequest[0] = (CopyObjectRequest) args[0];
                     return completed(CopyObjectResponse.builder().build());
@@ -202,7 +231,164 @@ class PutOperationsTest {
         operations(client).copyFile("bucket", "bucket", "README", "LICENSE");
 
         assertEquals("README", copyRequest[0].sourceKey());
+        assertEquals("etag", copyRequest[0].copySourceIfMatch());
         assertEquals("LICENSE", copyRequest[0].destinationKey());
+    }
+
+    @Test
+    void copyObjectUsesMultipartCopyAboveSingleCopyThreshold() {
+        long sourceSize = 5_000_000_001L;
+        List<UploadPartCopyRequest> partRequests = new ArrayList<>();
+        final CreateMultipartUploadRequest[] createRequest = new CreateMultipartUploadRequest[1];
+        final GetObjectTaggingRequest[] taggingRequest = new GetObjectTaggingRequest[1];
+        final CompleteMultipartUploadRequest[] completeRequest = new CompleteMultipartUploadRequest[1];
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    HeadObjectRequest request = (HeadObjectRequest) args[0];
+                    if ("source.bin".equals(request.key())) {
+                        return completed(HeadObjectResponse.builder()
+                                .contentLength(sourceSize)
+                                .eTag("source-etag")
+                                .versionId("source-version")
+                                .contentType("application/octet-stream")
+                                .metadata(Collections.singletonMap("owner", "team"))
+                                .build());
+                    }
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(sourceSize)
+                            .eTag("destination-etag")
+                            .build());
+                }
+                if ("getObjectTagging".equals(methodName)) {
+                    taggingRequest[0] = (GetObjectTaggingRequest) args[0];
+                    return completed(GetObjectTaggingResponse.builder()
+                            .tagSet(Tag.builder().key("environment").value("dev").build())
+                            .build());
+                }
+                if ("createMultipartUpload".equals(methodName)) {
+                    createRequest[0] = (CreateMultipartUploadRequest) args[0];
+                    return completed(CreateMultipartUploadResponse.builder().uploadId("upload-id").build());
+                }
+                if ("uploadPartCopy".equals(methodName)) {
+                    UploadPartCopyRequest request = (UploadPartCopyRequest) args[0];
+                    partRequests.add(request);
+                    return completed(UploadPartCopyResponse.builder()
+                            .copyPartResult(CopyPartResult.builder()
+                                    .eTag("part-" + request.partNumber())
+                                    .build())
+                            .build());
+                }
+                if ("completeMultipartUpload".equals(methodName)) {
+                    completeRequest[0] = (CompleteMultipartUploadRequest) args[0];
+                    return completed(CompleteMultipartUploadResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        StoredObject result = operations(client).copyObject(
+                new CopyObjectCommand("source", "/source.bin", "destination", "/target.bin"));
+
+        assertEquals("source-version", taggingRequest[0].versionId());
+        assertEquals("application/octet-stream", createRequest[0].contentType());
+        assertEquals("team", createRequest[0].metadata().get("owner"));
+        assertEquals("environment=dev", createRequest[0].tagging());
+        assertEquals(75, partRequests.size());
+        assertEquals("bytes=0-67108863", partRequests.get(0).copySourceRange());
+        assertEquals("source-version", partRequests.get(0).sourceVersionId());
+        assertEquals("bytes=4966055936-5000000000",
+                partRequests.get(partRequests.size() - 1).copySourceRange());
+        assertEquals(75, completeRequest[0].multipartUpload().parts().size());
+        assertEquals(new StoredObject("destination", "target.bin", sourceSize,
+                "destination-etag", null, null), result);
+    }
+
+    @Test
+    void copyObjectAbortsMultipartUploadWhenPartCopyFails() {
+        long sourceSize = 5_000_000_001L;
+        final AbortMultipartUploadRequest[] abortRequest = new AbortMultipartUploadRequest[1];
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(sourceSize)
+                            .eTag("source-etag")
+                            .build());
+                }
+                if ("getObjectTagging".equals(methodName)) {
+                    return completed(GetObjectTaggingResponse.builder().build());
+                }
+                if ("createMultipartUpload".equals(methodName)) {
+                    return completed(CreateMultipartUploadResponse.builder().uploadId("upload-id").build());
+                }
+                if ("uploadPartCopy".equals(methodName)) {
+                    return failed(S3Exception.builder().message("part failed").build());
+                }
+                if ("abortMultipartUpload".equals(methodName)) {
+                    abortRequest[0] = (AbortMultipartUploadRequest) args[0];
+                    return completed(AbortMultipartUploadResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class, () -> operations(client).copyObject(
+                new CopyObjectCommand("source", "source.bin", "destination", "target.bin")));
+
+        assertEquals("OBJECT_MULTIPART_COPY_PART_FAILED", failure.getCode());
+        assertEquals("upload-id", abortRequest[0].uploadId());
+        assertEquals("target.bin", abortRequest[0].key());
+    }
+
+    @Test
+    void copyObjectRejectsObjectLargerThanMultipartLimitBeforeInit() {
+        long sourceSize = 5L * 1024 * 1024 * 1024 * 10000 + 1;
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(sourceSize)
+                            .eTag("source-etag")
+                            .build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class, () -> operations(client).copyObject(
+                new CopyObjectCommand("source", "source.bin", "destination", "target.bin")));
+
+        assertEquals("OBJECT_COPY_TOO_LARGE", failure.getCode());
+    }
+
+    @Test
+    void copyObjectRejectsSourceWithoutStableIdentity() {
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(HeadObjectResponse.builder().contentLength(1L).build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException failure = assertThrows(OssException.class, () -> operations(client).copyObject(
+                new CopyObjectCommand("source", "source.bin", "destination", "target.bin")));
+
+        assertEquals("OBJECT_COPY_SOURCE_IDENTITY_MISSING", failure.getCode());
+    }
+
+    @Test
+    void copyObjectRejectsSameSourceAndDestination() {
+        PutOperations operations = operations(s3Client(noS3Calls()));
+
+        assertThrows(IllegalArgumentException.class, () -> operations.copyObject(
+                new CopyObjectCommand("bucket", "/same.txt", "bucket", "same.txt")));
     }
 
     @Test
@@ -278,6 +464,12 @@ class PutOperationsTest {
         S3AsyncClient client = s3Client(new S3Handler() {
             @Override
             public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(1L)
+                            .eTag("etag")
+                            .build());
+                }
                 if ("copyObject".equals(methodName)) {
                     return failed(S3Exception.builder().message("missing source").build());
                 }

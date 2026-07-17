@@ -4,6 +4,7 @@ import com.wiblog.oss.bean.BucketInfo;
 import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
+import com.wiblog.oss.bean.ReadObjectRangeCommand;
 import com.wiblog.oss.bean.StoredObject;
 
 import java.io.File;
@@ -60,10 +61,59 @@ public interface OssQueryService {
 
     String getContent(String bucketName, String objectName);
 
+    /**
+     * 打开默认 Bucket 中对象的完整输入流。
+     *
+     * <p>调用方负责关闭返回的输入流，关闭流会释放底层 HTTP 连接。</p>
+     */
     InputStream getInputStream(String objectName);
 
+    /**
+     * 打开指定 Bucket 中对象的完整输入流。
+     *
+     * <p>调用方负责关闭返回的输入流，关闭流会释放底层 HTTP 连接。</p>
+     */
     InputStream getInputStream(String bucketName, String objectName);
 
+    /**
+     * 打开对象指定字节区间的输入流。
+     *
+     * <p>调用方负责关闭返回的输入流，关闭流会释放底层 HTTP 连接。</p>
+     *
+     * @param command 字节区间读取命令
+     * @return 指定区间的对象输入流
+     */
+    default InputStream getInputStream(ReadObjectRangeCommand command) {
+        if (command == null) {
+            throw new IllegalArgumentException("读取命令不能为空");
+        }
+        if (command.key() == null || command.key().trim().isEmpty()) {
+            throw new IllegalArgumentException("对象 key 不能为空");
+        }
+        if (command.bucket() == null || command.bucket().trim().isEmpty()) {
+            throw new IllegalArgumentException("兼容适配器要求显式指定 Bucket");
+        }
+        if (command.offset() < 0) {
+            throw new IllegalArgumentException("读取偏移量不能小于 0");
+        }
+        if (command.length() <= 0) {
+            throw new IllegalArgumentException("读取长度必须大于 0");
+        }
+        if (command.offset() > Long.MAX_VALUE - (command.length() - 1)) {
+            throw new IllegalArgumentException("读取区间超出 long 范围");
+        }
+        long end = command.offset() + command.length() - 1;
+        return getInputStream(command.bucket(), command.key(),
+                "bytes=" + command.offset() + "-" + end);
+    }
+
+    /**
+     * 使用原始 S3 Range 表达式打开对象输入流。
+     *
+     * @deprecated Java API 应使用 {@link #getInputStream(ReadObjectRangeCommand)}，
+     * 原始 Range 字符串仅保留用于兼容已有调用。
+     */
+    @Deprecated
     InputStream getInputStream(String bucketName, String objectName, String range);
 
     File getFile(String objectName, String localFilePath);

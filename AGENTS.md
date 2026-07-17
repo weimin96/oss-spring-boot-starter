@@ -39,13 +39,17 @@
 | `OssClientOptions`   | 核心层内部客户端选项                             | 不依赖 Spring Boot 配置绑定模型                  |
 | `OssProperties2/3/4` | 各 Spring Boot 版本的外部配置绑定对象              | 只在对应 autoconfigure 模块内使用                |
 | `OssTemplate`        | 统一门面入口                                 | 构造时启动客户端，销毁时调用 `stop()`                 |
-| `OssPutService`      | 上传、目录、复制、移动、分片上传端口                     | 默认 Bucket 与指定 Bucket 重载并存               |
-| `OssQueryService`    | 查询、树形列表、下载、预览端口                        | 预览通过 `OssPreviewContext` 隔离 Servlet API |
+| `OssPutService`      | 上传、目录、服务端复制、移动、分片上传端口                 | 复制按对象大小自动选择 `CopyObject` 或 `UploadPartCopy` |
+| `OssQueryService`    | 查询、树形列表、受限流式读取、下载、预览端口                 | 预览通过 `OssPreviewContext` 隔离 Servlet API |
 | `OssDeleteService`   | 单对象、批量、目录删除端口                          | 失败路径必须显式处理                              |
 | `OssUnzipService`    | ZIP 流式解压端口                             | 支持默认 Bucket、跨 Bucket 和条目前缀过滤            |
 | `OssPresignService`  | GET/PUT 预签名 URL 端口                     | 过期时间使用 `Duration`                       |
 | `OssTaggingService`  | 对象标签与 Bucket 标签端口                      | 覆盖、合并、删除语义需区分清楚                         |
 | `OssBucketService`   | Bucket 版本控制、ACL、回滚、生命周期、CORS、策略、安全配置端口 | 部分能力取决于对象存储实现是否支持                       |
+
+`ReadObjectRangeCommand` 使用 `offset + length` 表达单个字节区间。原始 Range 字符串重载仅用于兼容，新增代码优先使用类型化命令。
+
+服务端复制仅适用于当前 `S3AsyncClient` 可同时访问的源和目标。对象不超过 5 GB 时使用单次复制，超过阈值时自动使用 multipart copy；失败时必须中止未完成的 multipart upload。
 
 ## 自动配置规则
 

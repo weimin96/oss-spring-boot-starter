@@ -13,6 +13,7 @@ import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.core.async.BlockingInputStreamAsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.*;
+import software.amazon.awssdk.utils.http.SdkHttpUtils;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
 import software.amazon.awssdk.transfer.s3.model.CompletedUpload;
 import software.amazon.awssdk.transfer.s3.model.Upload;
@@ -39,6 +40,12 @@ import java.util.stream.Collectors;
 public class PutOperations extends Operations implements OssPutService {
 
     private static final int LIST_PARTS_MAX_PARTS = 1000;
+    private static final int MAX_COPY_PARTS = 10000;
+    private static final long SINGLE_COPY_MAX_BYTES = 5_000_000_000L;
+    private static final long MAX_COPY_PART_SIZE = 5L * 1024 * 1024 * 1024;
+    private static final long MAX_COPY_OBJECT_BYTES = MAX_COPY_PART_SIZE * MAX_COPY_PARTS;
+    private static final long DEFAULT_COPY_PART_SIZE = 64L * 1024 * 1024;
+    private static final long COPY_PART_SIZE_ALIGNMENT = 1024L * 1024;
     private static final String MOVE_STAGING_PREFIX = ".oss-staging/move/";
 
     /**
@@ -370,7 +377,7 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public void copyFile(String sourceKey, String destKey) {
-        copyFile(ossProperties.getBucketName(), ossProperties.getBucketName(), sourceKey, destKey);
+        copyObject(new CopyObjectCommand(null, sourceKey, null, destKey));
     }
 
     /**
@@ -383,44 +390,266 @@ public class PutOperations extends Operations implements OssPutService {
      */
     @Override
     public void copyFile(String sourceBucket, String destBucket, String sourceKey, String destKey) {
-        CopyObjectRequest req = CopyObjectRequest.builder()
-                .sourceBucket(sourceBucket).sourceKey(Util.normalizeObjectKey(sourceKey))
-                .destinationBucket(destBucket).destinationKey(Util.normalizeObjectKey(destKey))
-                .build();
-        requireSuccessfulRequest(() -> client.copyObject(req),
-                "OBJECT_COPY_FAILED",
-                "复制对象失败：" + Util.normalizeObjectKey(sourceKey));
+        copyObject(new CopyObjectCommand(sourceBucket, sourceKey, destBucket, destKey));
     }
 
     @Override
     public StoredObject copyObject(CopyObjectCommand command) {
+        CopyTarget target = validateCopyCommand(command);
+        HeadObjectResponse source = headCopyObject(target.sourceBucket, target.sourceKey, false,
+                "OBJECT_COPY_SOURCE_HEAD_FAILED", "读取复制源对象失败：");
+        long sourceSize = requireCopyObjectSize(source, target.sourceKey);
+        requireCopySourceIdentity(source, target.sourceKey);
+
+        executeCopy(target, source, sourceSize);
+
+        HeadObjectResponse destination = headCopyObject(target.destinationBucket, target.destinationKey, true,
+                "OBJECT_COPY_VERIFY_FAILED", "读取复制结果失败：");
+        long destinationSize = requireCopyObjectSize(destination, target.destinationKey);
+        if (sourceSize != destinationSize) {
+            throw new OssException("OBJECT_COPY_VERIFY_FAILED",
+                    "复制结果大小校验失败：" + target.destinationKey);
+        }
+        return buildStoredObject(target.destinationBucket, target.destinationKey, destination);
+    }
+
+    private CopyTarget validateCopyCommand(CopyObjectCommand command) {
         if (command == null) {
             throw new IllegalArgumentException("复制命令不能为空");
         }
-        if (Util.isBlank(command.sourceKey()) || Util.isBlank(command.destinationKey())) {
-            throw new IllegalArgumentException("源对象 key 和目标对象 key 不能为空");
+        if (Util.isBlank(command.sourceKey())) {
+            throw new IllegalArgumentException("源对象 key 不能为空");
+        }
+        if (Util.isBlank(command.destinationKey())) {
+            throw new IllegalArgumentException("目标对象 key 不能为空");
         }
         String sourceBucket = Util.isBlank(command.sourceBucket())
                 ? ossProperties.getBucketName() : command.sourceBucket();
         String destinationBucket = Util.isBlank(command.destinationBucket())
                 ? ossProperties.getBucketName() : command.destinationBucket();
+        if (Util.isBlank(sourceBucket) || Util.isBlank(destinationBucket)) {
+            throw new IllegalArgumentException("源 Bucket 和目标 Bucket 不能为空");
+        }
         String sourceKey = Util.normalizeObjectKey(command.sourceKey());
         String destinationKey = Util.normalizeObjectKey(command.destinationKey());
-        CopyObjectRequest request = CopyObjectRequest.builder()
-                .sourceBucket(sourceBucket)
-                .sourceKey(sourceKey)
-                .destinationBucket(destinationBucket)
-                .destinationKey(destinationKey)
-                .build();
-        requireSuccessfulRequest(() -> client.copyObject(request),
-                "OBJECT_COPY_FAILED", "复制对象失败：" + sourceKey);
-        HeadObjectResponse response = requireSuccessfulRequest(() -> client.headObject(HeadObjectRequest.builder()
-                        .bucket(destinationBucket)
-                        .key(destinationKey)
-                        .checksumMode(ChecksumMode.ENABLED)
-                        .build()),
-                "OBJECT_HEAD_FAILED", "读取复制结果失败：" + destinationKey);
-        return buildStoredObject(destinationBucket, destinationKey, response);
+        if (sourceBucket.equals(destinationBucket) && sourceKey.equals(destinationKey)) {
+            throw new IllegalArgumentException("源对象和目标对象不能相同");
+        }
+        return new CopyTarget(sourceBucket, sourceKey, destinationBucket, destinationKey);
+    }
+
+    private void executeCopy(CopyTarget target, HeadObjectResponse source, long sourceSize) {
+        if (sourceSize <= SINGLE_COPY_MAX_BYTES) {
+            copySingleObject(target, source);
+        } else {
+            copyMultipartObject(target, source, sourceSize);
+        }
+    }
+
+    private void copySingleObject(CopyTarget target, HeadObjectResponse source) {
+        CopyObjectRequest.Builder request = CopyObjectRequest.builder()
+                .sourceBucket(target.sourceBucket)
+                .sourceKey(target.sourceKey)
+                .destinationBucket(target.destinationBucket)
+                .destinationKey(target.destinationKey);
+        applyCopySourceCondition(request, source);
+        requireSuccessfulRequest(() -> client.copyObject(request.build()),
+                "OBJECT_COPY_FAILED", "复制对象失败：" + target.sourceKey);
+    }
+
+    private void copyMultipartObject(CopyTarget target, HeadObjectResponse source, long sourceSize) {
+        long partSize = calculateCopyPartSize(sourceSize);
+        String tagging = loadSourceTagging(target, source);
+        CreateMultipartUploadRequest.Builder createRequest = CreateMultipartUploadRequest.builder()
+                .bucket(target.destinationBucket)
+                .key(target.destinationKey)
+                .cacheControl(source.cacheControl())
+                .contentDisposition(source.contentDisposition())
+                .contentEncoding(source.contentEncoding())
+                .contentLanguage(source.contentLanguage())
+                .contentType(source.contentType())
+                .expires(source.expires())
+                .metadata(source.metadata())
+                .websiteRedirectLocation(source.websiteRedirectLocation());
+        if (!Util.isBlank(tagging)) {
+            createRequest.tagging(tagging);
+        }
+        if (source.storageClass() != null && source.storageClass() != StorageClass.UNKNOWN_TO_SDK_VERSION) {
+            createRequest.storageClass(source.storageClass());
+        }
+
+        CreateMultipartUploadResponse created = requireSuccessfulRequest(
+                () -> client.createMultipartUpload(createRequest.build()),
+                "OBJECT_MULTIPART_COPY_INIT_FAILED",
+                "初始化分片复制失败：" + target.destinationKey);
+        if (Util.isBlank(created.uploadId())) {
+            throw new OssException("OBJECT_MULTIPART_COPY_INIT_FAILED",
+                    "初始化分片复制未返回 uploadId：" + target.destinationKey);
+        }
+
+        String uploadId = created.uploadId();
+        boolean completed = false;
+        try {
+            List<CompletedPart> completedParts = new ArrayList<>();
+            long offset = 0;
+            int partNumber = 1;
+            while (offset < sourceSize) {
+                long currentPartSize = Math.min(partSize, sourceSize - offset);
+                long end = offset + currentPartSize - 1;
+                UploadPartCopyRequest.Builder request = UploadPartCopyRequest.builder()
+                        .sourceBucket(target.sourceBucket)
+                        .sourceKey(target.sourceKey)
+                        .destinationBucket(target.destinationBucket)
+                        .destinationKey(target.destinationKey)
+                        .uploadId(uploadId)
+                        .partNumber(partNumber)
+                        .copySourceRange("bytes=" + offset + "-" + end);
+                applyCopySourceCondition(request, source);
+
+                UploadPartCopyResponse response = requireSuccessfulRequest(
+                        () -> client.uploadPartCopy(request.build()),
+                        "OBJECT_MULTIPART_COPY_PART_FAILED",
+                        "复制对象分片失败：" + target.sourceKey + "，part=" + partNumber);
+                CopyPartResult partResult = response.copyPartResult();
+                if (partResult == null || Util.isBlank(partResult.eTag())) {
+                    throw new OssException("OBJECT_MULTIPART_COPY_PART_FAILED",
+                            "复制对象分片未返回 ETag：" + target.sourceKey + "，part=" + partNumber);
+                }
+                completedParts.add(CompletedPart.builder()
+                        .partNumber(partNumber)
+                        .eTag(partResult.eTag())
+                        .build());
+                offset = end + 1;
+                partNumber++;
+            }
+
+            CompletedMultipartUpload multipartUpload = CompletedMultipartUpload.builder()
+                    .parts(completedParts)
+                    .build();
+            requireSuccessfulRequest(() -> client.completeMultipartUpload(
+                            CompleteMultipartUploadRequest.builder()
+                                    .bucket(target.destinationBucket)
+                                    .key(target.destinationKey)
+                                    .uploadId(uploadId)
+                                    .multipartUpload(multipartUpload)
+                                    .build()),
+                    "OBJECT_MULTIPART_COPY_COMPLETE_FAILED",
+                    "完成分片复制失败：" + target.destinationKey);
+            completed = true;
+        } catch (RuntimeException failure) {
+            if (!completed) {
+                abortMultipartCopy(target, uploadId, failure);
+            }
+            throw failure;
+        }
+    }
+
+    private HeadObjectResponse headCopyObject(String bucket, String key, boolean checksumEnabled,
+                                              String errorCode, String messagePrefix) {
+        HeadObjectRequest.Builder request = HeadObjectRequest.builder()
+                .bucket(bucket)
+                .key(key);
+        if (checksumEnabled) {
+            request.checksumMode(ChecksumMode.ENABLED);
+        }
+        return requireSuccessfulRequest(() -> client.headObject(request.build()),
+                errorCode, messagePrefix + key);
+    }
+
+    private String loadSourceTagging(CopyTarget target, HeadObjectResponse source) {
+        GetObjectTaggingRequest.Builder request = GetObjectTaggingRequest.builder()
+                .bucket(target.sourceBucket)
+                .key(target.sourceKey);
+        if (!Util.isBlank(source.versionId())) {
+            request.versionId(source.versionId());
+        }
+        GetObjectTaggingResponse response = requireSuccessfulRequest(() -> client.getObjectTagging(
+                        request.build()),
+                "OBJECT_MULTIPART_COPY_TAGGING_FAILED",
+                "读取源对象标签失败：" + target.sourceKey);
+        if (response.tagSet().isEmpty()) {
+            return null;
+        }
+        return response.tagSet().stream()
+                .map(tag -> SdkHttpUtils.formDataEncode(tag.key()) + "="
+                        + SdkHttpUtils.formDataEncode(tag.value()))
+                .collect(Collectors.joining("&"));
+    }
+
+    private long calculateCopyPartSize(long objectSize) {
+        if (objectSize > MAX_COPY_OBJECT_BYTES) {
+            throw new OssException("OBJECT_COPY_TOO_LARGE", "对象大小超过 48.8 TiB：" + objectSize);
+        }
+        long minimumPartSize = objectSize / MAX_COPY_PARTS;
+        if (objectSize % MAX_COPY_PARTS != 0) {
+            minimumPartSize++;
+        }
+        long alignedPartSize = ((minimumPartSize + COPY_PART_SIZE_ALIGNMENT - 1)
+                / COPY_PART_SIZE_ALIGNMENT) * COPY_PART_SIZE_ALIGNMENT;
+        long partSize = Math.max(DEFAULT_COPY_PART_SIZE, alignedPartSize);
+        if (partSize > MAX_COPY_PART_SIZE) {
+            throw new OssException("OBJECT_COPY_TOO_LARGE", "对象大小超过分片复制支持范围");
+        }
+        return partSize;
+    }
+
+    private long requireCopyObjectSize(HeadObjectResponse response, String key) {
+        if (response.contentLength() == null || response.contentLength() < 0) {
+            throw new OssException("OBJECT_COPY_SIZE_INVALID", "对象大小无效：" + key);
+        }
+        return response.contentLength();
+    }
+
+    private void requireCopySourceIdentity(HeadObjectResponse source, String sourceKey) {
+        if (Util.isBlank(source.versionId()) && Util.isBlank(source.eTag())) {
+            throw new OssException("OBJECT_COPY_SOURCE_IDENTITY_MISSING",
+                    "源对象缺少 versionId 或 ETag，无法保证复制一致性：" + sourceKey);
+        }
+    }
+
+    private void applyCopySourceCondition(CopyObjectRequest.Builder request, HeadObjectResponse source) {
+        if (!Util.isBlank(source.versionId())) {
+            request.sourceVersionId(source.versionId());
+        } else if (!Util.isBlank(source.eTag())) {
+            request.copySourceIfMatch(source.eTag());
+        }
+    }
+
+    private void applyCopySourceCondition(UploadPartCopyRequest.Builder request, HeadObjectResponse source) {
+        if (!Util.isBlank(source.versionId())) {
+            request.sourceVersionId(source.versionId());
+        } else if (!Util.isBlank(source.eTag())) {
+            request.copySourceIfMatch(source.eTag());
+        }
+    }
+
+    private void abortMultipartCopy(CopyTarget target, String uploadId, RuntimeException failure) {
+        try {
+            requireSuccessfulRequest(() -> client.abortMultipartUpload(AbortMultipartUploadRequest.builder()
+                            .bucket(target.destinationBucket)
+                            .key(target.destinationKey)
+                            .uploadId(uploadId)
+                            .build()),
+                    "OBJECT_MULTIPART_COPY_ABORT_FAILED",
+                    "中止分片复制失败：" + target.destinationKey);
+        } catch (RuntimeException abortFailure) {
+            failure.addSuppressed(abortFailure);
+        }
+    }
+
+    private static final class CopyTarget {
+        private final String sourceBucket;
+        private final String sourceKey;
+        private final String destinationBucket;
+        private final String destinationKey;
+
+        private CopyTarget(String sourceBucket, String sourceKey,
+                           String destinationBucket, String destinationKey) {
+            this.sourceBucket = sourceBucket;
+            this.sourceKey = sourceKey;
+            this.destinationBucket = destinationBucket;
+            this.destinationKey = destinationKey;
+        }
     }
 
     /**
@@ -450,7 +679,9 @@ public class PutOperations extends Operations implements OssPutService {
         String filename = Util.getFilename(sourceObjectName);
         String destKey = Util.formatPath(destinationDirectory) + filename;
         destKey = Util.normalizeObjectKey(destKey);
-        StoredObject source = headMoveObject(bucketName, sourceKey, "MOVE_SOURCE_HEAD_FAILED", "读取源对象失败：");
+        HeadObjectResponse sourceResponse = headMoveResponse(bucketName, sourceKey,
+                "MOVE_SOURCE_HEAD_FAILED", "读取源对象失败：");
+        StoredObject source = buildStoredObject(bucketName, sourceKey, sourceResponse);
         if (sourceKey.equals(destKey)) {
             return;
         }
@@ -458,12 +689,15 @@ public class PutOperations extends Operations implements OssPutService {
         String stagingKey = MOVE_STAGING_PREFIX + UUID.randomUUID().toString();
         boolean stagingCleanupRequired = true;
         try {
-            copyFile(bucketName, bucketName, sourceKey, stagingKey);
-            StoredObject staging = headMoveObject(bucketName, stagingKey,
+            executeCopy(new CopyTarget(bucketName, sourceKey, bucketName, stagingKey),
+                    sourceResponse, source.size());
+            HeadObjectResponse stagingResponse = headMoveResponse(bucketName, stagingKey,
                     "MOVE_STAGING_HEAD_FAILED", "读取 staging 对象失败：");
+            StoredObject staging = buildStoredObject(bucketName, stagingKey, stagingResponse);
             verifyMoveCopy(source, staging, "MOVE_STAGING_INVALID", "staging 对象校验失败：");
 
-            copyFile(bucketName, bucketName, stagingKey, destKey);
+            executeCopy(new CopyTarget(bucketName, stagingKey, bucketName, destKey),
+                    stagingResponse, staging.size());
             StoredObject destination = headMoveObject(bucketName, destKey,
                     "MOVE_DESTINATION_HEAD_FAILED", "读取最终对象失败：");
             verifyMoveCopy(source, destination, "MOVE_DESTINATION_INVALID", "最终对象校验失败：");
@@ -482,13 +716,18 @@ public class PutOperations extends Operations implements OssPutService {
     }
 
     private StoredObject headMoveObject(String bucketName, String key, String errorCode, String messagePrefix) {
-        HeadObjectResponse response = requireSuccessfulRequest(() -> client.headObject(HeadObjectRequest.builder()
+        return buildStoredObject(bucketName, key,
+                headMoveResponse(bucketName, key, errorCode, messagePrefix));
+    }
+
+    private HeadObjectResponse headMoveResponse(String bucketName, String key,
+                                                String errorCode, String messagePrefix) {
+        return requireSuccessfulRequest(() -> client.headObject(HeadObjectRequest.builder()
                         .bucket(bucketName)
                         .key(key)
                         .checksumMode(ChecksumMode.ENABLED)
                         .build()),
                 errorCode, messagePrefix + key);
-        return buildStoredObject(bucketName, key, response);
     }
 
     private void verifyMoveCopy(StoredObject source, StoredObject copied,

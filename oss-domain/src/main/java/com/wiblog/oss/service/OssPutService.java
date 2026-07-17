@@ -52,10 +52,24 @@ public interface OssPutService {
 
     void putFolder(String bucketName, String path, File folder, boolean isIncludeFolderName);
 
-    void copyFile(String sourceKey, String destKey);
+    default void copyFile(String sourceKey, String destKey) {
+        copyObject(new CopyObjectCommand(null, sourceKey, null, destKey));
+    }
 
-    void copyFile(String sourceBucket, String destBucket, String sourceKey, String destKey);
+    default void copyFile(String sourceBucket, String destBucket, String sourceKey, String destKey) {
+        copyObject(new CopyObjectCommand(sourceBucket, sourceKey, destBucket, destKey));
+    }
 
+    /**
+     * 在对象存储服务端复制对象。
+     *
+     * <p>源对象不超过单次复制阈值时使用 CopyObject；超过阈值时自动切换为
+     * multipart upload 与 UploadPartCopy。源和目标必须由当前客户端访问，
+     * 该接口不支持跨 endpoint 中转复制。</p>
+     *
+     * @param command 对象复制命令
+     * @return 复制完成后的目标对象信息
+     */
     StoredObject copyObject(CopyObjectCommand command);
 
     void move(String sourceObjectName, String destinationDirectory);

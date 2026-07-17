@@ -2,10 +2,12 @@ package com.wiblog.oss.service;
 
 import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.bean.ObjectInfo;
+import com.wiblog.oss.bean.ReadObjectRangeCommand;
 import com.wiblog.oss.bean.StoredObject;
 import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import org.junit.jupiter.api.Test;
+import software.amazon.awssdk.awscore.exception.AwsErrorDetails;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -36,6 +38,13 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class QueryOperationsTest {
+
+    @Test
+    void typedRangeMethodRemainsDefaultInterfaceAdapter() throws NoSuchMethodException {
+        assertEquals(true, OssQueryService.class
+                .getMethod("getInputStream", ReadObjectRangeCommand.class)
+                .isDefault());
+    }
 
     @Test
     void headObjectReturnsStableStorageMetadata() {
@@ -154,6 +163,114 @@ class QueryOperationsTest {
 
         assertEquals("part", readString(inputStream));
         assertEquals("bytes=0-3", requests.get(0).range());
+    }
+
+    @Test
+    void getInputStreamWithTypedRangeBuildsBoundedRequest() throws IOException {
+        List<GetObjectRequest> requests = new ArrayList<>();
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("getObject".equals(methodName)) {
+                    requests.add((GetObjectRequest) args[0]);
+                    return completed(new ResponseInputStream<GetObjectResponse>(
+                            GetObjectResponse.builder().build(),
+                            new ByteArrayInputStream("part".getBytes(StandardCharsets.UTF_8))));
+                }
+                throw unsupported(methodName);
+            }
+        }));
+
+        InputStream inputStream = operations.getInputStream(
+                new ReadObjectRangeCommand(null, "/large-object", 8L, 4L));
+
+        assertEquals("part", readString(inputStream));
+        assertEquals("bucket", requests.get(0).bucket());
+        assertEquals("large-object", requests.get(0).key());
+        assertEquals("bytes=8-11", requests.get(0).range());
+    }
+
+    @Test
+    void getInputStreamWithTypedRangeRejectsInvalidBounds() {
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                throw unsupported(methodName);
+            }
+        }));
+
+        assertThrows(IllegalArgumentException.class, () -> operations.getInputStream(
+                new ReadObjectRangeCommand("bucket", "object", -1L, 1L)));
+        assertThrows(IllegalArgumentException.class, () -> operations.getInputStream(
+                new ReadObjectRangeCommand("bucket", "object", 0L, 0L)));
+        assertThrows(IllegalArgumentException.class, () -> operations.getInputStream(
+                new ReadObjectRangeCommand("bucket", "object", Long.MAX_VALUE, 2L)));
+    }
+
+    @Test
+    void getInputStreamMapsMissingObjectToDomainError() {
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("getObject".equals(methodName)) {
+                    return failed(NoSuchKeyException.builder().message("missing").build());
+                }
+                throw unsupported(methodName);
+            }
+        }));
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations.getInputStream("bucket", "missing.txt"));
+
+        assertEquals("OBJECT_NOT_FOUND", failure.getCode());
+    }
+
+    @Test
+    void getInputStreamMapsUnsatisfiedRangeToDomainError() {
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("getObject".equals(methodName)) {
+                    return failed(S3Exception.builder()
+                            .statusCode(416)
+                            .awsErrorDetails(AwsErrorDetails.builder()
+                                    .errorCode("InvalidRange")
+                                    .errorMessage("invalid range")
+                                    .build())
+                            .build());
+                }
+                throw unsupported(methodName);
+            }
+        }));
+
+        OssException failure = assertThrows(OssException.class, () -> operations.getInputStream(
+                new ReadObjectRangeCommand("bucket", "object", 100L, 10L)));
+
+        assertEquals("OBJECT_RANGE_NOT_SATISFIABLE", failure.getCode());
+    }
+
+    @Test
+    void getInputStreamMapsAccessDeniedToDomainError() {
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("getObject".equals(methodName)) {
+                    return failed(S3Exception.builder()
+                            .statusCode(403)
+                            .awsErrorDetails(AwsErrorDetails.builder()
+                                    .errorCode("AccessDenied")
+                                    .errorMessage("denied")
+                                    .build())
+                            .build());
+                }
+                throw unsupported(methodName);
+            }
+        }));
+
+        OssException failure = assertThrows(OssException.class,
+                () -> operations.getInputStream("bucket", "object"));
+
+        assertEquals("OBJECT_READ_FORBIDDEN", failure.getCode());
     }
 
     @Test
