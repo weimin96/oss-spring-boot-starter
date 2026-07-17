@@ -387,6 +387,91 @@ class PutOperationsTest {
     }
 
     @Test
+    void copyObjectWaitsForInFlightPartsBeforeAbortWhenInterrupted() throws Exception {
+        long sourceSize = 5_000_000_001L;
+        List<CompletableFuture<UploadPartCopyResponse>> partFutures =
+                Collections.synchronizedList(new ArrayList<>());
+        CountDownLatch partsStarted = new CountDownLatch(2);
+        CountDownLatch abortCalled = new CountDownLatch(1);
+        AtomicInteger activeRequests = new AtomicInteger();
+        AtomicInteger incompletePartsAtAbort = new AtomicInteger(-1);
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("headObject".equals(methodName)) {
+                    return completed(HeadObjectResponse.builder()
+                            .contentLength(sourceSize)
+                            .eTag("source-etag")
+                            .build());
+                }
+                if ("getObjectTagging".equals(methodName)) {
+                    return completed(GetObjectTaggingResponse.builder().build());
+                }
+                if ("createMultipartUpload".equals(methodName)) {
+                    return completed(CreateMultipartUploadResponse.builder().uploadId("upload-id").build());
+                }
+                if ("uploadPartCopy".equals(methodName)) {
+                    CompletableFuture<UploadPartCopyResponse> future = new CompletableFuture<>();
+                    activeRequests.incrementAndGet();
+                    future.whenComplete((response, failure) -> activeRequests.decrementAndGet());
+                    partFutures.add(future);
+                    partsStarted.countDown();
+                    return future;
+                }
+                if ("abortMultipartUpload".equals(methodName)) {
+                    int incompleteParts = 0;
+                    synchronized (partFutures) {
+                        for (CompletableFuture<UploadPartCopyResponse> future : partFutures) {
+                            if (!future.isDone()) {
+                                incompleteParts++;
+                            }
+                        }
+                    }
+                    incompletePartsAtAbort.set(incompleteParts);
+                    abortCalled.countDown();
+                    return completed(AbortMultipartUploadResponse.builder().build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+        OssClientOptions options = options();
+        options.setPartSizeInMb(3072);
+        options.setMaxConnections(2);
+        CompletableFuture<Throwable> copyFailure = new CompletableFuture<>();
+        Thread copyThread = new Thread(() -> {
+            try {
+                operations(options, client).copyObject(
+                        new CopyObjectCommand("source", "source.bin", "destination", "target.bin"));
+                copyFailure.complete(null);
+            } catch (Throwable failure) {
+                copyFailure.complete(failure);
+            }
+        }, "multipart-copy-interrupt-test");
+
+        copyThread.start();
+        assertTrue(partsStarted.await(5, TimeUnit.SECONDS));
+        copyThread.interrupt();
+        Thread.sleep(100L);
+
+        assertEquals(1L, abortCalled.getCount());
+        assertEquals(2, activeRequests.get());
+        for (int i = 0; i < partFutures.size(); i++) {
+            partFutures.get(i).complete(UploadPartCopyResponse.builder()
+                    .copyPartResult(CopyPartResult.builder().eTag("part-" + (i + 1)).build())
+                    .build());
+        }
+
+        Throwable failure = copyFailure.get(5, TimeUnit.SECONDS);
+        copyThread.join(5_000L);
+
+        assertTrue(failure instanceof OssException);
+        assertEquals("OSS_INTERRUPTED", ((OssException) failure).getCode());
+        assertEquals(0L, abortCalled.getCount());
+        assertEquals(0, incompletePartsAtAbort.get());
+        assertTrue(copyThread.isInterrupted());
+    }
+
+    @Test
     void copyObjectAbortsMultipartUploadWhenPartCopyFails() {
         long sourceSize = 5_000_000_001L;
         final AbortMultipartUploadRequest[] abortRequest = new AbortMultipartUploadRequest[1];
@@ -420,6 +505,10 @@ class PutOperationsTest {
                 new CopyObjectCommand("source", "source.bin", "destination", "target.bin")));
 
         assertEquals("OBJECT_COPY_FORBIDDEN", failure.getCode());
+        assertEquals(7, failure.getSuppressed().length);
+        for (Throwable suppressed : failure.getSuppressed()) {
+            assertEquals("OBJECT_COPY_FORBIDDEN", ((OssException) suppressed).getCode());
+        }
         assertEquals("upload-id", abortRequest[0].uploadId());
         assertEquals("target.bin", abortRequest[0].key());
     }
@@ -452,7 +541,9 @@ class PutOperationsTest {
             }
         });
 
-        OssException failure = assertThrows(OssException.class, () -> operations(client).copyObject(
+        OssClientOptions options = options();
+        options.setMaxConnections(1);
+        OssException failure = assertThrows(OssException.class, () -> operations(options, client).copyObject(
                 new CopyObjectCommand("source", "source.bin", "destination", "target.bin")));
 
         assertEquals("OBJECT_MULTIPART_COPY_PART_FAILED", failure.getCode());

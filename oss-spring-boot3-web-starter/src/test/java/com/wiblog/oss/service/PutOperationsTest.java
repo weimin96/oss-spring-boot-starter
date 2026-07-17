@@ -8,6 +8,7 @@ import com.wiblog.oss.bean.chunk.ChunkMerge;
 import com.wiblog.oss.bean.chunk.ChunkTarget;
 import com.wiblog.oss.bean.chunk.ChunkTask;
 import com.wiblog.oss.bean.chunk.ChunkUploadCommand;
+import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.support.AbstractServiceDynamicPropertyTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -213,6 +214,53 @@ class PutOperationsTest extends AbstractServiceDynamicPropertyTest {
         assertThat(uploaded.etag()).contains("-");
         assertThat(ossTemplate.query().headObject(ossProperties.getBucketName(), key).size())
                 .isEqualTo(contentLength);
+    }
+
+    @Test
+    @EnabledIfEnvironmentVariable(named = "OSS_RUN_LARGE_COPY_TEST", matches = "true")
+    @DisplayName("超过 5 GB 的对象应通过 multipart copy 完成服务端复制")
+    void multipartServerSideCopyLargerThanSingleCopyLimit() {
+        String directory = newTestDirectory();
+        String sourceKey = directory + "/large-copy-source.bin";
+        String destinationKey = directory + "/large-copy-destination.bin";
+        long contentLength = 5_000_000_001L;
+        OssClientOptions copyOptions = ossProperties.toOptions();
+        copyOptions.setPartSizeInMb(512);
+        copyOptions.setMaxConnections(4);
+        OssTemplate largeCopyTemplate = new OssTemplate(copyOptions);
+        try {
+            StoredObject uploaded = largeCopyTemplate.put().putObject(new PutObjectCommand(
+                    null, sourceKey, new RepeatingInputStream(contentLength), contentLength,
+                    "application/octet-stream",
+                    Map.of("source", "large-copy-integration"),
+                    Map.of("stage", "multipart-copy"),
+                    null, false));
+
+            StoredObject copied = largeCopyTemplate.put().copyObject(new CopyObjectCommand(
+                    null, sourceKey, null, destinationKey));
+
+            assertThat(uploaded.size()).isEqualTo(contentLength);
+            assertThat(copied.size()).isEqualTo(contentLength);
+            try (S3AsyncClient client = newVerificationClient()) {
+                HeadObjectResponse destination = client.headObject(HeadObjectRequest.builder()
+                        .bucket(ossProperties.getBucketName())
+                        .key(destinationKey)
+                        .build()).join();
+                assertThat(destination.contentLength()).isEqualTo(contentLength);
+                assertThat(destination.metadata())
+                        .containsEntry("source", "large-copy-integration");
+                assertThat(client.getObjectTagging(GetObjectTaggingRequest.builder()
+                                .bucket(ossProperties.getBucketName())
+                                .key(destinationKey)
+                                .build()).join().tagSet())
+                        .anySatisfy(tag -> {
+                            assertThat(tag.key()).isEqualTo("stage");
+                            assertThat(tag.value()).isEqualTo("multipart-copy");
+                        });
+            }
+        } finally {
+            largeCopyTemplate.stop();
+        }
     }
 
     @Test

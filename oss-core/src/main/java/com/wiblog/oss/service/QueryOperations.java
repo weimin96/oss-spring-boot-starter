@@ -493,6 +493,16 @@ public class QueryOperations extends Operations implements OssQueryService {
     }
 
     /**
+     * 返回当前查询实现使用的默认 Bucket。
+     *
+     * @return 默认 Bucket 名称
+     */
+    @Override
+    public String getDefaultBucketName() {
+        return ossProperties.getBucketName();
+    }
+
+    /**
      * 获取默认 Bucket 中对象的输入流。
      *
      * @param objectName 对象 key
@@ -540,7 +550,10 @@ public class QueryOperations extends Operations implements OssQueryService {
         }
 
         String bucketName = Util.isBlank(command.bucket())
-                ? ossProperties.getBucketName() : command.bucket();
+                ? getDefaultBucketName() : command.bucket();
+        if (Util.isBlank(bucketName)) {
+            throw new IllegalArgumentException("Bucket 名称不能为空，且当前实现未配置默认 Bucket");
+        }
         long end = command.offset() + command.length() - 1;
         GetObjectRequest request = GetObjectRequest.builder()
                 .bucket(bucketName)

@@ -3,10 +3,13 @@ package com.wiblog.oss.service;
 import com.wiblog.oss.bean.LazyDataList;
 import com.wiblog.oss.bean.ObjectInfo;
 import com.wiblog.oss.bean.ObjectTreeNode;
+import com.wiblog.oss.bean.ReadObjectRangeCommand;
 import com.wiblog.oss.support.AbstractServiceDynamicPropertyTest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -42,6 +45,19 @@ class QueryOperationsTest extends AbstractServiceDynamicPropertyTest {
         assertThat(objectInfo.getName()).isEqualTo("content.txt");
         assertThat(objectInfo.getUri()).isEqualTo(objectKey);
         assertThat(ossTemplate.query().getContent(objectKey)).isEqualTo("query-content");
+    }
+
+    @Test
+    @DisplayName("类型化区间读取应使用默认 Bucket 并返回指定字节")
+    void typedRangeReadUsesDefaultBucket() throws Exception {
+        String directory = newTestDirectory();
+        String objectKey = putTextObject(directory, "range.txt", "0123456789");
+
+        try (InputStream inputStream = ossTemplate.query().getInputStream(
+                new ReadObjectRangeCommand(null, objectKey, 2L, 4L))) {
+            assertThat(new String(inputStream.readAllBytes(), StandardCharsets.UTF_8))
+                    .isEqualTo("2345");
+        }
     }
 
     @Test

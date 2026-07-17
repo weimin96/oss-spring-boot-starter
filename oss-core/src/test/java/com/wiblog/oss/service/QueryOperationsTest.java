@@ -45,6 +45,21 @@ class QueryOperationsTest {
         assertEquals(true, OssQueryService.class
                 .getMethod("getInputStream", ReadObjectRangeCommand.class)
                 .isDefault());
+        assertEquals(true, OssQueryService.class
+                .getMethod("getDefaultBucketName")
+                .isDefault());
+    }
+
+    @Test
+    void queryOperationsExposesConfiguredDefaultBucket() {
+        QueryOperations operations = operations(s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                throw unsupported(methodName);
+            }
+        }));
+
+        assertEquals("bucket", operations.getDefaultBucketName());
     }
 
     @Test
@@ -206,6 +221,21 @@ class QueryOperationsTest {
                 new ReadObjectRangeCommand("bucket", "object", 0L, 0L)));
         assertThrows(IllegalArgumentException.class, () -> operations.getInputStream(
                 new ReadObjectRangeCommand("bucket", "object", Long.MAX_VALUE, 2L)));
+    }
+
+    @Test
+    void getInputStreamWithTypedRangeRejectsMissingDefaultBucket() {
+        OssClientOptions options = new OssClientOptions(
+                "http://localhost:9000", "access-key", "secret-key", "minio");
+        QueryOperations operations = new QueryOperations(options, s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                throw unsupported(methodName);
+            }
+        }), null);
+
+        assertThrows(IllegalArgumentException.class, () -> operations.getInputStream(
+                new ReadObjectRangeCommand(null, "object", 0L, 1L)));
     }
 
     @Test

@@ -47,9 +47,9 @@
 | `OssTaggingService`  | 对象标签与 Bucket 标签端口                      | 覆盖、合并、删除语义需区分清楚                         |
 | `OssBucketService`   | Bucket 版本控制、ACL、回滚、生命周期、CORS、策略、安全配置端口 | 部分能力取决于对象存储实现是否支持                       |
 
-`ReadObjectRangeCommand` 使用 `offset + length` 表达单个字节区间。原始 Range 字符串重载仅用于兼容，新增代码优先使用类型化命令。
+`ReadObjectRangeCommand` 使用 `offset + length` 表达单个字节区间。原始 Range 字符串重载仅用于兼容，新增代码优先使用类型化命令。命令未指定 Bucket 时通过 `OssQueryService.getDefaultBucketName()` 解析；支持默认 Bucket 的第三方实现必须覆盖该方法。
 
-服务端复制仅适用于当前 `S3AsyncClient` 可同时访问的源和目标。对象不超过 5 GB 时使用单次复制，超过阈值时自动使用 multipart copy；分片大小复用 `partSizeInMb`，并发度不超过 `min(maxConnections, 8)`。失败时必须等待当前并发窗口收敛并中止未完成的 multipart upload。
+服务端复制仅适用于当前 `S3AsyncClient` 可同时访问的源和目标。对象不超过 5 GB 时使用单次复制，超过阈值时自动使用 multipart copy；分片大小复用 `partSizeInMb`，并发度不超过 `min(maxConnections, 8)`。失败或线程中断时必须等待当前并发窗口收敛，再中止未完成的 multipart upload；同一窗口的其他失败通过 suppressed exception 保留。
 
 ## 自动配置规则
 
@@ -175,7 +175,7 @@ mvn -pl oss-spring-boot3-web-starter -am test
 mvn -pl "oss-domain,oss-web-api,oss-core" -am test
 ```
 
-集成测试依赖 MinIO。需要本地验证时，先启动 MinIO，再运行相关模块测试。不要把需要外部服务的验证写成无前置条件的默认步骤。
+集成测试依赖 MinIO。需要本地验证时，先启动 MinIO，再运行相关模块测试。不要把需要外部服务的验证写成无前置条件的默认步骤。超过 5 GB 的服务端分片复制慢速测试必须通过 `OSS_RUN_LARGE_COPY_TEST=true` 显式启用。
 
 ## 发布与持续集成
 

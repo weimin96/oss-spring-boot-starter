@@ -76,6 +76,18 @@ public interface OssQueryService {
     InputStream getInputStream(String bucketName, String objectName);
 
     /**
+     * 返回当前实现使用的默认 Bucket。
+     *
+     * <p>默认返回 {@code null}，不使用默认 Bucket 的第三方实现无需覆盖。
+     * 支持默认 Bucket 的实现应覆盖该方法，使类型化区间读取与完整读取保持一致。</p>
+     *
+     * @return 默认 Bucket；未配置时返回 {@code null}
+     */
+    default String getDefaultBucketName() {
+        return null;
+    }
+
+    /**
      * 打开对象指定字节区间的输入流。
      *
      * <p>调用方负责关闭返回的输入流，关闭流会释放底层 HTTP 连接。</p>
@@ -90,8 +102,12 @@ public interface OssQueryService {
         if (command.key() == null || command.key().trim().isEmpty()) {
             throw new IllegalArgumentException("对象 key 不能为空");
         }
-        if (command.bucket() == null || command.bucket().trim().isEmpty()) {
-            throw new IllegalArgumentException("兼容适配器要求显式指定 Bucket");
+        String bucketName = command.bucket();
+        if (bucketName == null || bucketName.trim().isEmpty()) {
+            bucketName = getDefaultBucketName();
+        }
+        if (bucketName == null || bucketName.trim().isEmpty()) {
+            throw new IllegalArgumentException("Bucket 名称不能为空，且当前实现未提供默认 Bucket");
         }
         if (command.offset() < 0) {
             throw new IllegalArgumentException("读取偏移量不能小于 0");
@@ -103,7 +119,7 @@ public interface OssQueryService {
             throw new IllegalArgumentException("读取区间超出 long 范围");
         }
         long end = command.offset() + command.length() - 1;
-        return getInputStream(command.bucket(), command.key(),
+        return getInputStream(bucketName, command.key(),
                 "bytes=" + command.offset() + "-" + end);
     }
 

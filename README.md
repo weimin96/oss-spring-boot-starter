@@ -316,7 +316,12 @@ StoredObject metadata = ossTemplate.query().headObject(
 `CopyObject`；超过 5 GB 时自动切换为 multipart upload 和 `UploadPartCopy`。基础分片大小取自 `oss.part-size-in-mb`，
 并在必要时自动增大以限制在 10,000 个分片内。分片按受控窗口并发提交，并发度为 `min(oss.max-connections, 8)`。
 分片复制会保留源对象的常用 HTTP 元数据、自定义元数据和标签；当前并发窗口全部结束后才会进入下一批，任一分片或完成阶段失败时会中止 multipart upload。
+同一窗口内有多个分片失败时，第一个失败作为主异常，其余失败通过 suppressed exception 保留。等待分片期间线程被中断时，
+实现会先等待当前窗口的在途请求全部结束，再恢复中断标记并中止 multipart upload，避免 abort 与仍在执行的分片请求竞态。
 源对象与目标对象不能完全相同，且当前实现不支持跨 endpoint 服务端复制。对象大小超过约 48.8 TiB 时会显式拒绝。
+
+复制链路会在 DEBUG 级别记录执行计划，并在 INFO/WARN 级别记录完成或失败结果。日志包含源/目标、对象大小、复制策略、
+分片数、分片大小、并发度、耗时和领域错误码，可用于定位大对象复制性能与失败阶段。
 
 受限流式读取示例：
 
@@ -332,7 +337,15 @@ try (InputStream inputStream = ossTemplate.query().getInputStream(
 ```
 
 `ReadObjectRangeCommand` 使用 `offset + length` 表达单个字节区间，并在请求前校验负数、零长度和 long 溢出。
-调用方必须关闭返回的 `InputStream`，以释放底层 HTTP 连接。原始 `bytes=...` 字符串重载仅为兼容保留，已经标记为过时。
+`bucket` 为空时使用 `OssQueryService.getDefaultBucketName()` 返回的默认 Bucket；内置实现返回 `oss.bucket-name`，第三方实现如需支持
+该语义应覆盖默认 Bucket 方法。调用方必须关闭返回的 `InputStream`，以释放底层 HTTP 连接。原始 `bytes=...` 字符串重载仅为兼容保留，已经标记为过时。
+
+超过 5 GB 的服务端分片复制集成测试默认不执行。连接测试 MinIO 后，可在 PowerShell 中显式启用：
+
+```powershell
+$env:OSS_RUN_LARGE_COPY_TEST = "true"
+mvn -pl oss-spring-boot3-web-starter -am -Dtest=PutOperationsTest -Dsurefire.failIfNoSpecifiedTests=false test
+```
 
 `move()` 保持允许覆盖目标对象的兼容语义。内部使用 `.oss-staging/move/` 随机 key 完成 staging-copy-delete，校验 staging
 和最终对象后再删除源对象；如果 staging、复制、校验或清理失败，源对象会保留并显式抛出异常。

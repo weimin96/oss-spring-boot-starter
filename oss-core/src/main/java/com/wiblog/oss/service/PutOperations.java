@@ -31,6 +31,7 @@ import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -400,20 +401,36 @@ public class PutOperations extends Operations implements OssPutService {
     @Override
     public StoredObject copyObject(CopyObjectCommand command) {
         CopyTarget target = validateCopyCommand(command);
-        HeadObjectResponse source = headCopyObject(target.sourceBucket, target.sourceKey, false,
-                "OBJECT_COPY_SOURCE_HEAD_FAILED", "读取复制源对象失败：");
-        long sourceSize = requireCopyObjectSize(source, target.sourceKey);
+        long startedAt = System.nanoTime();
+        try {
+            HeadObjectResponse source = headCopyObject(target.sourceBucket, target.sourceKey, false,
+                    "OBJECT_COPY_SOURCE_HEAD_FAILED", "读取复制源对象失败：");
+            long sourceSize = requireCopyObjectSize(source, target.sourceKey);
+            CopyExecutionPlan plan = executeCopy(target, source, sourceSize);
 
-        executeCopy(target, source, sourceSize);
-
-        HeadObjectResponse destination = headCopyObject(target.destinationBucket, target.destinationKey, true,
-                "OBJECT_COPY_VERIFY_FAILED", "读取复制结果失败：");
-        long destinationSize = requireCopyObjectSize(destination, target.destinationKey);
-        if (sourceSize != destinationSize) {
-            throw new OssException("OBJECT_COPY_VERIFY_FAILED",
-                    "复制结果大小校验失败：" + target.destinationKey);
+            HeadObjectResponse destination = headCopyObject(target.destinationBucket, target.destinationKey, true,
+                    "OBJECT_COPY_VERIFY_FAILED", "读取复制结果失败：");
+            long destinationSize = requireCopyObjectSize(destination, target.destinationKey);
+            if (sourceSize != destinationSize) {
+                throw new OssException("OBJECT_COPY_VERIFY_FAILED",
+                        "复制结果大小校验失败：" + target.destinationKey);
+            }
+            StoredObject result = buildStoredObject(target.destinationBucket, target.destinationKey, destination);
+            log.info("OSS server-side copy completed: source=[{}/{}], destination=[{}/{}], size={}, "
+                            + "strategy={}, parts={}, partSize={}, concurrency={}, elapsedMs={}",
+                    target.sourceBucket, target.sourceKey,
+                    target.destinationBucket, target.destinationKey,
+                    sourceSize, plan.strategy, plan.partCount, plan.partSize,
+                    plan.concurrency, elapsedMillis(startedAt));
+            return result;
+        } catch (RuntimeException failure) {
+            log.warn("OSS server-side copy failed: source=[{}/{}], destination=[{}/{}], "
+                            + "errorCode={}, elapsedMs={}",
+                    target.sourceBucket, target.sourceKey,
+                    target.destinationBucket, target.destinationKey,
+                    copyFailureCode(failure), elapsedMillis(startedAt), failure);
+            throw failure;
         }
-        return buildStoredObject(target.destinationBucket, target.destinationKey, destination);
     }
 
     private CopyTarget validateCopyCommand(CopyObjectCommand command) {
@@ -441,13 +458,20 @@ public class PutOperations extends Operations implements OssPutService {
         return new CopyTarget(sourceBucket, sourceKey, destinationBucket, destinationKey);
     }
 
-    private void executeCopy(CopyTarget target, HeadObjectResponse source, long sourceSize) {
+    private CopyExecutionPlan executeCopy(CopyTarget target, HeadObjectResponse source, long sourceSize) {
         requireCopySourceIdentity(source, target.sourceKey);
-        if (sourceSize <= SINGLE_COPY_MAX_BYTES) {
-            copySingleObject(target, source);
+        CopyExecutionPlan plan = createCopyExecutionPlan(sourceSize);
+        log.debug("OSS server-side copy planned: source=[{}/{}], destination=[{}/{}], size={}, "
+                        + "strategy={}, parts={}, partSize={}, concurrency={}",
+                target.sourceBucket, target.sourceKey,
+                target.destinationBucket, target.destinationKey,
+                sourceSize, plan.strategy, plan.partCount, plan.partSize, plan.concurrency);
+        if (plan.multipart) {
+            copyMultipartObject(target, source, sourceSize, plan.partSize);
         } else {
-            copyMultipartObject(target, source, sourceSize);
+            copySingleObject(target, source);
         }
+        return plan;
     }
 
     private void copySingleObject(CopyTarget target, HeadObjectResponse source) {
@@ -461,8 +485,8 @@ public class PutOperations extends Operations implements OssPutService {
                 "OBJECT_COPY_FAILED", "复制对象失败：" + target.sourceKey);
     }
 
-    private void copyMultipartObject(CopyTarget target, HeadObjectResponse source, long sourceSize) {
-        long partSize = calculateCopyPartSize(sourceSize);
+    private void copyMultipartObject(CopyTarget target, HeadObjectResponse source,
+                                     long sourceSize, long partSize) {
         Tagging tagging = loadSourceTagging(target, source);
         CreateMultipartUploadRequest.Builder createRequest = CreateMultipartUploadRequest.builder()
                 .bucket(target.destinationBucket)
@@ -580,24 +604,73 @@ public class PutOperations extends Operations implements OssPutService {
 
     private void awaitCopyPartBatch(List<CompletableFuture<CompletedPart>> batch, String sourceKey) {
         CompletableFuture<?>[] futures = batch.toArray(new CompletableFuture<?>[batch.size()]);
-        try {
-            CompletableFuture.allOf(futures).get();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new OssException("OSS_INTERRUPTED", "复制对象分片时线程被中断：" + sourceKey, e);
-        } catch (ExecutionException e) {
-            Throwable cause = unwrapAsyncFailure(e.getCause());
-            if (cause instanceof OssException) {
-                throw (OssException) cause;
+        CompletableFuture<Void> batchFuture = CompletableFuture.allOf(futures);
+        boolean interrupted = false;
+        InterruptedException interruptionCause = null;
+        ExecutionException executionFailure = null;
+        while (true) {
+            try {
+                batchFuture.get();
+                break;
+            } catch (InterruptedException e) {
+                interrupted = true;
+                if (interruptionCause == null) {
+                    interruptionCause = e;
+                }
+            } catch (ExecutionException e) {
+                executionFailure = e;
+                break;
             }
-            throw mapCopyFailure("OBJECT_MULTIPART_COPY_PART_FAILED",
-                    "复制对象分片失败：" + sourceKey, cause);
         }
+
+        OssException batchFailure = executionFailure == null
+                ? null : collectCopyPartFailures(batch, sourceKey, executionFailure.getCause());
+        if (interrupted) {
+            Thread.currentThread().interrupt();
+            OssException interruption = new OssException("OSS_INTERRUPTED",
+                    "复制对象分片时线程被中断：" + sourceKey, interruptionCause);
+            if (batchFailure != null) {
+                interruption.addSuppressed(batchFailure);
+            }
+            throw interruption;
+        }
+        if (batchFailure != null) {
+            throw batchFailure;
+        }
+    }
+
+    private OssException collectCopyPartFailures(List<CompletableFuture<CompletedPart>> batch,
+                                                  String sourceKey, Throwable fallbackFailure) {
+        OssException primary = null;
+        for (CompletableFuture<CompletedPart> future : batch) {
+            if (!future.isCompletedExceptionally()) {
+                continue;
+            }
+            try {
+                future.join();
+            } catch (RuntimeException failure) {
+                Throwable cause = unwrapAsyncFailure(failure);
+                OssException mapped = cause instanceof OssException
+                        ? (OssException) cause
+                        : mapCopyFailure("OBJECT_MULTIPART_COPY_PART_FAILED",
+                        "复制对象分片失败：" + sourceKey, cause);
+                if (primary == null) {
+                    primary = mapped;
+                } else if (primary != mapped) {
+                    primary.addSuppressed(mapped);
+                }
+            }
+        }
+        return primary == null
+                ? mapCopyFailure("OBJECT_MULTIPART_COPY_PART_FAILED",
+                "复制对象分片失败：" + sourceKey, fallbackFailure)
+                : primary;
     }
 
     private Throwable unwrapAsyncFailure(Throwable failure) {
         Throwable current = failure;
-        while (current instanceof CompletionException && current.getCause() != null) {
+        while ((current instanceof CompletionException || current instanceof ExecutionException)
+                && current.getCause() != null) {
             current = current.getCause();
         }
         return current;
@@ -640,6 +713,29 @@ public class PutOperations extends Operations implements OssPutService {
             return null;
         }
         return Tagging.builder().tagSet(response.tagSet()).build();
+    }
+
+    private CopyExecutionPlan createCopyExecutionPlan(long objectSize) {
+        if (objectSize <= SINGLE_COPY_MAX_BYTES) {
+            return new CopyExecutionPlan(false, "CopyObject", 0L, 1, 1);
+        }
+        long partSize = calculateCopyPartSize(objectSize);
+        long partCount = objectSize / partSize;
+        if (objectSize % partSize != 0) {
+            partCount++;
+        }
+        return new CopyExecutionPlan(true, "UploadPartCopy", partSize,
+                (int) partCount, calculateCopyConcurrency());
+    }
+
+    private long elapsedMillis(long startedAt) {
+        return TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - startedAt);
+    }
+
+    private String copyFailureCode(RuntimeException failure) {
+        return failure instanceof OssException
+                ? ((OssException) failure).getCode()
+                : failure.getClass().getSimpleName();
     }
 
     private long calculateCopyPartSize(long objectSize) {
@@ -761,6 +857,23 @@ public class PutOperations extends Operations implements OssPutService {
         } catch (RuntimeException abortCause) {
             failure.addSuppressed(new OssException(
                     "OBJECT_MULTIPART_COPY_ABORT_FAILED", message, abortCause));
+        }
+    }
+
+    private static final class CopyExecutionPlan {
+        private final boolean multipart;
+        private final String strategy;
+        private final long partSize;
+        private final int partCount;
+        private final int concurrency;
+
+        private CopyExecutionPlan(boolean multipart, String strategy, long partSize,
+                                  int partCount, int concurrency) {
+            this.multipart = multipart;
+            this.strategy = strategy;
+            this.partSize = partSize;
+            this.partCount = partCount;
+            this.concurrency = concurrency;
         }
     }
 
