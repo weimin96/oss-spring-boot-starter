@@ -2,21 +2,17 @@
 
 本项目所有重要的变更都将记录在此文件中。
 
-## [v3.2.0] - 2026-07-14
+## [未发布]
 
 ## 特性
 
-### 对象命令 API
-- 新增 Java 8 兼容的 `PutObjectCommand`、`CopyObjectCommand`、`ReadObjectRangeCommand` 和 `StoredObject` 领域对象。
-- 新增 `putObject(PutObjectCommand)`、`copyObject(CopyObjectCommand)`、`getInputStream(ReadObjectRangeCommand)` 和 `headObject(bucket, key)` 接口。
-- 保留现有 `putObjectForKey()`、`copyFile()` 和原始 Range 字符串调用方式，并通过默认方法适配对象命令 API。
-- 上传命令支持指定 Bucket、未知长度流、content type、metadata、tags、SHA-256 checksum 和 `createOnly`。
-
 ### 受限流式读取
+- 新增 Java 8 兼容的 `ReadObjectRangeCommand` 和 `getInputStream(ReadObjectRangeCommand)` 接口。
 - 使用 `offset + length` 表达单个对象字节区间，避免 Java API 直接暴露原始 HTTP Range 字符串。
 - 在请求前校验负数、零长度和 `long` 溢出，调用方负责关闭返回的输入流。
-- 对对象不存在、Range 越界、权限不足和其他读取失败提供明确领域错误码。
+- 对 Bucket 不存在、对象不存在、Range 越界、权限不足和其他读取失败提供明确领域错误码。
 - 文件预览与 HTTP Range 下载链路复用类型化区间读取实现。
+- 原始 Range 字符串重载保留用于兼容，并标记为过时。
 
 ### 服务端复制
 - 对象不超过 5 GB 时使用单次 `CopyObject`，超过阈值时自动切换为 multipart upload 与 `UploadPartCopy`。
@@ -25,6 +21,22 @@
 - 复制时优先固定源对象版本，否则使用 ETag 条件，避免复制过程中源内容发生变化。
 - 任一分片或完成阶段失败时自动中止 multipart upload，并保留中止失败的 suppressed exception。
 - `copyFile()` 和移动对象内部复制统一复用同一条单次/分片路由。
+
+## 修复
+
+- 大对象移动与普通复制统一执行源版本或 ETag 一致性校验。
+- 对象流式读取不再把 `NoSuchBucket` 错误误报为对象不存在。
+- 分片复制使用 AWS SDK `Tagging` 模型传递标签，移除手工 URL 编码。
+
+## [v3.2.0] - 2026-07-14
+
+## 特性
+
+### 对象命令 API
+- 新增 Java 8 兼容的 `PutObjectCommand`、`CopyObjectCommand` 和 `StoredObject` 领域对象。
+- 新增 `putObject(PutObjectCommand)`、`copyObject(CopyObjectCommand)` 和 `headObject(bucket, key)` 接口。
+- 保留现有 `putObjectForKey()` 调用方式，并通过默认方法适配对象命令 API。
+- 上传命令支持指定 Bucket、未知长度流、content type、metadata、tags、SHA-256 checksum 和 `createOnly`。
 
 ### 客户端配置
 - 将底层客户端从专用 CRT S3 客户端切换为标准 Java `S3AsyncClient`，并启用 Java multipart。
