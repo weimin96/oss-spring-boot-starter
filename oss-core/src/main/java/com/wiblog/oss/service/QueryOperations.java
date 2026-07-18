@@ -831,6 +831,12 @@ public class QueryOperations extends Operations implements OssQueryService {
             }
         } catch (NoSuchKeyException e) {
             context.sendNotFound();
+        } catch (OssException e) {
+            if ("OBJECT_NOT_FOUND".equals(e.getCode())) {
+                context.sendNotFound();
+                return;
+            }
+            throw e;
         } catch (IOException e) {
             if (!"Broken pipe".equals(e.getMessage())) {
                 throw e;
