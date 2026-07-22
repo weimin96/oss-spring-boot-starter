@@ -77,7 +77,7 @@ Spring Boot 3 基础 Java API 示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-starter</artifactId>
-    <version>3.3.0</version>
+    <version>3.3.1</version>
 </dependency>
 ```
 
@@ -87,7 +87,7 @@ Spring Boot 3 内置 REST 接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-web-starter</artifactId>
-    <version>3.3.0</version>
+    <version>3.3.1</version>
 </dependency>
 ```
 
@@ -97,7 +97,7 @@ Spring Boot 3 OpenAPI 注解接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-openapi-starter</artifactId>
-    <version>3.3.0</version>
+    <version>3.3.1</version>
 </dependency>
 ```
 
@@ -107,7 +107,7 @@ Spring Boot 4 基础 Java API 示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot4-starter</artifactId>
-    <version>3.3.0</version>
+    <version>3.3.1</version>
 </dependency>
 ```
 
@@ -117,7 +117,7 @@ Spring Boot 4 内置 REST 接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot4-web-starter</artifactId>
-    <version>3.3.0</version>
+    <version>3.3.1</version>
 </dependency>
 ```
 
@@ -127,7 +127,7 @@ Spring Boot 4 OpenAPI 注解接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot4-openapi-starter</artifactId>
-    <version>3.3.0</version>
+    <version>3.3.1</version>
 </dependency>
 ```
 

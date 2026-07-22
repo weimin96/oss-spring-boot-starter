@@ -203,9 +203,15 @@ public class PutOperations extends Operations implements OssPutService {
 
         long fileSize;
         PutObjectResponse response;
+        Upload upload;
         try {
-            Upload upload = transferManager.upload(uploadReq);
-            fileSize = body.writeInputStream(command.input());
+            upload = transferManager.upload(uploadReq);
+            try {
+                fileSize = body.writeInputStream(command.input());
+            } catch (RuntimeException streamFailure) {
+                body.cancel();
+                throw resolveUploadFailure(upload, streamFailure);
+            }
             CompletedUpload completedUpload = upload.completionFuture().join();
             if (completedUpload == null || completedUpload.response() == null) {
                 throw new OssException("OBJECT_UPLOAD_FAILED", "上传响应为空：" + key);
@@ -216,11 +222,27 @@ public class PutOperations extends Operations implements OssPutService {
             if (e instanceof OssException) {
                 throw e;
             }
-            throw OssException.uploadFailed(key, e);
+            Throwable cause = unwrapAsyncFailure(e);
+            throw OssException.uploadFailed(key, cause);
         }
 
         return new StoredObject(bucket, key, fileSize, response.eTag(),
                 response.versionId(), response.checksumSHA256());
+    }
+
+    private RuntimeException resolveUploadFailure(Upload upload, RuntimeException streamFailure) {
+        try {
+            upload.completionFuture().join();
+            return streamFailure;
+        } catch (RuntimeException completionFailure) {
+            Throwable cause = unwrapAsyncFailure(completionFailure);
+            if (cause != streamFailure) {
+                cause.addSuppressed(streamFailure);
+            }
+            return cause instanceof RuntimeException
+                    ? (RuntimeException) cause
+                    : completionFailure;
+        }
     }
 
     // ----------------------------------------------------------------

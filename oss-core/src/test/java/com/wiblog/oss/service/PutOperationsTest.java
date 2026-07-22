@@ -179,6 +179,50 @@ class PutOperationsTest {
     }
 
     @Test
+    void putObjectPreservesTransferFailureWhenRequestBodyIsCancelled() {
+        S3TransferManager transferManager = transferManager(new TransferHandler() {
+            @Override
+            public Object handle(String methodName, Object[] args) {
+                if ("upload".equals(methodName)) {
+                    UploadRequest request = (UploadRequest) args[0];
+                    CompletableFuture<CompletedUpload> completion = new CompletableFuture<>();
+                    completion.completeExceptionally(new IllegalStateException("MinIO 拒绝上传"));
+                    request.requestBody().subscribe(new Subscriber<ByteBuffer>() {
+                        @Override
+                        public void onSubscribe(Subscription subscription) {
+                            subscription.cancel();
+                        }
+
+                        @Override
+                        public void onNext(ByteBuffer byteBuffer) {
+                        }
+
+                        @Override
+                        public void onError(Throwable throwable) {
+                        }
+
+                        @Override
+                        public void onComplete() {
+                        }
+                    });
+                    return failedUpload(completion);
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        OssException error = assertThrows(OssException.class, () ->
+                operations(s3Client(noS3Calls()), transferManager).putObject(new PutObjectCommand(
+                        "archive", "docs/readme.txt", new ByteArrayInputStream(new byte[]{1}), 1L,
+                        "text/plain", null, null, null, false)));
+
+        assertEquals("UPLOAD_FAILED", error.getCode());
+        assertEquals("MinIO 拒绝上传", error.getCause().getMessage());
+        assertEquals(1, error.getCause().getSuppressed().length);
+        assertEquals("subscription has been cancelled.", error.getCause().getSuppressed()[0].getMessage());
+    }
+
+    @Test
     void copyObjectReturnsHeadMetadataForDestination() {
         final CopyObjectRequest[] copyRequest = new CopyObjectRequest[1];
         List<HeadObjectRequest> headRequests = new ArrayList<>();
@@ -1301,6 +1345,18 @@ class PutOperationsTest {
                 (proxy, method, args) -> {
                     if ("completionFuture".equals(method.getName())) {
                         return consumed.thenApply(ignored -> CompletedUpload.builder().response(response).build());
+                    }
+                    throw unsupported(method.getName());
+                });
+    }
+
+    private static Upload failedUpload(CompletableFuture<CompletedUpload> completion) {
+        return (Upload) Proxy.newProxyInstance(
+                Upload.class.getClassLoader(),
+                new Class<?>[]{Upload.class},
+                (proxy, method, args) -> {
+                    if ("completionFuture".equals(method.getName())) {
+                        return completion;
                     }
                     throw unsupported(method.getName());
                 });
