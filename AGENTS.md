@@ -186,6 +186,19 @@ mvn -pl "oss-domain,oss-web-api,oss-core" -am test
 GitHub Actions 当前包含：
 
 - `ci.yml`：使用 JDK 21，在 Linux 环境启动 MinIO，并执行 `mvn -B clean test`。
-- `deploy.yml`：标签或手动触发发布，执行 release profile 并部署到 Maven Central。
+- `deploy.yml`：只接受 `v<major>.<minor>.<patch>` 标签或从 `main` 手动触发发布，执行 release profile 并部署到 Maven Central。
+
+发布分支只使用目标版本号命名，例如 `3.3.3`，不添加 `agent/` 或描述性前缀。发布流程必须遵循以下顺序：
+
+1. 从最新 `main` 创建版本分支，例如 `git switch -c 3.3.3`。
+2. 更新根 POM 版本、README 依赖示例和 CHANGELOG 发布说明。
+3. 执行受影响模块测试和 `mvn -DskipTests -Prelease package` 验证。
+4. 推送版本分支并创建发布 PR。
+5. 合并 PR 到 `main`，等待 `main` 分支的 `ci.yml` 成功。
+6. 从合并后的 `main` 提交创建并推送 `v3.3.3` 标签：`git tag -a v3.3.3 -m "发布 3.3.3"`、`git push origin v3.3.3`。
+7. `deploy.yml` 会校验标签提交已经在 `main` 历史中，并等待 Maven Central 状态达到 `published` 后才报告发布成功。
+8. 发布完成后删除版本分支：`git push origin --delete 3.3.3`，并删除本地分支。
+
+已发布的版本号和标签不可重复使用；发布标签必须来自已经合并到 `main` 的提交。
 
 CI 文件里的 shell 是 GitHub 托管环境语义，不代表本地默认命令语义。写用户文档和本地说明时仍以 Windows PowerShell 为准。

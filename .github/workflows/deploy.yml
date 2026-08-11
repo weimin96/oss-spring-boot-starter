@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     tags:
-      - '*'
+      - 'v*'
 
 permissions:
   contents: read
@@ -23,6 +23,30 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Verify release source
+        shell: bash
+        run: |
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            if [[ "${GITHUB_REF_NAME}" != "main" ]]; then
+              echo "手动发布只能从 main 分支触发，当前 ref: ${GITHUB_REF}" >&2
+              exit 1
+            fi
+            exit 0
+          fi
+
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "发布标签必须使用 v<major>.<minor>.<patch> 格式，当前标签: ${GITHUB_REF_NAME}" >&2
+            exit 1
+          fi
+
+          git fetch origin main --no-tags
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "发布标签 ${GITHUB_REF_NAME} 必须指向已经合并到 main 的提交" >&2
+            exit 1
+          fi
 
       - name: Setup JDK 21
         uses: actions/setup-java@v5
