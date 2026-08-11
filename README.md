@@ -77,7 +77,7 @@ Spring Boot 3 基础 Java API 示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-starter</artifactId>
-    <version>3.3.1</version>
+    <version>3.3.2</version>
 </dependency>
 ```
 
@@ -87,7 +87,7 @@ Spring Boot 3 内置 REST 接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-web-starter</artifactId>
-    <version>3.3.1</version>
+    <version>3.3.2</version>
 </dependency>
 ```
 
@@ -97,7 +97,7 @@ Spring Boot 3 OpenAPI 注解接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-openapi-starter</artifactId>
-    <version>3.3.1</version>
+    <version>3.3.2</version>
 </dependency>
 ```
 
@@ -107,7 +107,7 @@ Spring Boot 4 基础 Java API 示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot4-starter</artifactId>
-    <version>3.3.1</version>
+    <version>3.3.2</version>
 </dependency>
 ```
 
@@ -117,7 +117,7 @@ Spring Boot 4 内置 REST 接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot4-web-starter</artifactId>
-    <version>3.3.1</version>
+    <version>3.3.2</version>
 </dependency>
 ```
 
@@ -127,7 +127,7 @@ Spring Boot 4 OpenAPI 注解接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot4-openapi-starter</artifactId>
-    <version>3.3.1</version>
+    <version>3.3.2</version>
 </dependency>
 ```
 
@@ -293,7 +293,7 @@ try (InputStream inputStream = Files.newInputStream(file)) {
 }
 ```
 
-`checksumSha256` 使用 Base64 编码的 SHA-256。未知长度流上传时将 `contentLength` 设为 `null`，客户端会根据 multipart 配置流式处理。
+`checksumSha256` 使用 Base64 编码的 SHA-256。已知长度且带有该值的对象在 5,000,000,000 字节以内会绕过 TransferManager，使用单请求上传；不超过 `oss.multipart-threshold-in-mb` 的对象会发送该完整对象 checksum，超过阈值的对象不会发送预计算的完整对象 checksum。未知长度或超过单请求上限的对象使用 multipart，客户端不会发送预计算的完整对象 checksum。需要保留完整性摘要时，可将 SHA-256 保存到对象 metadata。未知长度流上传时将 `contentLength` 设为 `null`，客户端会根据 multipart 配置流式处理。
 `createOnly=true` 会发送 `If-None-Match: *`，其原子条件写语义取决于目标 S3 兼容服务是否支持。
 
 复制与元数据查询示例：

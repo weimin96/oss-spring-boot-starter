@@ -2,6 +2,16 @@
 
 本项目所有重要的变更都将记录在此文件中。
 
+## 未发布
+
+## [v3.3.2] - 2026-08-11
+
+## 修复
+
+- 修复已知长度的大对象携带预计算 SHA-256 时被 TransferManager 自动转为 multipart，导致部分 S3 兼容服务拒绝 `full-object` checksum 的问题。
+- 大于 multipart 阈值或未知长度的上传不再发送预计算的完整对象 checksum；调用方仍可通过 metadata 保存业务 SHA-256。
+- 已知长度且不超过 S3 单请求上限的 checksum 上传改用原生 `PutObject`，避免 TransferManager 在 S3 兼容服务上重新解释 checksum。
+
 ## [v3.3.1] - 2026-07-22
 
 ## 修复

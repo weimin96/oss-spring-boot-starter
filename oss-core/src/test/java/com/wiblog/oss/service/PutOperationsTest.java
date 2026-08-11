@@ -12,6 +12,7 @@ import com.wiblog.oss.config.OssClientOptions;
 import com.wiblog.oss.exception.OssException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import software.amazon.awssdk.core.async.AsyncRequestBody;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadResponse;
@@ -33,6 +34,7 @@ import software.amazon.awssdk.services.s3.model.ListPartsRequest;
 import software.amazon.awssdk.services.s3.model.ListPartsResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.Part;
+import software.amazon.awssdk.services.s3.model.PutObjectRequest;
 import software.amazon.awssdk.services.s3.model.PutObjectResponse;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.Tag;
@@ -140,19 +142,20 @@ class PutOperationsTest {
 
     @Test
     void putObjectMapsCommandAndReturnsStorageResult() {
-        final UploadRequest[] uploadRequest = new UploadRequest[1];
+        final PutObjectRequest[] putRequest = new PutObjectRequest[1];
         final ByteArrayOutputStream uploadedBytes = new ByteArrayOutputStream();
         PutObjectResponse response = PutObjectResponse.builder()
                 .eTag("etag-1")
                 .versionId("version-1")
                 .checksumSHA256("server-checksum")
                 .build();
-        S3TransferManager transferManager = transferManager(new TransferHandler() {
+        S3AsyncClient client = s3Client(new S3Handler() {
             @Override
-            public Object handle(String methodName, Object[] args) {
-                if ("upload".equals(methodName)) {
-                    uploadRequest[0] = (UploadRequest) args[0];
-                    return upload(consumeRequestBody(uploadRequest[0], uploadedBytes), response);
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("putObject".equals(methodName)) {
+                    putRequest[0] = (PutObjectRequest) args[0];
+                    consumeRequestBody((AsyncRequestBody) args[1], uploadedBytes);
+                    return completed(response);
                 }
                 throw unsupported(methodName);
             }
@@ -160,22 +163,81 @@ class PutOperationsTest {
         Map<String, String> tags = new LinkedHashMap<>();
         tags.put("environment", "dev");
 
-        StoredObject result = operations(s3Client(noS3Calls()), transferManager).putObject(new PutObjectCommand(
+        StoredObject result = operations(client, transferManager(new TransferHandler() {
+            @Override
+            public Object handle(String methodName, Object[] args) {
+                throw unsupported(methodName);
+            }
+        })).putObject(new PutObjectCommand(
                 "archive", "/docs/readme.txt", new ByteArrayInputStream(new byte[]{1, 2, 3}), 3L,
                 "text/plain", Collections.singletonMap("owner", "team"), tags,
                 "client-checksum", true));
 
-        assertEquals("archive", uploadRequest[0].putObjectRequest().bucket());
-        assertEquals("docs/readme.txt", uploadRequest[0].putObjectRequest().key());
-        assertEquals(3L, uploadRequest[0].putObjectRequest().contentLength());
-        assertEquals("text/plain", uploadRequest[0].putObjectRequest().contentType());
-        assertEquals("team", uploadRequest[0].putObjectRequest().metadata().get("owner"));
-        assertEquals("environment=dev", uploadRequest[0].putObjectRequest().tagging());
-        assertEquals("client-checksum", uploadRequest[0].putObjectRequest().checksumSHA256());
-        assertEquals("*", uploadRequest[0].putObjectRequest().ifNoneMatch());
+        assertEquals("archive", putRequest[0].bucket());
+        assertEquals("docs/readme.txt", putRequest[0].key());
+        assertEquals(3L, putRequest[0].contentLength());
+        assertEquals("text/plain", putRequest[0].contentType());
+        assertEquals("team", putRequest[0].metadata().get("owner"));
+        assertEquals("environment=dev", putRequest[0].tagging());
+        assertEquals("client-checksum", putRequest[0].checksumSHA256());
+        assertEquals("*", putRequest[0].ifNoneMatch());
         assertEquals(3, uploadedBytes.size());
         assertEquals(new StoredObject("archive", "docs/readme.txt", 3L,
                 "etag-1", "version-1", "server-checksum"), result);
+    }
+
+    @Test
+    void putObjectUsesSinglePartForLargePrecomputedChecksum() {
+        final PutObjectRequest[] putRequest = new PutObjectRequest[1];
+        final ByteArrayOutputStream uploadedBytes = new ByteArrayOutputStream();
+        S3AsyncClient client = s3Client(new S3Handler() {
+            @Override
+            public CompletableFuture<?> handle(String methodName, Object[] args) {
+                if ("putObject".equals(methodName)) {
+                    putRequest[0] = (PutObjectRequest) args[0];
+                    return consumeRequestBody((AsyncRequestBody) args[1], uploadedBytes)
+                            .thenApply(ignored -> PutObjectResponse.builder().eTag("etag-large").build());
+                }
+                throw unsupported(methodName);
+            }
+        });
+        S3TransferManager transferManager = transferManager(new TransferHandler() {
+            @Override
+            public Object handle(String methodName, Object[] args) {
+                throw unsupported(methodName);
+            }
+        });
+        long contentLength = 11L * 1024 * 1024;
+
+        StoredObject result = operations(client, transferManager).putObject(new PutObjectCommand(
+                "archive", "docs/large.json", new ByteArrayInputStream(new byte[(int) contentLength]),
+                contentLength, "application/json", null, null, "client-checksum", false));
+
+        assertEquals(contentLength, putRequest[0].contentLength());
+        assertNull(putRequest[0].checksumSHA256());
+        assertEquals(contentLength, uploadedBytes.size());
+        assertEquals("etag-large", result.etag());
+    }
+
+    @Test
+    void putObjectOmitsPrecomputedChecksumWhenContentLengthIsUnknown() {
+        final UploadRequest[] uploadRequest = new UploadRequest[1];
+        S3TransferManager transferManager = transferManager(new TransferHandler() {
+            @Override
+            public Object handle(String methodName, Object[] args) {
+                if ("upload".equals(methodName)) {
+                    uploadRequest[0] = (UploadRequest) args[0];
+                    return upload(consumeRequestBody(uploadRequest[0], new ByteArrayOutputStream()));
+                }
+                throw unsupported(methodName);
+            }
+        });
+
+        operations(s3Client(noS3Calls()), transferManager).putObject(new PutObjectCommand(
+                "archive", "docs/unknown-length.json", new ByteArrayInputStream(new byte[]{1, 2, 3}),
+                null, "application/json", null, null, "client-checksum", false));
+
+        assertNull(uploadRequest[0].putObjectRequest().checksumSHA256());
     }
 
     @Test
@@ -1363,8 +1425,13 @@ class PutOperationsTest {
     }
 
     private static CompletableFuture<Void> consumeRequestBody(UploadRequest request, ByteArrayOutputStream outputStream) {
+        return consumeRequestBody(request.requestBody(), outputStream);
+    }
+
+    private static CompletableFuture<Void> consumeRequestBody(AsyncRequestBody requestBody,
+                                                               ByteArrayOutputStream outputStream) {
         CompletableFuture<Void> consumed = new CompletableFuture<>();
-        request.requestBody().subscribe(new Subscriber<ByteBuffer>() {
+        requestBody.subscribe(new Subscriber<ByteBuffer>() {
             @Override
             public void onSubscribe(Subscription subscription) {
                 subscription.request(Long.MAX_VALUE);
