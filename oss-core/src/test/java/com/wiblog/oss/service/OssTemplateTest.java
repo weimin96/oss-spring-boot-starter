@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 class OssTemplateTest {
@@ -32,6 +33,16 @@ class OssTemplateTest {
                     client.serviceClientConfiguration().requestChecksumCalculation());
             assertEquals(ResponseChecksumValidation.WHEN_REQUIRED,
                     client.serviceClientConfiguration().responseChecksumValidation());
+        } finally {
+            client.close();
+        }
+    }
+
+    @Test
+    void singlePartClientDoesNotUseMultipartWrapper() {
+        S3AsyncClient client = OssTemplate.buildSinglePartClient(options());
+        try {
+            assertFalse(client.getClass().getName().contains("MultipartS3AsyncClient"));
         } finally {
             client.close();
         }

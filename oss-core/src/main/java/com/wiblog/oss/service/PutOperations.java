@@ -47,11 +47,14 @@ public class PutOperations extends Operations implements OssPutService {
     private static final int MAX_COPY_PARTS = 10000;
     private static final int MAX_COPY_CONCURRENCY = 8;
     private static final long SINGLE_COPY_MAX_BYTES = 5_000_000_000L;
+    private static final long SINGLE_PUT_MAX_BYTES = 5_000_000_000L;
     private static final long MIN_COPY_PART_SIZE = 5L * 1024 * 1024;
     private static final long MAX_COPY_PART_SIZE = 5L * 1024 * 1024 * 1024;
     private static final long MAX_COPY_OBJECT_BYTES = MAX_COPY_PART_SIZE * MAX_COPY_PARTS;
     private static final long COPY_PART_SIZE_ALIGNMENT = 1024L * 1024;
     private static final String MOVE_STAGING_PREFIX = ".oss-staging/move/";
+
+    private final S3AsyncClient singlePartClient;
 
     /**
      * 创建上传操作门面。
@@ -61,7 +64,21 @@ public class PutOperations extends Operations implements OssPutService {
      * @param transferManager 传输管理器
      */
     public PutOperations(OssClientOptions ossProperties, S3AsyncClient client, S3TransferManager transferManager) {
+        this(ossProperties, client, client, transferManager);
+    }
+
+    /**
+     * 创建同时支持 multipart 与单请求上传的操作门面。
+     *
+     * @param ossProperties    OSS 配置
+     * @param client           multipart 客户端
+     * @param singlePartClient 未启用 multipart 的单请求客户端
+     * @param transferManager  传输管理器
+     */
+    public PutOperations(OssClientOptions ossProperties, S3AsyncClient client,
+                         S3AsyncClient singlePartClient, S3TransferManager transferManager) {
         super(ossProperties, client, transferManager);
+        this.singlePartClient = singlePartClient == null ? client : singlePartClient;
     }
 
     // ----------------------------------------------------------------
@@ -190,33 +207,49 @@ public class PutOperations extends Operations implements OssPutService {
                     .collect(Collectors.toList());
             requestBuilder.tagging(Tagging.builder().tagSet(tags).build());
         }
-        if (!Util.isBlank(command.checksumSha256())) {
+        // 预计算的是完整对象 SHA-256，不能随自动 multipart 上传作为 full-object checksum 发送。
+        if (command.contentLength() != null
+                && command.contentLength() <= (long) ossProperties.getMultipartThresholdInMb() * 1024 * 1024
+                && !Util.isBlank(command.checksumSha256())) {
             requestBuilder.checksumSHA256(command.checksumSha256());
         }
         if (command.createOnly()) {
             requestBuilder.ifNoneMatch("*");
         }
-        UploadRequest uploadReq = UploadRequest.builder()
-                .requestBody(body)
-                .putObjectRequest(requestBuilder.build())
-                .build();
-
+        PutObjectRequest putRequest = requestBuilder.build();
         long fileSize;
         PutObjectResponse response;
-        Upload upload;
         try {
-            upload = transferManager.upload(uploadReq);
-            try {
-                fileSize = body.writeInputStream(command.input());
-            } catch (RuntimeException streamFailure) {
-                body.cancel();
-                throw resolveUploadFailure(upload, streamFailure);
+            if (shouldUseSinglePartUpload(command)) {
+                CompletableFuture<PutObjectResponse> completion = singlePartClient.putObject(putRequest, body);
+                try {
+                    fileSize = body.writeInputStream(command.input());
+                } catch (RuntimeException streamFailure) {
+                    body.cancel();
+                    throw resolveCompletionFailure(completion, streamFailure);
+                }
+                response = completion.join();
+                if (response == null) {
+                    throw new OssException("OBJECT_UPLOAD_FAILED", "上传响应为空：" + key);
+                }
+            } else {
+                UploadRequest uploadReq = UploadRequest.builder()
+                        .requestBody(body)
+                        .putObjectRequest(putRequest)
+                        .build();
+                Upload upload = transferManager.upload(uploadReq);
+                try {
+                    fileSize = body.writeInputStream(command.input());
+                } catch (RuntimeException streamFailure) {
+                    body.cancel();
+                    throw resolveUploadFailure(upload, streamFailure);
+                }
+                CompletedUpload completedUpload = upload.completionFuture().join();
+                if (completedUpload == null || completedUpload.response() == null) {
+                    throw new OssException("OBJECT_UPLOAD_FAILED", "上传响应为空：" + key);
+                }
+                response = completedUpload.response();
             }
-            CompletedUpload completedUpload = upload.completionFuture().join();
-            if (completedUpload == null || completedUpload.response() == null) {
-                throw new OssException("OBJECT_UPLOAD_FAILED", "上传响应为空：" + key);
-            }
-            response = completedUpload.response();
         } catch (RuntimeException e) {
             body.cancel();
             if (e instanceof OssException) {
@@ -230,9 +263,22 @@ public class PutOperations extends Operations implements OssPutService {
                 response.versionId(), response.checksumSHA256());
     }
 
+    private boolean shouldUseSinglePartUpload(PutObjectCommand command) {
+        // 预计算 checksum 的上传绕过 TransferManager，避免兼容服务将 full-object checksum
+        // 重新解释为 multipart checksum；超过单请求上限时仍回退到无预计算 checksum 的 multipart。
+        return !Util.isBlank(command.checksumSha256())
+                && command.contentLength() != null
+                && command.contentLength() <= SINGLE_PUT_MAX_BYTES;
+    }
+
     private RuntimeException resolveUploadFailure(Upload upload, RuntimeException streamFailure) {
+        return resolveCompletionFailure(upload.completionFuture(), streamFailure);
+    }
+
+    private RuntimeException resolveCompletionFailure(
+            CompletableFuture<?> completion, RuntimeException streamFailure) {
         try {
-            upload.completionFuture().join();
+            completion.join();
             return streamFailure;
         } catch (RuntimeException completionFailure) {
             Throwable cause = unwrapAsyncFailure(completionFailure);

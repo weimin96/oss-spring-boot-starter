@@ -12,6 +12,7 @@ import software.amazon.awssdk.core.client.config.ClientOverrideConfiguration;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
+import software.amazon.awssdk.services.s3.S3AsyncClientBuilder;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.services.s3.multipart.MultipartConfiguration;
 import software.amazon.awssdk.transfer.s3.S3TransferManager;
@@ -32,6 +33,7 @@ public class OssTemplate {
 
     // volatile 保证 stop/restart 场景下多线程可见性。
     private volatile S3AsyncClient client;
+    private volatile S3AsyncClient singlePartClient;
     private volatile S3TransferManager transferManager;
     private volatile PutOperations putOperations;
     private volatile QueryOperations queryOperations;
@@ -65,17 +67,21 @@ public class OssTemplate {
      * 部分组件仍引用旧客户端的竞态状态。</p>
      */
     public synchronized void start() {
-        if (this.client != null || this.transferManager != null || this.presignOperations != null) {
+        if (this.client != null || this.singlePartClient != null
+                || this.transferManager != null || this.presignOperations != null) {
             stop();
         }
 
         S3AsyncClient newClient = buildClient(ossProperties);
+        S3AsyncClient newSinglePartClient = null;
         S3TransferManager newTransferManager = null;
         PresignOperations newPresignOperations = null;
         try {
+            newSinglePartClient = buildSinglePartClient(ossProperties);
             newTransferManager = S3TransferManager.builder().s3Client(newClient).build();
             ensureBucketExists(newClient);
-            PutOperations newPutOperations = new PutOperations(ossProperties, newClient, newTransferManager);
+            PutOperations newPutOperations = new PutOperations(
+                    ossProperties, newClient, newSinglePartClient, newTransferManager);
             QueryOperations newQueryOperations = new QueryOperations(ossProperties, newClient, newTransferManager);
             DeleteOperations newDeleteOperations = new DeleteOperations(ossProperties, newClient, newTransferManager);
             StreamUnzipOperations newStreamUnzipOperations =
@@ -85,6 +91,7 @@ public class OssTemplate {
             BucketOperations newBucketOperations = new BucketOperations(ossProperties, newClient, newTransferManager);
 
             this.client = newClient;
+            this.singlePartClient = newSinglePartClient;
             this.transferManager = newTransferManager;
             this.putOperations = newPutOperations;
             this.queryOperations = newQueryOperations;
@@ -95,7 +102,7 @@ public class OssTemplate {
             this.bucketOperations = newBucketOperations;
         } catch (RuntimeException exception) {
             try {
-                closeAll(newPresignOperations, newTransferManager, newClient);
+                closeAll(newPresignOperations, newTransferManager, newSinglePartClient, newClient);
             } catch (RuntimeException closeException) {
                 exception.addSuppressed(closeException);
             }
@@ -114,9 +121,11 @@ public class OssTemplate {
     public synchronized void stop() {
         PresignOperations currentPresignOperations = this.presignOperations;
         S3TransferManager currentTransferManager = this.transferManager;
+        S3AsyncClient currentSinglePartClient = this.singlePartClient;
         S3AsyncClient currentClient = this.client;
         this.presignOperations = null;
         this.transferManager = null;
+        this.singlePartClient = null;
         this.client = null;
         this.putOperations = null;
         this.queryOperations = null;
@@ -124,7 +133,7 @@ public class OssTemplate {
         this.streamUnzipOperations = null;
         this.taggingOperations = null;
         this.bucketOperations = null;
-        closeAll(currentPresignOperations, currentTransferManager, currentClient);
+        closeAll(currentPresignOperations, currentTransferManager, currentSinglePartClient, currentClient);
         log.info("OSS client closed");
     }
 
@@ -237,13 +246,21 @@ public class OssTemplate {
     // ----------------------------------------------------------------
 
     static S3AsyncClient buildClient(OssClientOptions ossProperties) {
+        return buildClient(ossProperties, true);
+    }
+
+    static S3AsyncClient buildSinglePartClient(OssClientOptions ossProperties) {
+        return buildClient(ossProperties, false);
+    }
+
+    private static S3AsyncClient buildClient(OssClientOptions ossProperties, boolean multipartEnabled) {
         validateClientOptions(ossProperties);
         StaticCredentialsProvider credentials = StaticCredentialsProvider.create(
                 AwsBasicCredentials.create(ossProperties.getAccessKey(), ossProperties.getSecretKey()));
         long partSizeInBytes = (long) ossProperties.getPartSizeInMb() * 1024 * 1024;
         long multipartThresholdInBytes = (long) ossProperties.getMultipartThresholdInMb() * 1024 * 1024;
 
-        return S3AsyncClient.builder()
+        S3AsyncClientBuilder builder = S3AsyncClient.builder()
                 .credentialsProvider(credentials)
                 .endpointOverride(URI.create(ossProperties.getEndpoint()))
                 .region(Region.US_EAST_1)
@@ -254,12 +271,17 @@ public class OssTemplate {
                 .overrideConfiguration(ClientOverrideConfiguration.builder()
                         .apiCallTimeout(Duration.ofMillis(ossProperties.getApiCallTimeout()))
                         .apiCallAttemptTimeout(Duration.ofMillis(ossProperties.getApiCallAttemptTimeout()))
-                        .build())
-                .multipartEnabled(true)
-                .multipartConfiguration(MultipartConfiguration.builder()
-                        .thresholdInBytes(multipartThresholdInBytes)
-                        .minimumPartSizeInBytes(partSizeInBytes)
-                        .build())
+                        .build());
+        if (multipartEnabled) {
+            builder.multipartEnabled(true)
+                    .multipartConfiguration(MultipartConfiguration.builder()
+                            .thresholdInBytes(multipartThresholdInBytes)
+                            .minimumPartSizeInBytes(partSizeInBytes)
+                            .build());
+        } else {
+            builder.multipartEnabled(false);
+        }
+        return builder
                 .requestChecksumCalculation(RequestChecksumCalculation.WHEN_REQUIRED)
                 .responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED)
                 .build();
