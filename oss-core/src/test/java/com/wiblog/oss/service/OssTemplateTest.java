@@ -58,6 +58,14 @@ class OssTemplateTest {
     }
 
     @Test
+    void invalidConnectionAcquisitionTimeoutIsRejectedBeforeClientCreation() {
+        OssClientOptions options = options();
+        options.setConnectionAcquisitionTimeout(0L);
+
+        assertThrows(IllegalArgumentException.class, () -> OssTemplate.buildClient(options));
+    }
+
+    @Test
     void partSizeAboveS3LimitIsRejectedBeforeClientCreation() {
         OssClientOptions options = options();
         options.setPartSizeInMb(5121);

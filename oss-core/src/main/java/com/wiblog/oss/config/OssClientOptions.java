@@ -27,6 +27,7 @@ public class OssClientOptions {
     private String type;
     private int maxConnections = 50;
     private long connectionTimeout = 10_000;
+    private long connectionAcquisitionTimeout = 10_000;
     private long apiCallTimeout = 600_000;
     private long apiCallAttemptTimeout = 120_000;
     private int multipartThresholdInMb = 10;

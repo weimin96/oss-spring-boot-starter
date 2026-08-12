@@ -52,6 +52,7 @@ class OssProperties3Test {
         properties.setSecretKey(null);
         properties.setMaxConnections(0);
         properties.setConnectionTimeout(0L);
+        properties.setConnectionAcquisitionTimeout(0L);
         properties.setApiCallTimeout(1_000L);
         properties.setApiCallAttemptTimeout(2_000L);
         properties.setMultipartThresholdInMb(4);
@@ -67,6 +68,7 @@ class OssProperties3Test {
                 "oss.secret-key 不能为空",
                 "oss.max-connections 最小为 1",
                 "oss.connection-timeout 最小为 1ms",
+                "oss.connection-acquisition-timeout 最小为 1ms",
                 "oss.api-call-attempt-timeout 不能大于 oss.api-call-timeout",
                 "oss.multipart-threshold-in-mb 最小为 5MB",
                 "oss.part-size-in-mb 最小为 5MB");
@@ -95,6 +97,7 @@ class OssProperties3Test {
 
         assertThat(properties.getMaxConnections()).isEqualTo(50);
         assertThat(properties.getConnectionTimeout()).isEqualTo(10_000L);
+        assertThat(properties.getConnectionAcquisitionTimeout()).isEqualTo(10_000L);
         assertThat(properties.getApiCallTimeout()).isEqualTo(600_000L);
         assertThat(properties.getApiCallAttemptTimeout()).isEqualTo(120_000L);
         assertThat(properties.getMultipartThresholdInMb()).isEqualTo(10);
@@ -111,6 +114,7 @@ class OssProperties3Test {
     void clientPropertiesMapToOptions() {
         OssProperties3 properties = new OssProperties3();
         properties.setConnectionTimeout(2_000L);
+        properties.setConnectionAcquisitionTimeout(45_000L);
         properties.setMaxConnections(80);
         properties.setApiCallTimeout(300_000L);
         properties.setApiCallAttemptTimeout(60_000L);
@@ -120,6 +124,7 @@ class OssProperties3Test {
         OssClientOptions options = properties.toOptions();
 
         assertThat(options.getConnectionTimeout()).isEqualTo(2_000L);
+        assertThat(options.getConnectionAcquisitionTimeout()).isEqualTo(45_000L);
         assertThat(options.getMaxConnections()).isEqualTo(80);
         assertThat(options.getApiCallTimeout()).isEqualTo(300_000L);
         assertThat(options.getApiCallAttemptTimeout()).isEqualTo(60_000L);

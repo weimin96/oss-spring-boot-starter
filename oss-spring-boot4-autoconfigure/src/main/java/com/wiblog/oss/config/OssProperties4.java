@@ -53,6 +53,9 @@ public class OssProperties4 {
     @Min(value = 1, message = "oss.connection-timeout 最小为 1ms")
     private long connectionTimeout = 10_000;
 
+    @Min(value = 1, message = "oss.connection-acquisition-timeout 最小为 1ms")
+    private long connectionAcquisitionTimeout = 10_000;
+
     @Min(value = 1, message = "oss.api-call-timeout 最小为 1ms")
     private long apiCallTimeout = 600_000;
 
@@ -88,6 +91,7 @@ public class OssProperties4 {
         options.setType(type);
         options.setMaxConnections(maxConnections);
         options.setConnectionTimeout(connectionTimeout);
+        options.setConnectionAcquisitionTimeout(connectionAcquisitionTimeout);
         options.setApiCallTimeout(apiCallTimeout);
         options.setApiCallAttemptTimeout(apiCallAttemptTimeout);
         options.setMultipartThresholdInMb(multipartThresholdInMb);

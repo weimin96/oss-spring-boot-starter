@@ -77,7 +77,7 @@ Spring Boot 3 基础 Java API 示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-starter</artifactId>
-    <version>3.3.2</version>
+    <version>3.3.3</version>
 </dependency>
 ```
 
@@ -87,7 +87,7 @@ Spring Boot 3 内置 REST 接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-web-starter</artifactId>
-    <version>3.3.2</version>
+    <version>3.3.3</version>
 </dependency>
 ```
 
@@ -97,7 +97,7 @@ Spring Boot 3 OpenAPI 注解接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot3-openapi-starter</artifactId>
-    <version>3.3.2</version>
+    <version>3.3.3</version>
 </dependency>
 ```
 
@@ -107,7 +107,7 @@ Spring Boot 4 基础 Java API 示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot4-starter</artifactId>
-    <version>3.3.2</version>
+    <version>3.3.3</version>
 </dependency>
 ```
 
@@ -117,7 +117,7 @@ Spring Boot 4 内置 REST 接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot4-web-starter</artifactId>
-    <version>3.3.2</version>
+    <version>3.3.3</version>
 </dependency>
 ```
 
@@ -127,7 +127,7 @@ Spring Boot 4 OpenAPI 注解接口示例：
 <dependency>
     <groupId>io.github.weimin96</groupId>
     <artifactId>oss-spring-boot4-openapi-starter</artifactId>
-    <version>3.3.2</version>
+    <version>3.3.3</version>
 </dependency>
 ```
 
@@ -158,6 +158,7 @@ oss:
   type: minio
   max-connections: 50
   connection-timeout: 10000
+  connection-acquisition-timeout: 10000
   api-call-timeout: 600000
   api-call-attempt-timeout: 120000
   multipart-threshold-in-mb: 10
@@ -197,6 +198,7 @@ spring:
 | `oss.type`               | String  | 无       | 存储类型，常用值为 `minio`、`cos`、`obs`   |
 | `oss.max-connections`    | int     | `50`    | 最大连接数；分片服务端复制并发度取该值与 8 的较小值 |
 | `oss.connection-timeout` | long    | `10000` | 连接超时时间，单位毫秒                     |
+| `oss.connection-acquisition-timeout` | long | `10000` | 从连接池获取连接的最大等待时间，单位毫秒 |
 | `oss.api-call-timeout` | long | `600000` | 单次 API 调用总超时时间，单位毫秒 |
 | `oss.api-call-attempt-timeout` | long | `120000` | 单次 API 尝试超时时间，单位毫秒，不能超过调用总超时 |
 | `oss.multipart-threshold-in-mb` | int | `10` | 启用 multipart 的对象大小阈值，最小值为 5 MB |
