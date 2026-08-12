@@ -267,6 +267,8 @@ public class OssTemplate {
                 .forcePathStyle(shouldForcePathStyle(ossProperties))
                 .httpClientBuilder(NettyNioAsyncHttpClient.builder()
                         .connectionTimeout(Duration.ofMillis(ossProperties.getConnectionTimeout()))
+                        .connectionAcquisitionTimeout(Duration.ofMillis(
+                                ossProperties.getConnectionAcquisitionTimeout()))
                         .maxConcurrency(ossProperties.getMaxConnections()))
                 .overrideConfiguration(ClientOverrideConfiguration.builder()
                         .apiCallTimeout(Duration.ofMillis(ossProperties.getApiCallTimeout()))
@@ -290,6 +292,9 @@ public class OssTemplate {
     private static void validateClientOptions(OssClientOptions ossProperties) {
         if (ossProperties.getConnectionTimeout() <= 0) {
             throw new IllegalArgumentException("connectionTimeout 必须大于 0");
+        }
+        if (ossProperties.getConnectionAcquisitionTimeout() <= 0) {
+            throw new IllegalArgumentException("connectionAcquisitionTimeout 必须大于 0");
         }
         if (ossProperties.getMaxConnections() <= 0) {
             throw new IllegalArgumentException("maxConnections 必须大于 0");
